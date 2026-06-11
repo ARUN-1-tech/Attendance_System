@@ -1,0 +1,57 @@
+{% extends 'base.html' %}
+
+{% block page_title %}Department Classes{% endblock %}
+
+{% block content %}
+<div class="glass-panel" style="padding: 24px;">
+    <div style="margin-bottom: 20px;">
+        <a href="{% url 'hod_dashboard' %}" style="text-decoration: none; display: inline-flex; align-items: center; gap: 5px; margin-bottom: 15px; color: var(--text-secondary); font-weight: 500;">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 12H5M12 19l-7-7 7-7"/></svg>
+            Back to Dashboard
+        </a>
+        <div style="display: flex; justify-content: space-between; align-items: center;">
+            <h3>All Classes</h3>
+            <a href="{% url 'add_class' %}" class="btn btn-success">Add Class</a>
+        </div>
+    </div>
+    
+    <div class="table-container">
+        <table class="table">
+            <thead>
+                <tr>
+                    <th>Class Name</th>
+                    <th>Year</th>
+                    <th>Section</th>
+                    <th>Tutor 1</th>
+                    <th>Tutor 2</th>
+                    <th>Tutor 3 / Advisor</th>
+                    <th>Actions</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for c in classes %}
+                <tr>
+                    <td style="font-weight: 600;">{{ c.name }}</td>
+                    <td>Year {{ c.year }}</td>
+                    <td>{{ c.section }}</td>
+                    <td>{% if c.tutor1 %}{{ c.tutor1.first_name }} {{ c.tutor1.last_name }} ({{ c.tutor1.username }}){% else %}-{% endif %}</td>
+                    <td>{% if c.tutor2 %}{{ c.tutor2.first_name }} {{ c.tutor2.last_name }} ({{ c.tutor2.username }}){% else %}-{% endif %}</td>
+                    <td>{% if c.tutor3 %}{{ c.tutor3.first_name }} {{ c.tutor3.last_name }} ({{ c.tutor3.username }}){% else %}-{% endif %}</td>
+                    <td>
+                        <a href="{% url 'edit_class' c.id %}" class="btn" style="background-color: var(--card-bg); color: var(--text-primary); border: 1px solid var(--border-color); padding: 4px 10px; font-size: 0.8rem; margin-right: 5px;">Edit</a>
+                        <form method="POST" action="{% url 'delete_class' c.id %}" style="display:inline;">
+                            {% csrf_token %}
+                            <button type="submit" class="btn" style="background-color: var(--danger, #e74c3c); color: white; border: none; padding: 4px 10px; font-size: 0.8rem;" onclick="return confirm('Are you sure you want to delete this class?');">Delete</button>
+                        </form>
+                    </td>
+                </tr>
+                {% empty %}
+                <tr>
+                    <td colspan="7" style="text-align: center;">No classes found in your department.</td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+{% endblock %}

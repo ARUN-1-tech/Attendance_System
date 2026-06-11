@@ -1,0 +1,44 @@
+{% extends 'base.html' %}
+
+{% block page_title %}{{ page_title }}{% endblock %}
+
+{% block content %}
+<div class="glass-panel" style="padding: 24px;">
+    <div style="margin-bottom: 20px;">
+        <a href="{% url 'hod_dashboard' %}" style="text-decoration: none; display: inline-flex; align-items: center; gap: 5px; margin-bottom: 15px; color: var(--text-secondary); font-weight: 500;">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 12H5M12 19l-7-7 7-7"/></svg>
+            Back to Dashboard
+        </a>
+        <div style="display: flex; justify-content: space-between; align-items: center;">
+            <h3>{{ page_title }}</h3>
+        </div>
+    </div>
+    
+    <div class="table-container">
+        <table class="table">
+            <thead>
+                <tr>
+                    <th>Username</th>
+                    <th>Name</th>
+                    <th>Email</th>
+                    <th>Class</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for student in students %}
+                <tr>
+                    <td>{{ student.user.username }}</td>
+                    <td>{{ student.user.first_name }} {{ student.user.last_name }}</td>
+                    <td>{{ student.user.email }}</td>
+                    <td>{{ student.student_class.name }} - {{ student.student_class.year }} - {{ student.student_class.section }}</td>
+                </tr>
+                {% empty %}
+                <tr>
+                    <td colspan="4" style="text-align: center;">No students found in this category.</td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+{% endblock %}

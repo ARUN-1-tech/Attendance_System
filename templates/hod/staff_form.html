@@ -1,0 +1,77 @@
+{% extends 'base.html' %}
+
+{% block page_title %}{% if staff %}Edit Staff{% else %}Add Staff{% endif %}{% endblock %}
+
+{% block content %}
+<div class="glass-panel" style="padding: 24px; max-width: 600px; margin: 0 auto;">
+    <div style="margin-bottom: 20px;">
+        <a href="{% url 'hod_dashboard' %}" style="text-decoration: none; display: inline-flex; align-items: center; gap: 5px; margin-bottom: 15px; color: var(--text-secondary); font-weight: 500;">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 12H5M12 19l-7-7 7-7"/></svg>
+            Back to Dashboard
+        </a>
+        <h3 style="margin-bottom: 0;">{% if staff %}Edit{% else %}Add{% endif %} Staff</h3>
+    </div>
+    
+    <form method="POST">
+        {% csrf_token %}
+        <div style="margin-bottom: 16px;">
+            <label style="display: block; margin-bottom: 6px;">Username *</label>
+            <input type="text" name="username" class="form-control" value="{{ staff.user.username|default:'' }}" required>
+        </div>
+        
+        <div style="margin-bottom: 16px;">
+            <label style="display: block; margin-bottom: 6px;">Email *</label>
+            <input type="email" name="email" class="form-control" value="{{ staff.user.email|default:'' }}" required>
+        </div>
+        
+        <div style="margin-bottom: 16px; display: flex; gap: 16px;">
+            <div style="flex: 1;">
+                <label style="display: block; margin-bottom: 6px;">First Name</label>
+                <input type="text" name="first_name" class="form-control" value="{{ staff.user.first_name|default:'' }}">
+            </div>
+            <div style="flex: 1;">
+                <label style="display: block; margin-bottom: 6px;">Last Name</label>
+                <input type="text" name="last_name" class="form-control" value="{{ staff.user.last_name|default:'' }}">
+            </div>
+        </div>
+        
+        <div style="margin-bottom: 16px; display: flex; gap: 16px;">
+            <div style="flex: 1;">
+                <label style="display: block; margin-bottom: 6px;">Date of Birth (DOB)</label>
+                <input type="date" name="dob" class="form-control" value="{{ staff.user.dob|date:'Y-m-d'|default:'' }}">
+            </div>
+            <div style="flex: 1;">
+                <label style="display: block; margin-bottom: 6px;">Phone Number</label>
+                <input type="text" name="phone_number" class="form-control" value="{{ staff.user.phone_number|default:'' }}">
+            </div>
+        </div>
+
+        <div style="margin-bottom: 16px; display: flex; gap: 16px;">
+            <div style="flex: 1;">
+                <label style="display: block; margin-bottom: 6px;">Staff ID</label>
+                <input type="text" name="staff_id" class="form-control" value="{{ staff.staff_id|default:'' }}">
+            </div>
+            <div style="flex: 1;">
+                <label style="display: block; margin-bottom: 6px;">Designation</label>
+                <input type="text" name="designation" class="form-control" value="{{ staff.designation|default:'' }}">
+            </div>
+        </div>
+        
+        <div style="margin-bottom: 24px;">
+            <label style="display: block; margin-bottom: 6px;">Staff Type *</label>
+            <select name="staff_type" class="form-control" required style="width: 100%; padding: 10px;">
+                <option value="Normal" {% if staff.staff_type == 'Normal' %}selected{% endif %}>Normal</option>
+                <option value="Tutor" {% if staff.staff_type == 'Tutor' %}selected{% endif %}>Tutor</option>
+                <option value="Advisor" {% if staff.staff_type == 'Advisor' %}selected{% endif %}>Advisor</option>
+            </select>
+        </div>
+
+        <div style="margin-bottom: 24px;">
+            <label style="display: block; margin-bottom: 6px;">Password {% if not staff %}*{% endif %}</label>
+            <input type="password" name="password" class="form-control" placeholder="{% if staff %}Leave blank to keep same{% else %}Enter password{% endif %}" {% if not staff %}required{% endif %}>
+        </div>
+        
+        <button type="submit" class="btn btn-primary" style="width: 100%;">Save Staff</button>
+    </form>
+</div>
+{% endblock %}

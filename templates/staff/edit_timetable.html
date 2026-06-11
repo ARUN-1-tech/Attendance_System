@@ -1,0 +1,108 @@
+{% extends 'base.html' %}
+{% block page_title %}Edit Timetable{% endblock %}
+
+{% block content %}
+<div class="glass-panel" style="padding: 24px; margin-bottom: 24px;">
+    <h3 style="margin-bottom: 20px;">Edit Department Timetable</h3>
+    <form method="GET" action="{% url 'edit_timetable' %}" style="display: flex; gap: 15px; margin-bottom: 20px;">
+        <select name="class_id" class="form-control" onchange="this.form.submit()" style="max-width: 300px;">
+            <option value="">-- Select Class --</option>
+            {% for c in classes %}
+            <option value="{{ c.id }}" {% if selected_class_id == c.id %}selected{% endif %}>{{ c.name }} - {{ c.year }} - {{ c.section }}</option>
+            {% endfor %}
+        </select>
+    </form>
+    
+    {% if selected_class_id %}
+    <form method="POST" action="{% url 'edit_timetable' %}" class="glass-panel" style="padding: 16px; margin-bottom: 20px; background: rgba(0,0,0,0.1);">
+        {% csrf_token %}
+        <input type="hidden" name="action" value="add">
+        <input type="hidden" name="class_id" value="{{ selected_class_id }}">
+        
+        <h4 style="margin-bottom: 15px;">Add/Update Subject Session</h4>
+        <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 15px; align-items: end;">
+            <div>
+                <label style="display: block; margin-bottom: 5px; font-size: 0.9rem;">Day</label>
+                <select name="day" class="form-control" required>
+                    <option value="">-- Day --</option>
+                    {% for d in days %}
+                    <option value="{{ d }}">{{ d }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div>
+                <label style="display: block; margin-bottom: 5px; font-size: 0.9rem;">Period (1-7)</label>
+                <select name="period" class="form-control" required>
+                    <option value="">-- Period --</option>
+                    {% for i in '1234567'|make_list %}
+                    <option value="{{ i }}">{{ i }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div>
+                <label style="display: block; margin-bottom: 5px; font-size: 0.9rem;">Subject</label>
+                <select name="subject_id" class="form-control" required>
+                    <option value="">-- Subject --</option>
+                    {% for s in subjects %}
+                    <option value="{{ s.id }}">{{ s.name }} ({{ s.code }})</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div>
+                <button type="submit" class="btn btn-success" style="height: 100%; width: 100%;">Set Session</button>
+            </div>
+        </div>
+    </form>
+    
+    <div class="table-wrapper">
+        <table class="table" style="text-align: center;">
+            <thead>
+                <tr>
+                    <th>Day</th>
+                    {% for i in '1234567'|make_list %}
+                    <th>Per {{ i }}</th>
+                    {% endfor %}
+                </tr>
+            </thead>
+            <tbody>
+                {% for d in days %}
+                <tr>
+                    <td style="font-weight: bold; color: var(--text-secondary);">{{ d }}</td>
+                    {% for p in '1234567'|make_list %}
+                        {% with p_int=p|add:"0" %}
+                            {% for period, schedule in matrix.items %}
+                                {% if period == d %}
+                                    {% for mp, msch in schedule.items %}
+                                        {% if mp|stringformat:"i" == p %}
+                                            <td>
+                                                {% if msch %}
+                                                    <div style="background: rgba(46, 204, 113, 0.1); padding: 5px; border-radius: 4px; font-size: 0.85rem;">
+                                                        <div style="font-weight: 500;">{{ msch.subject.code }}</div>
+                                                        <form method="POST" action="{% url 'edit_timetable' %}" style="margin-top: 5px;">
+                                                            {% csrf_token %}
+                                                            <input type="hidden" name="action" value="delete">
+                                                            <input type="hidden" name="schedule_id" value="{{ msch.id }}">
+                                                            <input type="hidden" name="class_id" value="{{ selected_class_id }}">
+                                                            <button type="submit" class="btn btn-danger" style="padding: 2px 5px; font-size: 0.7rem;">Delete</button>
+                                                        </form>
+                                                    </div>
+                                                {% else %}
+                                                    <div style="color: var(--text-muted); font-size: 0.85rem;">Free</div>
+                                                {% endif %}
+                                            </td>
+                                        {% endif %}
+                                    {% endfor %}
+                                {% endif %}
+                            {% endfor %}
+                        {% endwith %}
+                    {% endfor %}
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+    {% else %}
+    <p style="color: var(--text-muted);">Please select a class to edit its timetable.</p>
+    {% endif %}
+</div>
+{% endblock %}

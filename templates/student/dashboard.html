@@ -1,0 +1,60 @@
+{% extends 'base.html' %}
+{% block page_title %}Student Dashboard{% endblock %}
+
+{% block content %}
+<div class="dashboard-grid">
+    <div class="stat-card glass-panel">
+        <h3>Current Status</h3>
+        <div class="value" style="font-size: 1.5rem">Up to date</div>
+    </div>
+    <div class="stat-card glass-panel">
+        <h3>Mark Attendance</h3>
+        <form method="POST" action="{% url 'verify_otp' %}" id="student-otp-form" style="display: flex; gap: 10px; margin-top: 10px;">
+            {% csrf_token %}
+            <input type="hidden" name="latitude" id="student-lat">
+            <input type="hidden" name="longitude" id="student-lng">
+            
+            <input type="text" name="otp_code" class="form-control" placeholder="6-digit OTP" maxlength="6" required
+                style="flex: 1;">
+            <button type="submit" class="btn btn-primary" id="student-submit-btn">Submit</button>
+        </form>
+        
+        <script>
+        document.getElementById('student-otp-form').addEventListener('submit', function(e) {
+            e.preventDefault();
+            var btn = document.getElementById('student-submit-btn');
+            btn.innerText = 'Verifying...';
+            btn.disabled = true;
+            
+            if (navigator.geolocation) {
+                navigator.geolocation.getCurrentPosition(function(position) {
+                    document.getElementById('student-lat').value = position.coords.latitude;
+                    document.getElementById('student-lng').value = position.coords.longitude;
+                    document.getElementById('student-otp-form').submit();
+                }, function(error) {
+                    alert("Location access is required to mark attendance.");
+                    btn.innerText = 'Submit';
+                    btn.disabled = false;
+                }, { timeout: 10000 });
+            } else {
+                alert("Geolocation is not supported by this browser.");
+                btn.innerText = 'Submit';
+                btn.disabled = false;
+            }
+        });
+        </script>
+    </div>
+</div>
+
+<div class="dashboard-grid" style="margin-bottom: 24px;">
+    <a href="{% url 'leave_od_status' %}" class="stat-card glass-panel" style="text-decoration: none; color: inherit; display: block; grid-column: span 1;">
+        <h3 style="margin-bottom: 10px;">Leave / OD Hub</h3>
+        <p style="color: var(--text-muted); font-size: 0.9rem;">Apply for leave or OD and track your request status.</p>
+    </a>
+    
+    <a href="{% url 'student_attendance_stats' request.user.username %}" class="stat-card glass-panel" style="text-decoration: none; color: inherit; display: block; grid-column: span 1;">
+        <h3 style="margin-bottom: 10px;">Attendance Details</h3>
+        <p style="color: var(--text-muted); font-size: 0.9rem;">View your total present, absent, OD, and overall percentage.</p>
+    </a>
+</div>
+{% endblock %}

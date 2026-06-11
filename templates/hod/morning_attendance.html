@@ -1,0 +1,57 @@
+{% extends 'base.html' %}
+{% block page_title %}Morning Attendance (1st Period){% endblock %}
+
+{% block content %}
+<div class="glass-panel" style="padding: 24px;">
+    <h3 style="margin-bottom: 20px;">Morning Attendance Report</h3>
+    <p style="color: var(--text-muted); font-size: 0.9rem; margin-bottom: 20px;">
+        1st-period attendance for all classes in your department, grouped by date.
+    </p>
+
+    <div class="table-wrapper">
+        <table style="width: 100%; text-align: left; border-collapse: collapse;">
+            <thead>
+                <tr style="border-bottom: 1px solid rgba(255,255,255,0.1);">
+                    <th style="padding: 12px; color: var(--text-secondary);">Date</th>
+                    <th style="padding: 12px; color: var(--text-secondary);">Class</th>
+                    <th style="padding: 12px; color: var(--text-secondary); text-align: center;">Total Students</th>
+                    <th style="padding: 12px; color: var(--success); text-align: center;">Present</th>
+                    <th style="padding: 12px; color: var(--danger); text-align: center;">Absent</th>
+                    <th style="padding: 12px; color: var(--info); text-align: center;">OD</th>
+                    <th style="padding: 12px; color: var(--text-secondary);">Class Advisor</th>
+                    <th style="padding: 12px; color: var(--text-secondary); text-align: center;">Action</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for row in grouped_data %}
+                <tr style="border-bottom: 1px solid rgba(255,255,255,0.05); transition: background 0.2s;">
+                    <td style="padding: 12px; font-weight: 500;">{{ row.date|date:"d-m-Y" }}</td>
+                    <td style="padding: 12px;">{{ row.student__student_class__name }} - {{ row.student__student_class__year }} ({{ row.student__student_class__section }})</td>
+                    <td style="padding: 12px; text-align: center; font-weight: bold;">{{ row.total_students }}</td>
+                    <td style="padding: 12px; text-align: center; color: var(--success);">{{ row.present_count }}</td>
+                    <td style="padding: 12px; text-align: center; color: var(--danger);">{{ row.absent_count }}</td>
+                    <td style="padding: 12px; text-align: center; color: var(--info);">{{ row.od_count }}</td>
+                    <td style="padding: 12px;">
+                        {% if row.student__student_class__advisor__user__first_name %}
+                            {{ row.student__student_class__advisor__user__first_name }} {{ row.student__student_class__advisor__user__last_name }}
+                        {% else %}
+                            <span style="color: var(--text-muted);">-</span>
+                        {% endif %}
+                    </td>
+                    <td style="padding: 12px; text-align: center;">
+                        <a href="{% url 'hod_morning_attendance' %}?action=download&class_id={{ row.student__student_class__id }}&date={{ row.date|date:'Y-m-d' }}" 
+                           class="btn btn-sm btn-primary" style="padding: 6px 12px; font-size: 0.8rem; background: var(--primary);">
+                            <i class="fas fa-download"></i> Download
+                        </a>
+                    </td>
+                </tr>
+                {% empty %}
+                <tr>
+                    <td colspan="8" style="padding: 20px; text-align: center; color: var(--text-muted);">No 1st period attendance records found.</td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+{% endblock %}

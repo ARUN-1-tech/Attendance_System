@@ -1,0 +1,24 @@
+{% extends 'base.html' %}
+{% block page_title %}Admin Dashboard{% endblock %}
+
+{% block content %}
+<div class="dashboard-grid">
+    <div class="stat-card glass-panel">
+        <h3>Total Departments</h3>
+        <div class="value">6</div>
+    </div>
+    <div class="stat-card glass-panel">
+        <h3>Total Users</h3>
+        <div class="value">845</div>
+    </div>
+    <div class="stat-card glass-panel">
+        <h3>System Health</h3>
+        <div class="value" style="color: var(--success); font-size: 1.5rem; margin-top: 10px;">Optimal</div>
+    </div>
+</div>
+
+<div class="glass-panel" style="padding: 24px;">
+    <h3 style="margin-bottom: 20px;">System Controls</h3>
+    <p style="color: var(--text-muted);">Configure departments, add HODs, and manage the attendance system.</p>
+</div>
+{% endblock %}

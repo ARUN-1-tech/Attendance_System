@@ -1,0 +1,66 @@
+{% extends 'base.html' %}
+
+{% block page_title %}{% if class_obj %}Edit Class{% else %}Create Class{% endif %}{% endblock %}
+
+{% block content %}
+<div class="glass-panel" style="padding: 24px; max-width: 600px; margin: 0 auto;">
+    <div style="margin-bottom: 20px;">
+        <a href="{% url 'hod_classes' %}" style="text-decoration: none; display: inline-flex; align-items: center; gap: 5px; margin-bottom: 15px; color: var(--text-secondary); font-weight: 500;">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 12H5M12 19l-7-7 7-7"/></svg>
+            Back to Classes
+        </a>
+        <h3 style="margin-bottom: 0;">{% if class_obj %}Edit{% else %}Create{% endif %} Class</h3>
+    </div>
+    
+    <form method="POST">
+        {% csrf_token %}
+        <div style="margin-bottom: 16px;">
+            <label style="display: block; margin-bottom: 6px;">Class Name (with Section) *</label>
+            <input type="text" name="name" class="form-control" value="{{ class_obj.name|default:'' }}" placeholder="e.g. B.Tech CS" required>
+        </div>
+        
+        <div style="margin-bottom: 16px; display: flex; gap: 16px;">
+            <div style="flex: 1;">
+                <label style="display: block; margin-bottom: 6px;">Academic Year *</label>
+                <input type="number" name="year" class="form-control" value="{{ class_obj.year|default:'' }}" placeholder="e.g. 3" required>
+            </div>
+            <div style="flex: 1;">
+                <label style="display: block; margin-bottom: 6px;">Section *</label>
+                <input type="text" name="section" class="form-control" value="{{ class_obj.section|default:'' }}" placeholder="e.g. A" required>
+            </div>
+        </div>
+        
+        <div style="margin-bottom: 16px;">
+            <label style="display: block; margin-bottom: 6px;">Tutor 1</label>
+            <select name="tutor1_id" class="form-control" style="width: 100%; padding: 10px;">
+                <option value="">-- Select Tutor 1 --</option>
+                {% for staff in dept_staff %}
+                <option value="{{ staff.id }}" {% if class_obj.tutor1.id == staff.id %}selected{% endif %}>{{ staff.first_name }} {{ staff.last_name }} ({{ staff.username }})</option>
+                {% endfor %}
+            </select>
+        </div>
+
+        <div style="margin-bottom: 16px;">
+            <label style="display: block; margin-bottom: 6px;">Tutor 2</label>
+            <select name="tutor2_id" class="form-control" style="width: 100%; padding: 10px;">
+                <option value="">-- Select Tutor 2 --</option>
+                {% for staff in dept_staff %}
+                <option value="{{ staff.id }}" {% if class_obj.tutor2.id == staff.id %}selected{% endif %}>{{ staff.first_name }} {{ staff.last_name }} ({{ staff.username }})</option>
+                {% endfor %}
+            </select>
+        </div>
+
+        <div style="margin-bottom: 24px;">
+            <label style="display: block; margin-bottom: 6px;">Tutor 3 (Will also act as Advisor)</label>
+            <select name="tutor3_id" class="form-control" style="width: 100%; padding: 10px;">
+                <option value="">-- Select Tutor 3 --</option>
+                {% for staff in dept_staff %}
+                <option value="{{ staff.id }}" {% if class_obj.tutor3.id == staff.id %}selected{% endif %}>{{ staff.first_name }} {{ staff.last_name }} ({{ staff.username }})</option>
+                {% endfor %}
+            </select>
+        </div>
+        
+        <button type="submit" class="btn btn-primary" style="width: 100%;">Save Class</button>
+    </form>
+</div>
+{% endblock %}

@@ -1,0 +1,100 @@
+{% extends 'base.html' %}
+
+{% block page_title %}HOD Profile{% endblock %}
+
+{% block content %}
+<div class="glass-panel" style="padding: 24px; max-width: 600px; margin: 0 auto;">
+    <div style="margin-bottom: 20px;">
+        <a href="{% url 'hod_dashboard' %}" style="text-decoration: none; display: inline-flex; align-items: center; gap: 5px; margin-bottom: 15px; color: var(--text-secondary); font-weight: 500;">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 12H5M12 19l-7-7 7-7"/></svg>
+            Back to Dashboard
+        </a>
+        <h3 style="margin-bottom: 0;">My Profile</h3>
+    </div>
+    
+    {% if request.GET.edit %}
+    <form method="POST">
+        {% csrf_token %}
+        <div style="margin-bottom: 16px; display: flex; gap: 16px;">
+            <div style="flex: 1;">
+                <label style="display: block; margin-bottom: 6px; color: var(--text-secondary);">Username</label>
+                <div style="padding: 10px; background: rgba(255, 255, 255, 0.05); border-radius: 8px; border: 1px solid rgba(255, 255, 255, 0.1);">{{ profile_user.username }}</div>
+            </div>
+            <div style="flex: 1;">
+                <label style="display: block; margin-bottom: 6px; color: var(--text-secondary);">Department</label>
+                <div style="padding: 10px; background: rgba(255, 255, 255, 0.05); border-radius: 8px; border: 1px solid rgba(255, 255, 255, 0.1);">{{ profile_user.department.name|default:'N/A' }}</div>
+            </div>
+        </div>
+
+        <div style="margin-bottom: 16px;">
+            <label style="display: block; margin-bottom: 6px;">Email</label>
+            <input type="email" name="email" class="form-control" value="{{ profile_user.email|default:'' }}" required>
+        </div>
+        
+        <div style="margin-bottom: 16px; display: flex; gap: 16px;">
+            <div style="flex: 1;">
+                <label style="display: block; margin-bottom: 6px;">First Name</label>
+                <input type="text" name="first_name" class="form-control" value="{{ profile_user.first_name|default:'' }}">
+            </div>
+            <div style="flex: 1;">
+                <label style="display: block; margin-bottom: 6px;">Last Name</label>
+                <input type="text" name="last_name" class="form-control" value="{{ profile_user.last_name|default:'' }}">
+            </div>
+        </div>
+
+        <div style="margin-bottom: 24px; display: flex; gap: 16px;">
+            <div style="flex: 1;">
+                <label style="display: block; margin-bottom: 6px;">Phone Number</label>
+                <input type="text" name="phone_number" class="form-control" value="{{ profile_user.phone_number|default:'' }}">
+            </div>
+            <div style="flex: 1;">
+                <label style="display: block; margin-bottom: 6px;">Age</label>
+                <input type="number" name="age" class="form-control" value="{{ profile_user.age|default:'' }}" min="1">
+            </div>
+        </div>
+        
+        <button type="submit" class="btn btn-primary" style="width: 100%;">Save Profile</button>
+    </form>
+    {% else %}
+    <div style="margin-bottom: 16px; display: flex; gap: 16px;">
+        <div style="flex: 1;">
+            <label style="display: block; margin-bottom: 6px; color: var(--text-secondary);">Username</label>
+            <div style="padding: 10px; background: rgba(255, 255, 255, 0.05); border-radius: 8px; border: 1px solid rgba(255, 255, 255, 0.1);">{{ profile_user.username }}</div>
+        </div>
+        <div style="flex: 1;">
+            <label style="display: block; margin-bottom: 6px; color: var(--text-secondary);">Department</label>
+            <div style="padding: 10px; background: rgba(255, 255, 255, 0.05); border-radius: 8px; border: 1px solid rgba(255, 255, 255, 0.1);">{{ profile_user.department.name|default:'N/A' }}</div>
+        </div>
+    </div>
+
+    <div style="margin-bottom: 16px;">
+        <label style="display: block; margin-bottom: 6px; color: var(--text-secondary);">Email</label>
+        <div style="padding: 10px; background: rgba(255, 255, 255, 0.05); border-radius: 8px; border: 1px solid rgba(255, 255, 255, 0.1);">{{ profile_user.email|default:'N/A' }}</div>
+    </div>
+    
+    <div style="margin-bottom: 16px; display: flex; gap: 16px;">
+        <div style="flex: 1;">
+            <label style="display: block; margin-bottom: 6px; color: var(--text-secondary);">First Name</label>
+            <div style="padding: 10px; background: rgba(255, 255, 255, 0.05); border-radius: 8px; border: 1px solid rgba(255, 255, 255, 0.1);">{{ profile_user.first_name|default:'N/A' }}</div>
+        </div>
+        <div style="flex: 1;">
+            <label style="display: block; margin-bottom: 6px; color: var(--text-secondary);">Last Name</label>
+            <div style="padding: 10px; background: rgba(255, 255, 255, 0.05); border-radius: 8px; border: 1px solid rgba(255, 255, 255, 0.1);">{{ profile_user.last_name|default:'N/A' }}</div>
+        </div>
+    </div>
+
+    <div style="margin-bottom: 24px; display: flex; gap: 16px;">
+        <div style="flex: 1;">
+            <label style="display: block; margin-bottom: 6px; color: var(--text-secondary);">Phone Number</label>
+            <div style="padding: 10px; background: rgba(255, 255, 255, 0.05); border-radius: 8px; border: 1px solid rgba(255, 255, 255, 0.1);">{{ profile_user.phone_number|default:'N/A' }}</div>
+        </div>
+        <div style="flex: 1;">
+            <label style="display: block; margin-bottom: 6px; color: var(--text-secondary);">Age</label>
+            <div style="padding: 10px; background: rgba(255, 255, 255, 0.05); border-radius: 8px; border: 1px solid rgba(255, 255, 255, 0.1);">{{ profile_user.age|default:'N/A' }}</div>
+        </div>
+    </div>
+    
+    <a href="?edit=True" class="btn btn-primary" style="width: 100%; display: block; text-align: center; text-decoration: none;">Edit Profile</a>
+    {% endif %}
+</div>
+{% endblock %}

@@ -1,0 +1,57 @@
+{% extends 'base.html' %}
+{% block page_title %}My Timetable{% endblock %}
+
+{% block content %}
+<div class="glass-panel" style="padding: 24px; margin-bottom: 24px;">
+    <div style="margin-bottom: 20px;">
+        <a href="{% url 'student_dashboard' %}" style="text-decoration: none; display: inline-flex; align-items: center; gap: 5px; color: var(--text-secondary); font-weight: 500;">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 12H5M12 19l-7-7 7-7"/></svg>
+            Back to Dashboard
+        </a>
+    </div>
+
+    <h3 style="margin-bottom: 20px;">Class Schedule: {{ student_class.name }} - {{ student_class.year }} - {{ student_class.section }}</h3>
+    
+    <div class="table-wrapper">
+        <table class="table" style="text-align: center;">
+            <thead>
+                <tr>
+                    <th>Day</th>
+                    {% for i in '1234567'|make_list %}
+                    <th>Period {{ i }}</th>
+                    {% endfor %}
+                </tr>
+            </thead>
+            <tbody>
+                {% for d in days %}
+                <tr>
+                    <td style="font-weight: bold; color: var(--text-secondary);">{{ d }}</td>
+                    {% for p in '1234567'|make_list %}
+                        {% with p_int=p|add:"0" %}
+                            {% for period, schedule in matrix.items %}
+                                {% if period == d %}
+                                    {% for mp, msch in schedule.items %}
+                                        {% if mp|stringformat:"i" == p %}
+                                            <td>
+                                                {% if msch %}
+                                                    <div style="background: rgba(46, 204, 113, 0.1); padding: 8px; border-radius: 4px; font-size: 0.85rem;">
+                                                        <div style="font-weight: 600;">{{ msch.subject.name }}</div>
+                                                        <div style="font-size: 0.75rem; color: var(--text-muted);">{{ msch.subject.code }}</div>
+                                                    </div>
+                                                {% else %}
+                                                    <div style="color: var(--text-muted); font-size: 0.85rem;">Free</div>
+                                                {% endif %}
+                                            </td>
+                                        {% endif %}
+                                    {% endfor %}
+                                {% endif %}
+                            {% endfor %}
+                        {% endwith %}
+                    {% endfor %}
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+{% endblock %}

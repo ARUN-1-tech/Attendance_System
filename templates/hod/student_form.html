@@ -1,0 +1,78 @@
+{% extends 'base.html' %}
+
+{% block page_title %}{% if student %}Edit Student{% else %}Add Student{% endif %}{% endblock %}
+
+{% block content %}
+<div class="glass-panel" style="padding: 24px; max-width: 600px; margin: 0 auto;">
+    <div style="margin-bottom: 20px;">
+        <a href="{% url 'hod_dashboard' %}" style="text-decoration: none; display: inline-flex; align-items: center; gap: 5px; margin-bottom: 15px; color: var(--text-secondary); font-weight: 500;">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 12H5M12 19l-7-7 7-7"/></svg>
+            Back to Dashboard
+        </a>
+        <h3 style="margin-bottom: 0;">{% if student %}Edit{% else %}Add{% endif %} Student</h3>
+    </div>
+    
+    <form method="POST">
+        {% csrf_token %}
+        <div style="margin-bottom: 16px;">
+            <label style="display: block; margin-bottom: 6px;">Username *</label>
+            <input type="text" name="username" class="form-control" value="{{ student.user.username|default:'' }}" required>
+        </div>
+        
+        <div style="margin-bottom: 16px;">
+            <label style="display: block; margin-bottom: 6px;">Email *</label>
+            <input type="email" name="email" class="form-control" value="{{ student.user.email|default:'' }}" required>
+        </div>
+        
+        <div style="margin-bottom: 16px; display: flex; gap: 16px;">
+            <div style="flex: 1;">
+                <label style="display: block; margin-bottom: 6px;">First Name</label>
+                <input type="text" name="first_name" class="form-control" value="{{ student.user.first_name|default:'' }}">
+            </div>
+            <div style="flex: 1;">
+                <label style="display: block; margin-bottom: 6px;">Last Name</label>
+                <input type="text" name="last_name" class="form-control" value="{{ student.user.last_name|default:'' }}">
+            </div>
+        </div>
+        
+        <div style="margin-bottom: 16px; display: flex; gap: 16px;">
+            <div style="flex: 1;">
+                <label style="display: block; margin-bottom: 6px;">Date of Birth (DOB)</label>
+                <input type="date" name="dob" class="form-control" value="{{ student.user.dob|date:'Y-m-d'|default:'' }}">
+            </div>
+            <div style="flex: 1;">
+                <label style="display: block; margin-bottom: 6px;">Phone Number</label>
+                <input type="text" name="phone_number" class="form-control" value="{{ student.user.phone_number|default:'' }}">
+            </div>
+        </div>
+
+        <div style="margin-bottom: 16px; display: flex; gap: 16px;">
+            <div style="flex: 1;">
+                <label style="display: block; margin-bottom: 6px;">Roll Number</label>
+                <input type="text" name="roll_no" class="form-control" value="{{ student.roll_no|default:'' }}">
+            </div>
+            <div style="flex: 1;">
+                <label style="display: block; margin-bottom: 6px;">Registration Number</label>
+                <input type="text" name="reg_no" class="form-control" value="{{ student.reg_no|default:'' }}">
+            </div>
+        </div>
+        
+        <div style="margin-bottom: 16px;">
+            <label style="display: block; margin-bottom: 6px;">Class *</label>
+            <select name="class_id" class="form-control" required style="width: 100%; padding: 10px;">
+                <option value="">-- Select Class --</option>
+                {% for c in classes %}
+                <option value="{{ c.id }}" {% if student.student_class.id == c.id %}selected{% endif %}>{{ c.name }} - {{ c.year }} - {{ c.section }}</option>
+                {% endfor %}
+            </select>
+        </div>
+        
+        <div style="margin-bottom: 24px;">
+            <label style="display: block; margin-bottom: 6px;">Password {% if not student %}*{% endif %}</label>
+            <input type="password" name="password" class="form-control" placeholder="{% if student %}Leave blank to keep same{% else %}Enter password{% endif %}" {% if not student %}required{% endif %}>
+        </div>
+        
+        <button type="submit" class="btn btn-primary" style="width: 100%;">Save Student</button>
+    </form>
+</div>
+{% endblock %}

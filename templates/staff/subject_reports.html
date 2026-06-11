@@ -1,0 +1,53 @@
+{% extends 'base.html' %}
+{% block page_title %}Subject Attendance Reports{% endblock %}
+
+{% block content %}
+<div class="glass-panel" style="padding: 24px;">
+    <h3 style="margin-bottom: 20px;">Subject Session History</h3>
+    <p style="color: var(--text-muted); font-size: 0.9rem; margin-bottom: 20px;">
+        Recent attendance sessions conducted. You can download the attendance list for any specific period.
+    </p>
+
+    <div class="table-wrapper">
+        <table style="width: 100%; text-align: left; border-collapse: collapse;">
+            <thead>
+                <tr style="border-bottom: 1px solid rgba(255,255,255,0.1);">
+                    <th style="padding: 12px; color: var(--text-secondary);">Date</th>
+                    <th style="padding: 12px; color: var(--text-secondary);">Class</th>
+                    <th style="padding: 12px; color: var(--text-secondary);">Subject</th>
+                    <th style="padding: 12px; color: var(--text-secondary); text-align: center;">Period</th>
+                    <th style="padding: 12px; color: var(--text-secondary); text-align: center;">Total</th>
+                    <th style="padding: 12px; color: var(--success); text-align: center;">Present</th>
+                    <th style="padding: 12px; color: var(--danger); text-align: center;">Absent</th>
+                    <th style="padding: 12px; color: var(--info); text-align: center;">OD</th>
+                    <th style="padding: 12px; color: var(--text-secondary); text-align: center;">Action</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for row in grouped_data %}
+                <tr style="border-bottom: 1px solid rgba(255,255,255,0.05); transition: background 0.2s;">
+                    <td style="padding: 12px; font-weight: 500;">{{ row.date|date:"d-m-Y" }}</td>
+                    <td style="padding: 12px;">{{ row.schedule__student_class__name }} - {{ row.schedule__student_class__year }} ({{ row.schedule__student_class__section }})</td>
+                    <td style="padding: 12px;">{{ row.schedule__subject__name }} <span style="color: var(--text-muted); font-size: 0.8rem;">({{ row.schedule__subject__code }})</span></td>
+                    <td style="padding: 12px; text-align: center;">{{ row.schedule__period }}</td>
+                    <td style="padding: 12px; text-align: center; font-weight: bold;">{{ row.total_students }}</td>
+                    <td style="padding: 12px; text-align: center; color: var(--success);">{{ row.present_count }}</td>
+                    <td style="padding: 12px; text-align: center; color: var(--danger);">{{ row.absent_count }}</td>
+                    <td style="padding: 12px; text-align: center; color: var(--info);">{{ row.od_count }}</td>
+                    <td style="padding: 12px; text-align: center;">
+                        <a href="{% url 'staff_subject_reports' %}?action=download&class_id={{ row.schedule__student_class__id }}&subject={{ row.schedule__subject__name|urlencode }}&period={{ row.schedule__period }}&date={{ row.date|date:'Y-m-d' }}" 
+                           class="btn btn-sm btn-primary" style="padding: 6px 12px; font-size: 0.8rem; background: var(--primary);">
+                            <i class="fas fa-download"></i> Download
+                        </a>
+                    </td>
+                </tr>
+                {% empty %}
+                <tr>
+                    <td colspan="9" style="padding: 20px; text-align: center; color: var(--text-muted);">No attendance records found.</td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+{% endblock %}

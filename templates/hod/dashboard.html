@@ -1,0 +1,36 @@
+{% extends 'base.html' %}
+{% block page_title %}HOD Dashboard{% endblock %}
+
+{% block content %}
+<div class="dashboard-grid">
+    <a href="{% url 'hod_morning_attendance' %}" class="stat-card glass-panel" style="text-decoration: none; color: inherit; display: block; grid-column: span 2;">
+        <h3>Morning Reports</h3>
+        <div class="value" style="font-size: 1.2rem; margin-top: 10px;">Download 1st Period Attendance</div>
+    </a>
+    <a href="{% url 'hod_students' %}" class="stat-card glass-panel" style="text-decoration: none; color: inherit; display: block;">
+        <h3>Dept. Students</h3>
+        <div class="value">{{ total_students }}</div>
+    </a>
+    <a href="{% url 'hod_staff' %}" class="stat-card glass-panel" style="text-decoration: none; color: inherit; display: block;">
+        <h3>Dept. Staff</h3>
+        <div class="value">{{ total_staff }}</div>
+    </a>
+    <a href="{% url 'hod_approvals' %}" class="stat-card glass-panel" style="text-decoration: none; color: inherit; display: block;">
+        <h3>Approvals</h3>
+        <div class="value" style="color: var(--warning, #f1c40f)">{{ pending_leave_approvals|add:pending_od_approvals }}</div>
+    </a>
+    <a href="{% url 'hod_present_students' %}" class="stat-card glass-panel" style="text-decoration: none; color: inherit; display: block;">
+        <h3>Present Students</h3>
+        <div class="value" style="color: var(--success, #2ecc71)">{{ present_students }}</div>
+    </a>
+    <a href="{% url 'hod_absent_students' %}" class="stat-card glass-panel" style="text-decoration: none; color: inherit; display: block;">
+        <h3>Absent Students</h3>
+        <div class="value" style="color: var(--danger, #e74c3c)">{{ absent_students }}</div>
+    </a>
+    <a href="{% url 'hod_od_students' %}" class="stat-card glass-panel" style="text-decoration: none; color: inherit; display: block;">
+        <h3>OD Students</h3>
+        <div class="value" style="color: var(--info, #3498db)">{{ od_students_today }}</div>
+    </a>
+</div>
+
+{% endblock %}

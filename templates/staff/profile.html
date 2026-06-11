@@ -1,0 +1,50 @@
+{% extends 'base.html' %}
+{% block page_title %}Staff Profile{% endblock %}
+
+{% block content %}
+<div class="glass-panel" style="padding: 24px; max-width: 600px; margin: 0 auto;">
+    <h2 style="margin-bottom: 20px; color: var(--text-primary);">Staff Profile</h2>
+    
+    <form method="POST" action="{% url 'staff_profile' %}">
+        {% csrf_token %}
+        <div style="margin-bottom: 15px;">
+            <label style="display: block; margin-bottom: 5px; color: var(--text-secondary);">Username (Non-editable)</label>
+            <input type="text" class="form-control" value="{{ profile_user.username }}" readonly style="background-color: rgba(255,255,255,0.05);">
+        </div>
+        
+        <div style="margin-bottom: 15px;">
+            <label style="display: block; margin-bottom: 5px; color: var(--text-secondary);">Role (Non-editable)</label>
+            <input type="text" class="form-control" value="{{ profile_user.get_role_display }}" readonly style="background-color: rgba(255,255,255,0.05);">
+        </div>
+        
+        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 15px; margin-bottom: 15px;">
+            <div>
+                <label style="display: block; margin-bottom: 5px; color: var(--text-secondary);">First Name</label>
+                <input type="text" name="first_name" class="form-control" value="{{ profile_user.first_name }}">
+            </div>
+            <div>
+                <label style="display: block; margin-bottom: 5px; color: var(--text-secondary);">Last Name</label>
+                <input type="text" name="last_name" class="form-control" value="{{ profile_user.last_name }}">
+            </div>
+        </div>
+        
+        <div style="margin-bottom: 15px;">
+            <label style="display: block; margin-bottom: 5px; color: var(--text-secondary);">Email</label>
+            <input type="email" name="email" class="form-control" value="{{ profile_user.email }}">
+        </div>
+        
+        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 15px; margin-bottom: 20px;">
+            <div>
+                <label style="display: block; margin-bottom: 5px; color: var(--text-secondary);">Phone Number</label>
+                <input type="text" name="phone_number" class="form-control" value="{{ profile_user.phone_number|default_if_none:'' }}">
+            </div>
+            <div>
+                <label style="display: block; margin-bottom: 5px; color: var(--text-secondary);">Age</label>
+                <input type="number" name="age" class="form-control" value="{{ profile_user.age|default_if_none:'' }}">
+            </div>
+        </div>
+        
+        <button type="submit" class="btn btn-primary" style="width: 100%;">Update Profile</button>
+    </form>
+</div>
+{% endblock %}

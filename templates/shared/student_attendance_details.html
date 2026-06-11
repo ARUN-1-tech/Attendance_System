@@ -1,0 +1,46 @@
+{% extends 'base.html' %}
+{% block page_title %}{{ student_user.first_name }}'s Attendance{% endblock %}
+
+{% block content %}
+<div class="glass-panel" style="padding: 24px; max-width: 800px; margin: 0 auto;">
+    <div style="margin-bottom: 20px;">
+        <!-- generic back button based on referer or role -->
+        <a href="javascript:history.back()" style="text-decoration: none; display: inline-flex; align-items: center; gap: 5px; margin-bottom: 15px; color: var(--text-secondary); font-weight: 500;">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 12H5M12 19l-7-7 7-7"/></svg>
+            Back
+        </a>
+        <h3>Attendance Details: {{ student_user.first_name }} {{ student_user.last_name }}</h3>
+        <p style="color: var(--text-muted); font-size: 0.9rem;">Class: {{ student_class.name }} - {{ student_class.year }} - {{ student_class.section }} | Register No: {{ student_user.username }}</p>
+    </div>
+
+    <div class="dashboard-grid" style="margin-bottom: 24px;">
+        <div class="stat-card glass-panel" style="grid-column: span 2; text-align: center;">
+            <h3 style="margin-bottom: 10px;">Overall Percentage</h3>
+            <div class="value" style="font-size: 3rem; color: {% if percentage >= 75 %}var(--success, #2ecc71){% else %}var(--danger, #e74c3c){% endif %};">
+                {{ percentage }}%
+            </div>
+            <p style="font-size: 0.85rem; color: var(--text-muted);">Calculated as (Present + Verified ODs) / Total Completed Sessions</p>
+        </div>
+        
+        <div class="stat-card glass-panel">
+            <h3>Total Sessions</h3>
+            <div class="value">{{ total }}</div>
+        </div>
+        
+        <div class="stat-card glass-panel">
+            <h3>Present</h3>
+            <div class="value" style="color: var(--success, #2ecc71)">{{ present }}</div>
+        </div>
+        
+        <div class="stat-card glass-panel">
+            <h3>Absent</h3>
+            <div class="value" style="color: var(--danger, #e74c3c)">{{ absent }}</div>
+        </div>
+        
+        <div class="stat-card glass-panel">
+            <h3>OD (Raw / Verified)</h3>
+            <div class="value" style="color: var(--info, #3498db)">{{ od }} / {{ verified_od }}</div>
+        </div>
+    </div>
+</div>
+{% endblock %}

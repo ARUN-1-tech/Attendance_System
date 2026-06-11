@@ -1,0 +1,125 @@
+{% extends 'base.html' %}
+{% block page_title %}Staff Dashboard{% endblock %}
+
+{% block content %}
+<div class="dashboard-grid" style="margin-bottom: 20px;">
+    <a href="{% url 'staff_subject_reports' %}" class="stat-card glass-panel" style="text-decoration: none; color: inherit; display: block; grid-column: span 1;">
+        <h3>Subject Reports</h3>
+        <p style="color: var(--text-muted); font-size: 0.9rem; margin-top: 10px;">Download direct attendance</p>
+    </a>
+    
+    <a href="{% url 'staff_advisor_reports' %}" class="stat-card glass-panel" style="text-decoration: none; color: inherit; display: block; grid-column: span 1;">
+        <h3>Advisor Daily Reports</h3>
+        <p style="color: var(--text-muted); font-size: 0.9rem; margin-top: 10px;">Download class-wise daily attendance</p>
+    </a>
+</div>
+
+<div class="dashboard-grid">
+    <div class="stat-card glass-panel" style="grid-column: span 2;">
+        <h3>Generate OTP for Attendance</h3>
+        <form method="POST" action="{% url 'generate_otp' %}" id="otp-form" style="display: flex; gap: 15px; margin-top: 15px; flex-wrap: wrap;">
+            {% csrf_token %}
+            <input type="hidden" name="latitude" id="staff-lat">
+            <input type="hidden" name="longitude" id="staff-lng">
+            
+            <div style="flex: 1; min-width: 180px;">
+                <label style="display: block; margin-bottom: 5px; font-size: 0.9rem; color: var(--text-secondary);">Department</label>
+                <select name="department_name" id="dept-select" class="form-control" required style="padding: 10px;" onchange="filterClasses()">
+                    <option value="">-- Choose Department --</option>
+                    {% for d in departments %}
+                    <option value="{{ d.id }}" {% if d == request.user.department %}selected{% endif %}>{{ d.name }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+
+            <div style="flex: 1; min-width: 150px;">
+                <label style="display: block; margin-bottom: 5px; font-size: 0.9rem; color: var(--text-secondary);">Class Name</label>
+                <select name="class_name" id="class-select" class="form-control" required style="padding: 10px;">
+                    <option value="">-- Choose Class --</option>
+                </select>
+            </div>
+
+            <div style="flex: 1; min-width: 180px;">
+                <label style="display: block; margin-bottom: 5px; font-size: 0.9rem; color: var(--text-secondary);">Subject</label>
+                <input type="text" name="subject_name" class="form-control" placeholder="e.g. Database Systems" required style="padding: 10px;">
+            </div>
+
+            <div style="flex: 1; min-width: 120px;">
+                <label style="display: block; margin-bottom: 5px; font-size: 0.9rem; color: var(--text-secondary);">Period (1-7)</label>
+                <select name="period" class="form-control" required style="padding: 10px;">
+                    <option value="">-- Period --</option>
+                    <option value="1">1</option>
+                    <option value="2">2</option>
+                    <option value="3">3</option>
+                    <option value="4">4</option>
+                    <option value="5">5</option>
+                    <option value="6">6</option>
+                    <option value="7">7</option>
+                </select>
+            </div>
+
+            <div style="display: flex; align-items: flex-end;">
+                <button type="submit" class="btn btn-success" id="generate-btn" style="height: 44px; padding: 0 24px;">Generate Session</button>
+            </div>
+        </form>
+        
+        <script>
+        var classData = [
+            {% for c in classes %}
+            { id: "{{ c.id }}", name: "{{ c.name }}", year: "{{ c.year }}", section: "{{ c.section }}", dept_id: "{{ c.department.id }}" },
+            {% endfor %}
+        ];
+        
+        function filterClasses() {
+            var deptSelect = document.getElementById('dept-select');
+            var classSelect = document.getElementById('class-select');
+            var selectedDeptId = deptSelect.value;
+            
+            // Clear existing options
+            classSelect.innerHTML = '<option value="">-- Choose Class --</option>';
+            
+            if (selectedDeptId) {
+                var filtered = classData.filter(function(c) {
+                    return c.dept_id === selectedDeptId;
+                });
+                
+                filtered.forEach(function(c) {
+                    var opt = document.createElement('option');
+                    opt.value = c.id;
+                    opt.innerText = c.name + ' - ' + c.year + ' - ' + c.section;
+                    classSelect.appendChild(opt);
+                });
+            }
+        }
+
+        document.getElementById('otp-form').addEventListener('submit', function(e) {
+            e.preventDefault();
+            var btn = document.getElementById('generate-btn');
+            btn.innerText = 'Locating...';
+            btn.disabled = true;
+            
+            if (navigator.geolocation) {
+                navigator.geolocation.getCurrentPosition(function(position) {
+                    document.getElementById('staff-lat').value = position.coords.latitude;
+                    document.getElementById('staff-lng').value = position.coords.longitude;
+                    document.getElementById('otp-form').submit();
+                }, function(error) {
+                    alert("Location access is required to generate a session.");
+                    btn.innerText = 'Generate Session';
+                    btn.disabled = false;
+                }, { timeout: 10000 });
+            } else {
+                alert("Geolocation is not supported by this browser.");
+                btn.innerText = 'Generate Session';
+                btn.disabled = false;
+            }
+        });
+
+        // Trigger filterClasses on page load
+        document.addEventListener('DOMContentLoaded', function() {
+            filterClasses();
+        });
+        </script>
+    </div>
+</div>
+{% endblock %}

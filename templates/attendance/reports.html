@@ -1,0 +1,147 @@
+{% extends 'base.html' %}
+{% block page_title %}Reports{% endblock %}
+{% block content %}
+<div class="glass-panel" style="padding: 24px; max-width: 600px; margin: 0 auto;">
+    <div style="margin-bottom: 20px;">
+        <a href="javascript:history.back()" style="text-decoration: none; display: inline-flex; align-items: center; gap: 5px; margin-bottom: 15px; color: var(--text-secondary); font-weight: 500;">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 12H5M12 19l-7-7 7-7"/></svg>
+            Back
+        </a>
+        <h3 style="margin-bottom: 0;">Download Attendance Report</h3>
+    </div>
+    
+    <form method="POST" action="{% url 'download_report' %}" id="report-form">
+        {% csrf_token %}
+        
+        <div style="margin-bottom: 16px;">
+            <label style="display: block; margin-bottom: 6px;">Report Type *</label>
+            <select name="report_type" id="report_type" class="form-control" required onchange="toggleFields()">
+                {% if request.user.role == 'hod' or request.user.role == 'admin' %}
+                <option value="department">Department</option>
+                {% endif %}
+                {% if request.user.role == 'hod' or request.user.role == 'admin' %}
+                <option value="class">Class</option>
+                <option value="student">Student</option>
+                {% endif %}
+                {% if request.user.role == 'staff' %}
+                    {% if request.user.staff.staff_type == 'Tutor' %}
+                        <option value="tutored">My Tutored Students</option>
+                        <option value="student">Specific Student</option>
+                    {% elif request.user.staff.staff_type == 'Advisor' %}
+                        <option value="class">Class</option>
+                        <option value="tutored">My Tutored Students</option>
+                        <option value="student">Specific Student</option>
+                    {% else %}
+                        <option value="class">Class</option>
+                        <option value="student">Specific Student</option>
+                    {% endif %}
+                {% endif %}
+                {% if request.user.role == 'student' %}
+                <option value="student">My Report</option>
+                {% endif %}
+            </select>
+        </div>
+        
+        <div id="class_field" style="margin-bottom: 16px; display: none;">
+            <label style="display: block; margin-bottom: 6px;">Select Class *</label>
+            <select name="class_id" class="form-control">
+                <option value="">-- Choose Class --</option>
+                {% for c in classes %}
+                <option value="{{ c.id }}">{{ c.name }} - {{ c.year }} - {{ c.section }}</option>
+                {% endfor %}
+            </select>
+        </div>
+        
+        <div id="student_field" style="margin-bottom: 16px; display: none;">
+            <label style="display: block; margin-bottom: 6px;">Select Student *</label>
+            <select name="student_id" class="form-control">
+                <option value="">-- Choose Student --</option>
+                {% for s in students %}
+                <option value="{{ s.user.id }}">{{ s.user.username }} ({{ s.user.first_name }} {{ s.user.last_name }})</option>
+                {% endfor %}
+            </select>
+        </div>
+
+        {% if request.user.role != 'student' %}
+        <div id="subject_field" style="margin-bottom: 16px;">
+            <label style="display: block; margin-bottom: 6px;">Select Subject</label>
+            <select name="subject_id" id="subject_id" class="form-control">
+                <option value="">-- All Subjects --</option>
+                {% for sub in subjects %}
+                <option value="{{ sub.id }}">{{ sub.name }} ({{ sub.code }})</option>
+                {% endfor %}
+            </select>
+        </div>
+        {% endif %}
+
+        <div style="margin-bottom: 16px; display: flex; gap: 16px;">
+            <div style="flex: 1;">
+                <label style="display: block; margin-bottom: 6px;">From Date</label>
+                <input type="date" name="from_date" class="form-control">
+            </div>
+            <div style="flex: 1;">
+                <label style="display: block; margin-bottom: 6px;">To Date</label>
+                <input type="date" name="to_date" class="form-control">
+            </div>
+        </div>
+        
+        <button type="submit" class="btn btn-primary" style="width: 100%;">Download CSV</button>
+    </form>
+</div>
+
+<script>
+function toggleFields() {
+    var type = document.getElementById('report_type').value;
+    var role = "{{ request.user.role }}";
+    
+    document.getElementById('class_field').style.display = 'none';
+    document.getElementById('student_field').style.display = 'none';
+    
+    if (type === 'class') {
+        document.getElementById('class_field').style.display = 'block';
+    } else if (type === 'student' && role !== 'student') {
+        document.getElementById('student_field').style.display = 'block';
+    }
+}
+
+// Trigger on initial load
+document.addEventListener('DOMContentLoaded', function() {
+    toggleFields();
+    
+    var form = document.getElementById('report-form');
+    if (form) {
+        form.addEventListener('submit', function(e) {
+            var role = "{{ request.user.role }}";
+            if (role === 'staff') {
+                var reportType = document.getElementById('report_type').value;
+                var subjectId = document.getElementById('subject_id').value;
+                var myClassesIds = {{ my_classes_ids|default:"[]" }};
+                var myStudentsIds = {{ my_students_ids|default:"[]" }};
+                
+                var isRelated = false;
+                if (reportType === 'class') {
+                    var classSelect = document.querySelector('select[name="class_id"]');
+                    var classId = parseInt(classSelect.value);
+                    if (myClassesIds.includes(classId)) {
+                        isRelated = true;
+                    }
+                } else if (reportType === 'student') {
+                    var studentSelect = document.querySelector('select[name="student_id"]');
+                    var studentId = parseInt(studentSelect.value);
+                    if (myStudentsIds.includes(studentId)) {
+                        isRelated = true;
+                    }
+                } else if (reportType === 'tutored') {
+                    isRelated = true;
+                }
+                
+                if (!isRelated && !subjectId) {
+                    alert('Subject selection is required for this report as you are not the tutor or advisor for this class/student.');
+                    e.preventDefault();
+                }
+            }
+        });
+    }
+});
+</script>
+{% endblock %}
