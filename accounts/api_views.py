@@ -5,6 +5,7 @@ from django.contrib.auth import authenticate, login, logout
 from django.db.models import Q
 from .models import User, Department, Class, Subject, Student, Staff
 from django.views.decorators.csrf import ensure_csrf_cookie
+from django.middleware.csrf import get_token
 from .serializers import (
     UserSerializer, DepartmentSerializer, ClassSerializer, 
     SubjectSerializer, StudentSerializer, StaffSerializer
@@ -40,33 +41,55 @@ def enrich_user_data(user, data):
 def api_login(request):
     username = request.data.get('username')
     password = request.data.get('password')
+
     is_reg_no_login = False
+
     try:
         student = Student.objects.get(reg_no=username)
         username = student.user.username
         is_reg_no_login = True
     except Student.DoesNotExist:
         pass
-        
-    if not is_reg_no_login and User.objects.filter(username=username, role='student').exists():
-        return Response({'detail': 'Students must log in only with registration number.'}, status=status.HTTP_400_BAD_REQUEST)
-        
+
+    if (
+        not is_reg_no_login
+        and User.objects.filter(username=username, role='student').exists()
+    ):
+        return Response(
+            {'detail': 'Students must log in only with registration number.'},
+            status=status.HTTP_400_BAD_REQUEST
+        )
+
     user = authenticate(request, username=username, password=password)
+
     if user is not None:
         login(request, user)
+
+        # Generate CSRF token and attach cookie
+        get_token(request)
+
         serializer = UserSerializer(user)
         user_data = serializer.data
+
         if user.role == 'student' and hasattr(user, 'student'):
             user_data['student_details'] = StudentSerializer(user.student).data
+
         elif user.role in ['staff', 'hod'] and hasattr(user, 'staff'):
             user_data['staff_details'] = StaffSerializer(user.staff).data
-            
+
         user_data = enrich_user_data(user, user_data)
-        return Response({
+
+        response = Response({
             'detail': 'Logged in successfully',
             'user': user_data
         })
-    return Response({'detail': 'Invalid credentials'}, status=status.HTTP_400_BAD_REQUEST)
+
+        return response
+
+    return Response(
+        {'detail': 'Invalid credentials'},
+        status=status.HTTP_400_BAD_REQUEST
+    )
 
 @api_view(['POST', 'GET'])
 @permission_classes([permissions.IsAuthenticated])
