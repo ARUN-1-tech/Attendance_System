@@ -181,9 +181,9 @@ DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 
 # REST Framework settings
 REST_FRAMEWORK = {
-    'DEFAULT_AUTHENTICATION_CLASSES': (
+    'DEFAULT_AUTHENTICATION_CLASSES': [
         'rest_framework.authentication.SessionAuthentication',
-    ),
+    ],
 }
 
 # CORS and CSRF Settings for React Frontend
@@ -211,3 +211,9 @@ CSRF_TRUSTED_ORIGINS = [
 ]
 if frontend_url:
     CSRF_TRUSTED_ORIGINS.append(frontend_url)
+
+SESSION_COOKIE_SAMESITE = "None"
+SESSION_COOKIE_SECURE = True
+
+CSRF_COOKIE_SAMESITE = "None"
+CSRF_COOKIE_SECURE = True
