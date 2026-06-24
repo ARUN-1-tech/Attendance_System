@@ -4,6 +4,7 @@ from rest_framework.response import Response
 from django.contrib.auth import authenticate, login, logout
 from django.db.models import Q
 from .models import User, Department, Class, Subject, Student, Staff
+from django.views.decorators.csrf import ensure_csrf_cookie
 from .serializers import (
     UserSerializer, DepartmentSerializer, ClassSerializer, 
     SubjectSerializer, StudentSerializer, StaffSerializer
@@ -33,6 +34,7 @@ def enrich_user_data(user, data):
             data['active_otp_session'] = None
     return data
 
+@ensure_csrf_cookie
 @api_view(['POST'])
 @permission_classes([permissions.AllowAny])
 def api_login(request):
