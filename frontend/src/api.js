@@ -1,6 +1,6 @@
 // API Client helper for Django backend communication
 
-const API_BASE_URL = 'http://localhost:8000'; // Django server dev port
+const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8000'; // Django server dev port
 
 // Helper to retrieve CSRF token from document.cookie
 function getCookie(name) {

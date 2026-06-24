@@ -6,6 +6,7 @@ import StudentDashboard from './components/StudentDashboard';
 import StaffDashboard from './components/StaffDashboard';
 import HODDashboard from './components/HODDashboard';
 import { Menu } from 'lucide-react';
+import { api } from './api';
 import './App.css';
 
 const MainPortal = () => {
@@ -79,7 +80,7 @@ const MainPortal = () => {
               Welcome back, Administrator. The core configuration database panels are managed directly within the Django Admin administration console.
             </p>
             <a 
-              href="http://localhost:8000/admin/" 
+              href={`${api.baseUrl}/admin/`} 
               target="_blank" 
               rel="noreferrer" 
               className="btn btn-primary"
