@@ -142,15 +142,15 @@ def api_verify_otp(request):
         otp = otp_qs.first()
         now = timezone.now()
         
-        # Check 1 minute validity
-        if now <= otp.created_at + timedelta(minutes=1):
+        # Check 3 minute validity
+        if now <= otp.created_at + timedelta(minutes=3):
             
             # Geofence check if staff provided location
             if otp.staff_latitude and otp.staff_longitude:
                 distance = haversine(student_lng, student_lat, otp.staff_longitude, otp.staff_latitude)
-                if distance > 50.0:
+                if distance > 100.0:
                     return Response({
-                        'detail': f'You are too far from the classroom (Distance: {distance:.1f}m > limit 50m).'
+                        'detail': f'You are too far from the classroom (Distance: {distance:.1f}m > limit 100m).'
                     }, status=status.HTTP_400_BAD_REQUEST)
             
             try:
@@ -221,7 +221,7 @@ def api_session_stats(request, otp_id):
     
     # Calculate time left
     time_elapsed = (timezone.now() - otp.created_at).total_seconds()
-    time_left = max(0, 60 - time_elapsed) # 1 minute validity
+    time_left = max(0, 180 - time_elapsed) # 3 minutes validity
     
     if time_left <= 0 and otp.is_active:
         otp.is_active = False

@@ -8,17 +8,17 @@ from functools import wraps
 
 @login_required
 def dashboard(request):
-    # Check if this user created an active OTP session in the last 1 minute
+    # Check if this user created an active OTP session in the last 3 minutes
     from attendance.models import OTP
     from django.utils import timezone
     from datetime import timedelta
     now = timezone.now()
-    one_minute_ago = now - timedelta(minutes=1)
+    three_minutes_ago = now - timedelta(minutes=3)
     
     active_otp = OTP.objects.filter(
         creator=request.user,
         is_active=True,
-        created_at__gte=one_minute_ago
+        created_at__gte=three_minutes_ago
     ).order_by('-created_at').first()
     
     if active_otp:
@@ -31,7 +31,7 @@ def dashboard(request):
         otp_qs = OTP.objects.filter(id=active_otp_id, is_active=True)
         if otp_qs.exists():
             otp = otp_qs.first()
-            if timezone.now() <= otp.created_at + timedelta(minutes=1):
+            if timezone.now() <= otp.created_at + timedelta(minutes=3):
                 return redirect('active_otp_session', otp_id=otp.id)
         del request.session['active_otp_id']
 

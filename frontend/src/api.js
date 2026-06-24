@@ -57,7 +57,9 @@ async function request(endpoint, options = {}) {
 
     if (!response.ok) {
       const errorMsg = data && data.detail ? data.detail : (data && typeof data === 'object' ? JSON.stringify(data) : response.statusText);
-      throw new Error(errorMsg || `Request failed with status ${response.status}`);
+      const err = new Error(errorMsg || `Request failed with status ${response.status}`);
+      err.status = response.status;
+      throw err;
     }
 
     return data;

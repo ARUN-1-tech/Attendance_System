@@ -966,7 +966,7 @@ const StaffDashboard = ({ activeTab }) => {
                     <div style={{
                       height: '100%',
                       backgroundColor: sessionStats.time_left > 15 ? 'var(--accent-primary)' : 'var(--danger)',
-                      width: `${(sessionStats.time_left / 60) * 100}%`,
+                      width: `${(sessionStats.time_left / 180) * 100}%`,
                       transition: 'width 1s linear, background-color 0.3s'
                     }} />
                   </div>
@@ -1149,8 +1149,8 @@ const StaffDashboard = ({ activeTab }) => {
               <h2 style={{ marginBottom: '16px' }}>Dashboard Guide</h2>
               <ul style={{ paddingLeft: '20px', color: 'var(--text-secondary)', fontSize: '14px', display: 'flex', flexDirection: 'column', gap: '12px' }}>
                 <li>Generates a geofenced verification circle centered around your current coordinates.</li>
-                <li><strong>Timer</strong>: OTP code will be valid for 1 minute. Students must enter the code immediately.</li>
-                <li>Students attempting to mark attendance from outside the 50-meter perimeter will be blocked.</li>
+                <li><strong>Timer</strong>: OTP code will be valid for 3 minutes. Students must enter the code immediately.</li>
+                <li>Students attempting to mark attendance from outside the 100-meter perimeter will be blocked.</li>
               </ul>
             </div>
           </div>

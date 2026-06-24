@@ -8,13 +8,13 @@ def has_active_otp(user):
             student = user.student
             if student.student_class:
                 now = timezone.now()
-                one_minute_ago = now - timedelta(minutes=1)
+                three_minutes_ago = now - timedelta(minutes=3)
                 # Check if there is an active OTP for the student's class
-                # created in the last 1 minute
+                # created in the last 3 minutes
                 return OTP.objects.filter(
                     schedule__student_class=student.student_class,
                     is_active=True,
-                    created_at__gte=one_minute_ago
+                    created_at__gte=three_minutes_ago
                 ).exists()
         except Exception:
             pass

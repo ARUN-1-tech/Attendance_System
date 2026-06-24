@@ -50,14 +50,13 @@ def redirect_based_on_role(request, user):
         from attendance.models import OTP
         from django.utils import timezone
         from datetime import timedelta
-        now = timezone.now()
-        one_minute_ago = now - timedelta(minutes=1)
+        three_minutes_ago = timezone.now() - timedelta(minutes=3)
         
-        # Check if this user created an active OTP session in the last 1 minute
+        # Check if this user created an active OTP session in the last 3 minutes
         active_otp = OTP.objects.filter(
             creator=user,
             is_active=True,
-            created_at__gte=one_minute_ago
+            created_at__gte=three_minutes_ago
         ).order_by('-created_at').first()
         
         if active_otp:
