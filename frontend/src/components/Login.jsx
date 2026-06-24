@@ -62,7 +62,7 @@ const Login = () => {
 
         <form onSubmit={handleSubmit}>
           <div className="form-group">
-            <label className="form-label" htmlFor="username">Username</label>
+            <label className="form-label" htmlFor="username">Username / Register No</label>
             <div style={{ position: 'relative' }}>
               <User size={18} style={{
                 position: 'absolute',
@@ -76,7 +76,7 @@ const Login = () => {
                 type="text"
                 className="input"
                 style={{ paddingLeft: '40px' }}
-                placeholder="e.g. student, staff, hod"
+                placeholder="Staff Username / Student Register No"
                 value={username}
                 onChange={(e) => setUsername(e.target.value)}
                 disabled={submitting}

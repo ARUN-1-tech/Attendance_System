@@ -5,7 +5,8 @@ from accounts.api_views import (
     api_login, api_logout, api_me,
     DepartmentViewSet, ClassViewSet, SubjectViewSet,
     UserViewSet, StudentViewSet, StaffViewSet,
-    api_hod_dashboard_stats, api_hod_morning_attendance
+    api_hod_dashboard_stats, api_hod_morning_attendance,
+    api_advisor_live_attendance
 )
 from timetable.api_views import ScheduleViewSet
 from attendance.api_views import (
@@ -41,6 +42,9 @@ urlpatterns = [
     # HOD Endpoints
     path('hod/dashboard-stats/', api_hod_dashboard_stats, name='api_hod_dashboard_stats'),
     path('hod/morning-attendance/', api_hod_morning_attendance, name='api_hod_morning_attendance'),
+
+    # Staff Advisor Endpoints
+    path('staff/advisor-live/', api_advisor_live_attendance, name='api_advisor_live_attendance'),
 
     # Viewsets router
     path('', include(router.urls)),

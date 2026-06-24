@@ -5,20 +5,35 @@
 <div class="dashboard-grid">
     <div class="stat-card glass-panel">
         <h3>Total Departments</h3>
-        <div class="value">6</div>
+        <div class="value">{{ total_depts }}</div>
     </div>
     <div class="stat-card glass-panel">
-        <h3>Total Users</h3>
-        <div class="value">845</div>
+        <h3>Total HODs</h3>
+        <div class="value">{{ total_hods }}</div>
     </div>
     <div class="stat-card glass-panel">
-        <h3>System Health</h3>
-        <div class="value" style="color: var(--success); font-size: 1.5rem; margin-top: 10px;">Optimal</div>
+        <h3>Total Staff</h3>
+        <div class="value">{{ total_staff }}</div>
+    </div>
+    <div class="stat-card glass-panel">
+        <h3>Total Students</h3>
+        <div class="value">{{ total_students }}</div>
     </div>
 </div>
 
 <div class="glass-panel" style="padding: 24px;">
-    <h3 style="margin-bottom: 20px;">System Controls</h3>
-    <p style="color: var(--text-muted);">Configure departments, add HODs, and manage the attendance system.</p>
+    <h3 style="margin-bottom: 20px;">System Management Controls</h3>
+    <p style="color: var(--text-secondary); margin-bottom: 24px;">Configure departments, add HODs, and manage system database.</p>
+    
+    <div style="display: flex; gap: 16px; flex-wrap: wrap;">
+        <a href="{% url 'admin_departments' %}" class="btn btn-primary" style="display: flex; align-items: center; gap: 8px;">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="9"></rect><rect x="14" y="3" width="7" height="5"></rect><rect x="14" y="12" width="7" height="9"></rect><rect x="3" y="16" width="7" height="5"></rect></svg>
+            Manage Departments
+        </a>
+        <a href="{% url 'admin_hods' %}" class="btn" style="display: flex; align-items: center; gap: 8px;">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"></path><circle cx="9" cy="7" r="4"></circle><path d="M23 21v-2a4 4 0 0 0-3-3.87"></path><path d="M16 3.13a4 4 0 0 1 0 7.75"></path></svg>
+            Manage HODs
+        </a>
+    </div>
 </div>
 {% endblock %}

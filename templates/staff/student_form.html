@@ -1,0 +1,147 @@
+{% extends 'base.html' %}
+
+{% block page_title %}{% if student %}Edit Student{% else %}Add Student{% endif %}{% endblock %}
+
+{% block content %}
+<div class="glass-panel" style="padding: 24px; max-width: 600px; margin: 0 auto;">
+    <div style="margin-bottom: 20px;">
+        <a href="{% url 'staff_students' %}" style="text-decoration: none; display: inline-flex; align-items: center; gap: 5px; margin-bottom: 15px; color: var(--text-secondary); font-weight: 500;">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 12H5M12 19l-7-7 7-7"/></svg>
+            Back to Students
+        </a>
+        <h3 style="margin-bottom: 0;">{% if student %}Edit{% else %}Add{% endif %} Student</h3>
+    </div>
+    
+    <form method="POST">
+        {% csrf_token %}
+        <div style="margin-bottom: 16px; display: flex; gap: 16px;">
+            <div style="flex: 1;">
+                <label style="display: block; margin-bottom: 6px;">Username *</label>
+                <input type="text" name="username" class="form-control" value="{{ student.user.username|default:'' }}" required {% if student %}readonly{% endif %}>
+            </div>
+            <div style="flex: 1;">
+                <label style="display: block; margin-bottom: 6px;">College Mail (Email) *</label>
+                <input type="email" name="email" class="form-control" value="{{ student.user.email|default:'' }}" required>
+            </div>
+        </div>
+        
+        <div style="margin-bottom: 16px; display: flex; gap: 16px;">
+            <div style="flex: 1;">
+                <label style="display: block; margin-bottom: 6px;">Registration Number *</label>
+                <input type="text" name="reg_no" class="form-control" value="{{ student.reg_no|default:'' }}" required>
+            </div>
+            <div style="flex: 1;">
+                <label style="display: block; margin-bottom: 6px;">Roll Number *</label>
+                <input type="text" name="roll_no" class="form-control" value="{{ student.roll_no|default:'' }}" required>
+            </div>
+        </div>
+        
+        <div style="margin-bottom: 16px; display: flex; gap: 16px;">
+            <div style="flex: 1;">
+                <label style="display: block; margin-bottom: 6px;">Age *</label>
+                <input type="number" name="age" class="form-control" value="{{ student.user.age|default:'' }}" required min="1" max="120">
+            </div>
+            <div style="flex: 1;">
+                <label style="display: block; margin-bottom: 6px;">Mobile Number *</label>
+                <input type="text" name="phone_number" class="form-control" value="{{ student.user.phone_number|default:'' }}" required>
+            </div>
+        </div>
+
+        <div style="margin-bottom: 16px;">
+            <label style="display: block; margin-bottom: 6px;">Department (Auto-filled)</label>
+            <input type="text" class="form-control" value="{{ request.user.department.name }}" readonly style="background: rgba(255, 255, 255, 0.05); color: var(--text-secondary);">
+        </div>
+        
+        <div style="margin-bottom: 16px; display: flex; gap: 16px;">
+            <div style="flex: 1;">
+                <label style="display: block; margin-bottom: 6px;">Year *</label>
+                <select id="year-select" class="form-control" style="width: 100%; padding: 10px;" required>
+                    <option value="">-- Select Year --</option>
+                    <option value="1" {% if student.student_class.year == 1 %}selected{% endif %}>1st Year</option>
+                    <option value="2" {% if student.student_class.year == 2 %}selected{% endif %}>2nd Year</option>
+                    <option value="3" {% if student.student_class.year == 3 %}selected{% endif %}>3rd Year</option>
+                    <option value="4" {% if student.student_class.year == 4 %}selected{% endif %}>4th Year</option>
+                </select>
+            </div>
+            
+            <div style="flex: 1;">
+                <label style="display: block; margin-bottom: 6px;">Class *</label>
+                <select name="class_id" id="class-select" class="form-control" required style="width: 100%; padding: 10px;">
+                    <option value="">-- Select Class --</option>
+                    {% for c in classes %}
+                    <option value="{{ c.id }}" data-year="{{ c.year }}" {% if student.student_class.id == c.id %}selected{% endif %}>{{ c.name }} - {{ c.section }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+        </div>
+
+        <div style="margin-bottom: 16px; display: flex; gap: 16px;">
+            <div style="flex: 1;">
+                <label style="display: block; margin-bottom: 6px;">Tutor</label>
+                <select name="tutor_id" class="form-control" style="width: 100%; padding: 10px;">
+                    <option value="">-- Select Tutor --</option>
+                    {% for s in dept_staff %}
+                    <option value="{{ s.id }}" {% if student.tutor.id == s.id %}selected{% endif %}>{{ s.first_name }} {{ s.last_name }} ({{ s.username }})</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div style="flex: 1;">
+                <label style="display: block; margin-bottom: 6px;">Advisor</label>
+                <select name="advisor_id" class="form-control" style="width: 100%; padding: 10px;">
+                    <option value="">-- Select Advisor --</option>
+                    {% for s in dept_staff %}
+                    <option value="{{ s.id }}" {% if student.advisor.id == s.id %}selected{% endif %}>{{ s.first_name }} {{ s.last_name }} ({{ s.username }})</option>
+                    {% endfor %}
+                </select>
+            </div>
+        </div>
+        
+        <div style="margin-bottom: 24px;">
+            <label style="display: block; margin-bottom: 6px;">Password {% if not student %}*{% endif %}</label>
+            <input type="password" name="password" class="form-control" placeholder="{% if student %}Leave blank to keep same{% else %}Enter password{% endif %}" {% if not student %}required{% endif %}>
+        </div>
+        
+        <button type="submit" class="btn btn-primary" style="width: 100%;">Save Student</button>
+    </form>
+</div>
+
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    var yearSelect = document.getElementById('year-select');
+    var classSelect = document.getElementById('class-select');
+    
+    // Store all class options
+    var classOptions = Array.from(classSelect.options);
+    
+    function filterClasses() {
+        var selectedYear = yearSelect.value;
+        var currentlySelectedClassId = "{{ student.student_class.id|default:'' }}";
+        
+        // Clear options
+        classSelect.innerHTML = '<option value="">-- Select Class --</option>';
+        
+        var filteredOptions = classOptions.filter(function(option) {
+            if (option.value === "") return false;
+            return option.getAttribute('data-year') === selectedYear;
+        });
+        
+        filteredOptions.forEach(function(option) {
+            var newOpt = document.createElement('option');
+            newOpt.value = option.value;
+            newOpt.innerText = option.innerText;
+            if (option.value === currentlySelectedClassId) {
+                newOpt.selected = true;
+            }
+            classSelect.appendChild(newOpt);
+        });
+    }
+    
+    yearSelect.addEventListener('change', filterClasses);
+    
+    // Trigger on load if year is pre-selected
+    if (yearSelect.value !== "") {
+        filterClasses();
+    }
+});
+</script>
+{% endblock %}

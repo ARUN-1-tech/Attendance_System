@@ -335,3 +335,61 @@ tr:hover td {
     font-weight: 700;
     color: white;
 }
+
+@media (max-width: 768px) {
+    .mobile-toggle-btn {
+        display: inline-flex !important;
+        align-items: center;
+        justify-content: center;
+    }
+    
+    .sidebar {
+        transform: translateX(-100%);
+        transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+        position: fixed !important;
+        height: 100vh;
+        width: var(--sidebar-w);
+        background: rgba(19, 20, 28, 0.95);
+        backdrop-filter: blur(20px);
+        -webkit-backdrop-filter: blur(20px);
+        box-shadow: 0 8px 32px rgba(0, 0, 0, 0.5);
+    }
+    
+    .sidebar.active {
+        transform: translateX(0);
+    }
+    
+    .main-content {
+        margin-left: 0 !important;
+        padding: 1.5rem 1rem !important;
+    }
+    
+    .header {
+        margin-bottom: 2rem !important;
+        flex-wrap: wrap;
+        gap: 12px;
+    }
+    
+    .header h1 {
+        font-size: 1.6rem !important;
+    }
+    
+    .dashboard-grid {
+        grid-template-columns: 1fr !important;
+    }
+    
+    .grid {
+        display: flex;
+        flex-direction: column;
+    }
+    
+    .user-profile {
+        padding: 0.5rem 1rem !important;
+        font-size: 0.8rem;
+    }
+    
+    .table-container, .table-wrapper {
+        overflow-x: auto;
+        -webkit-overflow-scrolling: touch;
+    }
+}

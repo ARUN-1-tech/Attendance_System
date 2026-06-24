@@ -1,0 +1,88 @@
+{% extends 'base.html' %}
+{% block page_title %}Manage Departments{% endblock %}
+
+{% block content %}
+<div style="display: grid; grid-template-columns: 1fr 2fr; gap: 2rem; align-items: start;">
+    <!-- Add Department Form -->
+    <div class="glass-panel" style="padding: 24px;">
+        <h3 style="margin-bottom: 20px;">Add New Department</h3>
+        <form method="POST" action="{% url 'admin_add_department' %}">
+            {% csrf_token %}
+            <div class="form-group">
+                <label for="name">Department Name</label>
+                <input type="text" id="name" name="name" class="form-control" placeholder="e.g., Computer Science" required>
+            </div>
+            <button type="submit" class="btn btn-primary" style="width: 100%;">Create Department</button>
+        </form>
+    </div>
+
+    <!-- Departments List -->
+    <div class="glass-panel" style="padding: 24px;">
+        <h3 style="margin-bottom: 20px;">Existing Departments</h3>
+        <div class="table-wrapper">
+            <table>
+                <thead>
+                    <tr>
+                        <th style="width: 10%;">ID</th>
+                        <th>Department Name</th>
+                        <th style="width: 30%; text-align: right;">Actions</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for dept in departments %}
+                    <tr>
+                        <td>{{ dept.id }}</td>
+                        <td>
+                            <!-- View Mode -->
+                            <span id="view-name-{{ dept.id }}">{{ dept.name }}</span>
+                            
+                            <!-- Edit Mode Form (Hidden by default) -->
+                            <form id="edit-form-{{ dept.id }}" method="POST" action="{% url 'admin_edit_department' dept.id %}" style="display: none; align-items: center; gap: 8px;">
+                                {% csrf_token %}
+                                <input type="text" name="name" value="{{ dept.name }}" class="form-control" style="padding: 6px 12px; font-size: 0.9rem;" required>
+                                <button type="submit" class="btn btn-success" style="padding: 6px 12px; font-size: 0.85rem;">Save</button>
+                                <button type="button" class="btn" style="padding: 6px 12px; font-size: 0.85rem;" onclick="toggleEdit({{ dept.id }}, false)">Cancel</button>
+                            </form>
+                        </td>
+                        <td style="text-align: right;">
+                            <div style="display: flex; gap: 8px; justify-content: flex-end;" id="actions-{{ dept.id }}">
+                                <button class="btn" style="padding: 6px 12px; font-size: 0.85rem;" onclick="toggleEdit({{ dept.id }}, true)">Edit</button>
+                                <form method="POST" action="{% url 'admin_edit_department' dept.id %}" style="display: inline;" onsubmit="return confirm('Are you sure you want to delete this department? All classes and subjects belonging to it will be affected.');">
+                                    {% csrf_token %}
+                                </form>
+                                <form method="POST" action="{% url 'admin_delete_department' dept.id %}" style="display: inline;" onsubmit="return confirm('Are you sure you want to delete this department?');">
+                                    {% csrf_token %}
+                                    <button type="submit" class="btn btn-danger" style="padding: 6px 12px; font-size: 0.85rem; color: var(--danger) !important; border-color: rgba(244, 63, 94, 0.2);">Delete</button>
+                                </form>
+                            </div>
+                        </td>
+                    </tr>
+                    {% empty %}
+                    <tr>
+                        <td colspan="3" style="text-align: center; color: var(--text-secondary);">No departments found.</td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+
+<script>
+function toggleEdit(id, showEdit) {
+    const viewSpan = document.getElementById(`view-name-${id}`);
+    const editForm = document.getElementById(`edit-form-${id}`);
+    const actionsDiv = document.getElementById(`actions-${id}`);
+    
+    if (showEdit) {
+        viewSpan.style.display = 'none';
+        editForm.style.display = 'flex';
+        actionsDiv.style.display = 'none';
+    } else {
+        viewSpan.style.display = 'inline';
+        editForm.style.display = 'none';
+        actionsDiv.style.display = 'flex';
+    }
+}
+</script>
+{% endblock %}

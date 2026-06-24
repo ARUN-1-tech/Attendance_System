@@ -1,0 +1,98 @@
+{% extends 'base.html' %}
+{% block page_title %}{% if is_edit %}Edit HOD Details{% else %}Add New HOD{% endif %}{% endblock %}
+
+{% block content %}
+<div class="glass-panel" style="max-width: 800px; margin: 0 auto; padding: 32px;">
+    <h3 style="margin-bottom: 24px;">{% if is_edit %}Edit HOD: {{ hod_user.username }}{% else %}Create HOD User Account{% endif %}</h3>
+    
+    <form method="POST" action="{% if is_edit %}{% url 'admin_edit_hod' hod_user.id %}{% else %}{% url 'admin_add_hod' %}{% endif %}">
+        {% csrf_token %}
+        
+        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1.5rem;">
+            <!-- Username -->
+            <div class="form-group">
+                <label for="username">Username</label>
+                {% if is_edit %}
+                <input type="text" id="username" class="form-control" value="{{ hod_user.username }}" disabled style="opacity: 0.6; cursor: not-allowed;">
+                {% else %}
+                <input type="text" id="username" name="username" class="form-control" placeholder="e.g., cse_hod" value="{{ form_data.username|default:'' }}" required>
+                {% endif %}
+            </div>
+
+            <!-- Password -->
+            <div class="form-group">
+                <label for="password">Password {% if is_edit %}(Leave blank to keep unchanged){% endif %}</label>
+                <input type="password" id="password" name="password" class="form-control" placeholder="{% if is_edit %}••••••••{% else %}Enter secure password{% endif %}" {% if not is_edit %}required{% endif %}>
+            </div>
+
+            <!-- First Name -->
+            <div class="form-group">
+                <label for="first_name">First Name</label>
+                <input type="text" id="first_name" name="first_name" class="form-control" placeholder="First Name" value="{% if is_edit %}{{ hod_user.first_name }}{% else %}{{ form_data.first_name|default:'' }}{% endif %}">
+            </div>
+
+            <!-- Last Name -->
+            <div class="form-group">
+                <label for="last_name">Last Name</label>
+                <input type="text" id="last_name" name="last_name" class="form-control" placeholder="Last Name" value="{% if is_edit %}{{ hod_user.last_name }}{% else %}{{ form_data.last_name|default:'' }}{% endif %}">
+            </div>
+
+            <!-- Email -->
+            <div class="form-group">
+                <label for="email">Email Address</label>
+                <input type="email" id="email" name="email" class="form-control" placeholder="name@example.com" value="{% if is_edit %}{{ hod_user.email }}{% else %}{{ form_data.email|default:'' }}{% endif %}">
+            </div>
+
+            <!-- Department Selection -->
+            <div class="form-group">
+                <label for="department">Department</label>
+                <select id="department" name="department" class="form-control" required style="cursor: pointer;">
+                    <option value="" disabled selected>-- Select Department --</option>
+                    {% for dept in departments %}
+                    <option value="{{ dept.id }}" 
+                        {% if is_edit and hod_user.department.id == dept.id %}selected
+                        {% elif form_data.department == dept.id|stringformat:"s" %}selected{% endif %}>
+                        {{ dept.name }}
+                    </option>
+                    {% endfor %}
+                </select>
+            </div>
+
+            <!-- Phone Number -->
+            <div class="form-group">
+                <label for="phone_number">Phone Number</label>
+                <input type="text" id="phone_number" name="phone_number" class="form-control" placeholder="Phone Number" value="{% if is_edit %}{{ hod_user.phone_number|default:'' }}{% else %}{{ form_data.phone_number|default:'' }}{% endif %}">
+            </div>
+
+            <!-- Age -->
+            <div class="form-group">
+                <label for="age">Age</label>
+                <input type="number" id="age" name="age" class="form-control" placeholder="Age" min="18" max="100" value="{% if is_edit %}{{ hod_user.age|default:'' }}{% else %}{{ form_data.age|default:'' }}{% endif %}">
+            </div>
+
+            <!-- Date of Birth -->
+            <div class="form-group">
+                <label for="dob">Date of Birth</label>
+                <input type="date" id="dob" name="dob" class="form-control" value="{% if is_edit %}{{ dob_value }}{% else %}{{ form_data.dob|default:'' }}{% endif %}">
+            </div>
+
+            <!-- Staff ID -->
+            <div class="form-group">
+                <label for="staff_id">Staff ID</label>
+                <input type="text" id="staff_id" name="staff_id" class="form-control" placeholder="e.g., STF-HOD-01" value="{% if is_edit %}{{ staff_profile.staff_id|default:'' }}{% else %}{{ form_data.staff_id|default:'' }}{% endif %}">
+            </div>
+
+            <!-- Designation -->
+            <div class="form-group" style="grid-column: span 2;">
+                <label for="designation">Designation</label>
+                <input type="text" id="designation" name="designation" class="form-control" placeholder="e.g., Head of Department" value="{% if is_edit %}{{ staff_profile.designation|default:'Head of Department' }}{% else %}{{ form_data.designation|default:'Head of Department' }}{% endif %}">
+            </div>
+        </div>
+
+        <div style="display: flex; justify-content: flex-end; gap: 16px; margin-top: 2rem;">
+            <a href="{% url 'admin_hods' %}" class="btn">Cancel</a>
+            <button type="submit" class="btn btn-primary">{% if is_edit %}Save Changes{% else %}Create HOD Account{% endif %}</button>
+        </div>
+    </form>
+</div>
+{% endblock %}

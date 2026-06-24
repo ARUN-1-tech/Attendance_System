@@ -3,10 +3,12 @@ from . import views
 
 urlpatterns = [
     path('dashboard/', views.dashboard, name='hod_dashboard'),
-    path('students/', views.students_list, name='hod_students'),
-    path('students/add/', views.add_student, name='add_student'),
-    path('students/edit/<int:user_id>/', views.edit_student, name='edit_student'),
-    path('students/delete/<int:user_id>/', views.delete_student, name='delete_student'),
+    # path('students/', views.students_list, name='hod_students'),
+    path('classes/<int:class_id>/students/', views.class_students_list, name='hod_class_students'),
+    path('classes/<int:class_id>/students/add/', views.hod_add_student_to_class, name='hod_add_student_to_class'),
+    path('classes/<int:class_id>/students/bulk-add/', views.hod_bulk_add_students_to_class, name='hod_bulk_add_students_to_class'),
+    path('classes/<int:class_id>/students/edit/<int:user_id>/', views.hod_edit_student_in_class, name='hod_edit_student_in_class'),
+    path('classes/<int:class_id>/students/delete/<int:user_id>/', views.hod_delete_student_in_class, name='hod_delete_student_in_class'),
     
     path('staff/', views.staff_list, name='hod_staff'),
     path('staff/add/', views.add_staff, name='add_staff'),

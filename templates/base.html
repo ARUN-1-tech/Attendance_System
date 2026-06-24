@@ -26,25 +26,35 @@
             <li><a href="{% url 'staff_students' %}" class="{% if request.resolver_match.url_name == 'staff_students' %}active{% endif %}">Students</a></li>
             <li><a href="{% url 'staff_approvals' %}" class="{% if request.resolver_match.url_name == 'staff_approvals' %}active{% endif %}">Approvals</a></li>
             {% endif %}
+            {% if request.user.staff.staff_type == 'Advisor' %}
+            <li><a href="{% url 'advisor_live_attendance' %}" class="{% if request.resolver_match.url_name == 'advisor_live_attendance' %}active{% endif %}">Advisor Live Grid</a></li>
+            {% endif %}
+            <li><a href="{% url 'manual_attendance' %}" class="{% if request.resolver_match.url_name == 'manual_attendance' %}active{% endif %}">Manual Attendance</a></li>
             <li><a href="{% url 'download_report' %}">Class Reports</a></li>
             {% elif request.user.role == 'hod' %}
             <li><a href="{% url 'hod_dashboard' %}" class="{% if request.resolver_match.url_name == 'hod_dashboard' %}active{% endif %}">HOD Dash</a></li>
-            <li><a href="{% url 'hod_students' %}" class="{% if request.resolver_match.url_name == 'hod_students' %}active{% endif %}">Students</a></li>
             <li><a href="{% url 'hod_staff' %}" class="{% if request.resolver_match.url_name == 'hod_staff' %}active{% endif %}">Staff</a></li>
             <li><a href="{% url 'hod_classes' %}" class="{% if request.resolver_match.url_name == 'hod_classes' %}active{% endif %}">Classes</a></li>
             <li><a href="{% url 'hod_approvals' %}" class="{% if request.resolver_match.url_name == 'hod_approvals' %}active{% endif %}">Approvals</a></li>
             <li><a href="{% url 'download_report' %}">Dept Reports</a></li>
             {% elif request.user.role == 'admin' %}
-            <li><a href="{% url 'admin_dashboard' %}" class="active">Admin Dash</a></li>
-            <li><a href="{% url 'download_report' %}">All Reports</a></li>
+            <li><a href="{% url 'admin_dashboard' %}" class="{% if request.resolver_match.url_name == 'admin_dashboard' %}active{% endif %}">Admin Dash</a></li>
+            <li><a href="{% url 'admin_departments' %}" class="{% if request.resolver_match.url_name == 'admin_departments' %}active{% endif %}">Departments</a></li>
+            <li><a href="{% url 'admin_hods' %}" class="{% if request.resolver_match.url_name in 'admin_hods,admin_add_hod,admin_edit_hod' %}active{% endif %}">HODs</a></li>
+            <li><a href="{% url 'download_report' %}" class="{% if request.resolver_match.url_name == 'download_report' %}active{% endif %}">All Reports</a></li>
             {% endif %}
+            {% if not hide_logout %}
             <li style="margin-top: auto;"><a href="{% url 'logout' %}" style="color: var(--danger)">Logout</a></li>
+            {% endif %}
         </ul>
     </aside>
 
     <main class="main-content">
         <div class="header">
-            <h1>{% block page_title %}Dashboard{% endblock %}</h1>
+            <button class="mobile-toggle-btn btn" onclick="toggleMobileSidebar()" style="display: none; padding: 6px 12px; margin-right: 12px; height: 38px; align-items: center; justify-content: center; background: rgba(255, 255, 255, 0.05); border: 1px solid var(--border-overlay);">
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="3" y1="12" x2="21" y2="12"></line><line x1="3" y1="6" x2="21" y2="6"></line><line x1="3" y1="18" x2="21" y2="18"></line></svg>
+            </button>
+            <h1 style="display: inline-flex; align-items: center; margin: 0; flex: 1;">{% block page_title %}Dashboard{% endblock %}</h1>
             {% if request.user.role == 'hod' %}
             <a href="{% url 'hod_profile' %}" class="user-profile glass-panel" style="padding: 8px 16px; border-radius: 20px; text-decoration: none; color: inherit; display: flex; align-items: center; gap: 8px;">
                 <span>{% if request.user.first_name %}{{ request.user.first_name }} {{ request.user.last_name }}{% else %}{{ request.user.username }}{% endif %} ({{ request.user.role|title }})</span>
@@ -79,6 +89,21 @@
         {% block content %}
         {% endblock %}
     </main>
+    <script>
+        function toggleMobileSidebar() {
+            var sidebar = document.querySelector('.sidebar');
+            if (sidebar) {
+                sidebar.classList.toggle('active');
+            }
+        }
+        document.addEventListener('click', function(event) {
+            var sidebar = document.querySelector('.sidebar');
+            var toggleBtn = document.querySelector('.mobile-toggle-btn');
+            if (sidebar && sidebar.classList.contains('active') && !sidebar.contains(event.target) && !toggleBtn.contains(event.target)) {
+                sidebar.classList.remove('active');
+            }
+        });
+    </script>
 </body>
 
 </html>

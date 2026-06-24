@@ -1,57 +1,184 @@
 {% extends 'base.html' %}
-{% block page_title %}Morning Attendance (1st Period){% endblock %}
+{% block page_title %}{% if is_grid %}Live Grid: {{ target_class }}{% else %}Live Class Details Monitor{% endif %}{% endblock %}
 
 {% block content %}
-<div class="glass-panel" style="padding: 24px;">
-    <h3 style="margin-bottom: 20px;">Morning Attendance Report</h3>
-    <p style="color: var(--text-muted); font-size: 0.9rem; margin-bottom: 20px;">
-        1st-period attendance for all classes in your department, grouped by date.
-    </p>
+<div class="hod-live-container" style="max-width: 1200px; margin: 0 auto; padding: 20px;">
+    {% if is_grid %}
+    <!-- 1. GRID VIEW -->
+    <!-- Header Panel -->
+    <div class="glass-panel" style="padding: 24px; border-radius: 16px; margin-bottom: 24px; display: flex; justify-content: space-between; align-items: center; background: linear-gradient(135deg, rgba(255, 255, 255, 0.05) 0%, rgba(255, 255, 255, 0.01) 100%);">
+        <div>
+            <span style="font-size: 0.8rem; font-weight: 600; text-transform: uppercase; color: var(--primary); letter-spacing: 2px;">HOD Class Monitor</span>
+            <h2 style="font-size: 1.8rem; font-weight: 700; margin: 6px 0 0 0; color: white;">{{ target_class }}</h2>
+        </div>
+        <div style="text-align: right; display: flex; align-items: center; gap: 12px;">
+            <div style="text-align: right; margin-right: 12px;">
+                <span style="font-size: 0.85rem; color: var(--text-muted); text-transform: uppercase; letter-spacing: 1px;">Date Monitor</span>
+                <div style="font-size: 1.2rem; font-weight: 700; color: white; margin-top: 4px;">{{ date|date:"d-m-Y" }}</div>
+            </div>
+            {% if schedules %}
+            <a href="{% url 'hod_morning_attendance' %}?class_id={{ target_class.id }}&action=download_1st" class="btn btn-secondary" style="padding: 10px 16px; font-weight: 600; text-decoration: none; display: inline-flex; align-items: center; gap: 6px; border: 1px solid var(--border-overlay);">
+                Download 1st Period CSV
+            </a>
+            <a href="{% url 'hod_morning_attendance' %}?class_id={{ target_class.id }}&action=download_grid" class="btn btn-primary" style="padding: 10px 16px; font-weight: 600; text-decoration: none; display: inline-flex; align-items: center; gap: 6px;">
+                Download CSV
+            </a>
+            {% endif %}
+            <a href="{% url 'hod_classes' %}" class="btn" style="background: rgba(255, 255, 255, 0.05); color: var(--text-secondary); border: 1px solid rgba(255, 255, 255, 0.1); border-radius: 10px; padding: 10px 16px; font-weight: 600; text-decoration: none;">
+                Back to Classes
+            </a>
+        </div>
+    </div>
 
-    <div class="table-wrapper">
-        <table style="width: 100%; text-align: left; border-collapse: collapse;">
+    <!-- Attendance Matrix Table -->
+    <div class="glass-panel" style="padding: 24px; border-radius: 16px; overflow-x: auto; background: rgba(0, 0, 0, 0.2);">
+        <h3 style="font-size: 1.2rem; font-weight: 700; color: white; margin-bottom: 20px; display: flex; align-items: center; gap: 8px;">
+            <svg width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M3.75 6A2.25 2.25 0 0 1 6 3.75h2.25A2.25 2.25 0 0 1 10.5 6v2.25a2.25 2.25 0 0 1-2.25 2.25H6a2.25 2.25 0 0 1-2.25-2.25V6ZM3.75 15.75A2.25 2.25 0 0 1 6 13.5h2.25a2.25 2.25 0 0 1 2.25 2.25V18a2.25 2.25 0 0 1-2.25 2.25H6A2.25 2.25 0 0 1 3.75 18v-2.25ZM13.5 6a2.25 2.25 0 0 1 2.25-2.25H18A2.25 2.25 0 0 1 20.25 6v2.25A2.25 2.25 0 0 1 18 10.5h-2.25a2.25 2.25 0 0 1-2.25-2.25V6ZM13.5 15.75a2.25 2.25 0 0 1 2.25-2.25H18a2.25 2.25 0 0 1 2.25 2.25V18A2.25 2.25 0 0 1 18 20.25h-2.25A2.25 2.25 0 0 1 13.5 18v-2.25Z"></path></svg>
+            Subject Attendance Grid for Today
+        </h3>
+
+        {% if not schedules %}
+        <div style="padding: 40px; text-align: center; color: var(--text-muted); font-style: italic;">
+            No periods or subjects scheduled for today.
+        </div>
+        {% else %}
+        <table style="width: 100%; border-collapse: collapse; text-align: left; font-size: 0.88rem;">
             <thead>
-                <tr style="border-bottom: 1px solid rgba(255,255,255,0.1);">
-                    <th style="padding: 12px; color: var(--text-secondary);">Date</th>
-                    <th style="padding: 12px; color: var(--text-secondary);">Class</th>
-                    <th style="padding: 12px; color: var(--text-secondary); text-align: center;">Total Students</th>
-                    <th style="padding: 12px; color: var(--success); text-align: center;">Present</th>
-                    <th style="padding: 12px; color: var(--danger); text-align: center;">Absent</th>
-                    <th style="padding: 12px; color: var(--info); text-align: center;">OD</th>
-                    <th style="padding: 12px; color: var(--text-secondary);">Class Advisor</th>
-                    <th style="padding: 12px; color: var(--text-secondary); text-align: center;">Action</th>
+                <tr style="border-bottom: 2px solid rgba(255,255,255,0.08); color: var(--text-secondary); font-weight: 600;">
+                    <th style="padding: 12px 16px;">Reg No</th>
+                    <th style="padding: 12px 16px;">Student Name</th>
+                    {% for sched in schedules %}
+                    <th style="padding: 12px 16px; text-align: center;">
+                        <span style="display: block; font-size: 0.75rem; color: var(--text-muted);">Period {{ sched.period }}</span>
+                        <span style="color: white; font-weight: 600;">{{ sched.subject.name }}</span>
+                    </th>
+                    {% endfor %}
+                    <th style="padding: 12px 16px; text-align: center; color: var(--success);">P</th>
+                    <th style="padding: 12px 16px; text-align: center; color: var(--danger);">A</th>
+                    <th style="padding: 12px 16px; text-align: center; color: var(--info);">OD</th>
+                    <th style="padding: 12px 16px; text-align: center; color: var(--warning);">L</th>
                 </tr>
             </thead>
             <tbody>
-                {% for row in grouped_data %}
-                <tr style="border-bottom: 1px solid rgba(255,255,255,0.05); transition: background 0.2s;">
-                    <td style="padding: 12px; font-weight: 500;">{{ row.date|date:"d-m-Y" }}</td>
-                    <td style="padding: 12px;">{{ row.student__student_class__name }} - {{ row.student__student_class__year }} ({{ row.student__student_class__section }})</td>
-                    <td style="padding: 12px; text-align: center; font-weight: bold;">{{ row.total_students }}</td>
-                    <td style="padding: 12px; text-align: center; color: var(--success);">{{ row.present_count }}</td>
-                    <td style="padding: 12px; text-align: center; color: var(--danger);">{{ row.absent_count }}</td>
-                    <td style="padding: 12px; text-align: center; color: var(--info);">{{ row.od_count }}</td>
-                    <td style="padding: 12px;">
-                        {% if row.student__student_class__advisor__user__first_name %}
-                            {{ row.student__student_class__advisor__user__first_name }} {{ row.student__student_class__advisor__user__last_name }}
+                {% for row in student_rows %}
+                <tr style="border-bottom: 1px solid rgba(255,255,255,0.04); transition: background 0.2s;">
+                    <td style="padding: 12px 16px; font-weight: 600; color: white;">{{ row.reg_no }}</td>
+                    <td style="padding: 12px 16px; color: var(--text-secondary);">{{ row.name }}</td>
+                    
+                    {% for stat in row.statuses %}
+                    <td style="padding: 12px 16px; text-align: center;">
+                        {% if stat.status == 'Present' %}
+                            <span class="badge-status badge-present">P</span>
+                        {% elif stat.status == 'Absent' %}
+                            <span class="badge-status badge-absent">A</span>
+                        {% elif stat.status == 'OD' %}
+                            <span class="badge-status badge-od">OD</span>
+                        {% elif stat.status == 'Leave' %}
+                            <span class="badge-status badge-leave">L</span>
                         {% else %}
-                            <span style="color: var(--text-muted);">-</span>
+                            <span style="color: rgba(255,255,255,0.15); font-weight: 600;">-</span>
                         {% endif %}
                     </td>
-                    <td style="padding: 12px; text-align: center;">
-                        <a href="{% url 'hod_morning_attendance' %}?action=download&class_id={{ row.student__student_class__id }}&date={{ row.date|date:'Y-m-d' }}" 
-                           class="btn btn-sm btn-primary" style="padding: 6px 12px; font-size: 0.8rem; background: var(--primary);">
-                            <i class="fas fa-download"></i> Download
+                    {% endfor %}
+                    
+                    <!-- summaries -->
+                    <td style="padding: 12px 16px; text-align: center; font-weight: bold; color: var(--success);">{{ row.present_count }}</td>
+                    <td style="padding: 12px 16px; text-align: center; font-weight: bold; color: var(--danger);">{{ row.absent_count }}</td>
+                    <td style="padding: 12px 16px; text-align: center; font-weight: bold; color: var(--info);">{{ row.od_count }}</td>
+                    <td style="padding: 12px 16px; text-align: center; font-weight: bold; color: var(--warning);">{{ row.leave_count }}</td>
+                </tr>
+                {% endfor %}
+                
+                <!-- Bottom Columns Summary (Subject-wise statistics) -->
+                <tr style="background: rgba(255,255,255,0.02); font-weight: 600; border-top: 2px solid rgba(255,255,255,0.08);">
+                    <td colspan="2" style="padding: 16px; color: white;">Subject Present / Absent / OD</td>
+                    
+                    {% for col in columns_summary %}
+                    <td style="padding: 16px; text-align: center;">
+                        <div style="font-size: 0.75rem;">
+                            <span style="color: var(--success);">{{ col.present }} P</span> &bull; 
+                            <span style="color: var(--danger);">{{ col.absent }} A</span>
+                        </div>
+                        <div style="font-size: 0.75rem; margin-top: 2px;">
+                            <span style="color: var(--info);">{{ col.od }} OD</span>
+                        </div>
+                    </td>
+                    {% endfor %}
+                    
+                    <td colspan="4" style="background: transparent;"></td>
+                </tr>
+            </tbody>
+        </table>
+        {% endif %}
+    </div>
+
+    {% else %}
+    <!-- 2. CLASSES LIST VIEW -->
+    <!-- Header -->
+    <div class="glass-panel" style="padding: 24px; border-radius: 16px; margin-bottom: 24px; background: linear-gradient(135deg, rgba(255, 255, 255, 0.05) 0%, rgba(255, 255, 255, 0.01) 100%);">
+        <h2 style="font-size: 1.8rem; font-weight: 700; color: white; margin: 0 0 8px 0;">Live Department Classes Monitor</h2>
+        <p style="color: var(--text-secondary); margin: 0; font-size: 0.95rem;">
+            Real-time attendance monitor of all classes in your department. Click any class to see today's detailed subject grid.
+        </p>
+    </div>
+
+    <!-- Classes List Table -->
+    <div class="glass-panel" style="padding: 24px; border-radius: 16px; background: rgba(0,0,0,0.2);">
+        <table style="width: 100%; border-collapse: collapse; text-align: left; font-size: 0.9rem;">
+            <thead>
+                <tr style="border-bottom: 2px solid rgba(255,255,255,0.08); color: var(--text-secondary); font-weight: 600;">
+                    <th style="padding: 12px 16px;">Class Name</th>
+                    <th style="padding: 12px 16px;">Year</th>
+                    <th style="padding: 12px 16px;">Section</th>
+                    <th style="padding: 12px 16px; text-align: center;">Total Strength</th>
+                    <th style="padding: 12px 16px; text-align: center; color: var(--success);">1st Period Present</th>
+                    <th style="padding: 12px 16px; text-align: center; color: var(--danger);">1st Period Absent</th>
+                    <th style="padding: 12px 16px; text-align: center; color: var(--info);">1st Period OD</th>
+                    <th style="padding: 12px 16px; text-align: right;">Action</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for item in class_list %}
+                <tr style="border-bottom: 1px solid rgba(255,255,255,0.04); transition: background-color 0.2s;">
+                    <td style="padding: 12px 16px; font-weight: 600; color: white;">{{ item.class.name }}</td>
+                    <td style="padding: 12px 16px; color: var(--text-secondary);">Year {{ item.class.year }}</td>
+                    <td style="padding: 12px 16px; color: var(--text-secondary);">Sec {{ item.class.section }}</td>
+                    <td style="padding: 12px 16px; text-align: center; font-weight: 700;">{{ item.total_students }}</td>
+                    <td style="padding: 12px 16px; text-align: center; color: var(--success); font-weight: 600;">{{ item.present_count }}</td>
+                    <td style="padding: 12px 16px; text-align: center; color: var(--danger); font-weight: 600;">{{ item.absent_count }}</td>
+                    <td style="padding: 12px 16px; text-align: center; color: var(--info); font-weight: 600;">{{ item.od_count }}</td>
+                    <td style="padding: 12px 16px; text-align: right;">
+                        <a href="{% url 'hod_morning_attendance' %}?class_id={{ item.class.id }}" class="btn btn-primary" style="padding: 6px 12px; font-size: 0.8rem; border-radius: 6px; font-weight: 600;">
+                            See Live Grid
                         </a>
                     </td>
                 </tr>
                 {% empty %}
                 <tr>
-                    <td colspan="8" style="padding: 20px; text-align: center; color: var(--text-muted);">No 1st period attendance records found.</td>
+                    <td colspan="8" style="text-align: center; padding: 30px; color: var(--text-muted);">
+                        No classes found in your department.
+                    </td>
                 </tr>
                 {% endfor %}
             </tbody>
         </table>
     </div>
+    {% endif %}
 </div>
+
+<style>
+    .badge-status {
+        padding: 4px 8px;
+        border-radius: 8px;
+        font-weight: 700;
+        font-size: 0.75rem;
+        display: inline-block;
+        min-width: 26px;
+        text-align: center;
+    }
+    .badge-present { background: rgba(46, 204, 113, 0.15); color: #2ecc71; border: 1px solid rgba(46, 204, 113, 0.25); }
+    .badge-absent { background: rgba(231, 76, 60, 0.15); color: #e74c3c; border: 1px solid rgba(231, 76, 60, 0.25); }
+    .badge-od { background: rgba(52, 152, 219, 0.15); color: #3498db; border: 1px solid rgba(52, 152, 219, 0.25); }
+    .badge-leave { background: rgba(241, 196, 15, 0.15); color: #f1c40f; border: 1px solid rgba(241, 196, 15, 0.25); }
+</style>
 {% endblock %}

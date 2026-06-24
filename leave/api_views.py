@@ -27,36 +27,19 @@ class LeaveViewSet(viewsets.ModelViewSet):
         elif user.role == 'staff':
             if not hasattr(user, 'staff') or user.staff.staff_type == 'Normal':
                 queryset = Leave.objects.none()
-            elif user.staff.staff_type == 'Tutor':
-                # Tutors only verify certificates of approved ODs
+            else:
                 queryset = queryset.filter(
-                    student__tutor=user,
-                    leave_type='OD',
-                    final_status='Approved',
-                    certificate_verified=False,
-                    is_archived=False
-                )
-            elif user.staff.staff_type == 'Advisor':
-                # Advisors approve leaves and also verify certificates for their direct tutored wards (group 3)
-                queryset = queryset.filter(
-                    Q(student__advisor=user) &
-                    (
-                        (Q(tutor_approved='Approved') & Q(advisor_approved='Pending')) |
-                        (Q(student__tutor=user) & Q(leave_type='OD') & Q(final_status='Approved') & Q(certificate_verified=False))
-                    ) &
-                    Q(is_archived=False)
+                    Q(student__tutor=user) | Q(student__advisor=user)
                 )
         elif user.role == 'hod':
-            # HOD pending (after advisor approved)
             queryset = queryset.filter(
-                student__user__department=user.department,
-                is_archived=False
+                student__user__department=user.department
             )
         return queryset
 
     def perform_create(self, serializer):
         student = self.request.user.student
-        serializer.save(student=student, tutor_approved='Approved')
+        serializer.save(student=student)
 
     @action(detail=True, methods=['post'])
     def upload_proof(self, request, pk=None):
@@ -88,10 +71,10 @@ class LeaveViewSet(viewsets.ModelViewSet):
                     return Response({'detail': 'Not authorized to reject leaves'}, status=status.HTTP_403_FORBIDDEN)
                 
                 rejected = False
-                if user.staff.staff_type == 'Tutor' and user == leave.student.tutor and leave.tutor_approved == 'Pending':
+                if user == leave.student.tutor and leave.tutor_approved == 'Pending':
                     leave.tutor_approved = 'Rejected'
                     rejected = True
-                elif user.staff.staff_type == 'Advisor' and user == leave.student.advisor and leave.tutor_approved == 'Approved' and leave.advisor_approved == 'Pending':
+                elif user == leave.student.advisor and leave.tutor_approved == 'Approved' and leave.advisor_approved == 'Pending':
                     leave.advisor_approved = 'Rejected'
                     rejected = True
                 
@@ -111,11 +94,11 @@ class LeaveViewSet(viewsets.ModelViewSet):
                     return Response({'detail': 'Not authorized to approve leaves'}, status=status.HTTP_403_FORBIDDEN)
                 
                 approved_as = []
-                if user.staff.staff_type == 'Tutor' and user == leave.student.tutor and leave.tutor_approved == 'Pending':
+                if user == leave.student.tutor and leave.tutor_approved == 'Pending':
                     leave.tutor_approved = 'Approved'
                     approved_as.append("Tutor")
                 
-                if user.staff.staff_type == 'Advisor' and user == leave.student.advisor and leave.tutor_approved == 'Approved' and leave.advisor_approved == 'Pending':
+                if user == leave.student.advisor and leave.tutor_approved == 'Approved' and leave.advisor_approved == 'Pending':
                     leave.advisor_approved = 'Approved'
                     approved_as.append("Advisor")
                 

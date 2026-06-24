@@ -1,5 +1,5 @@
 from django.db import models
-from accounts.models import Student
+from accounts.models import Student, User
 from timetable.models import Schedule
 
 class OTP(models.Model):
@@ -9,6 +9,7 @@ class OTP(models.Model):
     is_active = models.BooleanField(default=True)
     staff_latitude = models.FloatField(null=True, blank=True)
     staff_longitude = models.FloatField(null=True, blank=True)
+    creator = models.ForeignKey(User, on_delete=models.CASCADE, null=True, blank=True, related_name='created_otps')
 
     def __str__(self):
         return f"OTP for {self.schedule} - {self.code}"

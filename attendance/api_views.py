@@ -5,7 +5,7 @@ from math import radians, cos, sin, asin, sqrt
 from django.utils import timezone
 from django.shortcuts import get_object_or_404
 from django.db.models import Count, Q
-from rest_framework.decorators import api_view, permission_classes
+from rest_framework.decorators import api_view, permission_classes, action
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 from rest_framework import status, viewsets
@@ -97,7 +97,7 @@ def api_generate_otp(request):
     lng = float(lng) if lng else None
 
     code = ''.join(random.choices(string.digits, k=6))
-    otp = OTP.objects.create(code=code, schedule=schedule, staff_latitude=lat, staff_longitude=lng)
+    otp = OTP.objects.create(code=code, schedule=schedule, staff_latitude=lat, staff_longitude=lng, creator=request.user)
     
     # Pre-mark all students
     students = Student.objects.filter(student_class=schedule.student_class)
@@ -148,14 +148,29 @@ def api_verify_otp(request):
             # Geofence check if staff provided location
             if otp.staff_latitude and otp.staff_longitude:
                 distance = haversine(student_lng, student_lat, otp.staff_longitude, otp.staff_latitude)
-                if distance > 20.0:
+                if distance > 50.0:
                     return Response({
-                        'detail': f'You are too far from the classroom (Distance: {distance:.1f}m > limit 20m).'
+                        'detail': f'You are too far from the classroom (Distance: {distance:.1f}m > limit 50m).'
                     }, status=status.HTTP_400_BAD_REQUEST)
             
             try:
                 student = request.user.student
                 today = date.today()
+                
+                # Check if student has approved Leave/OD today
+                from leave.models import Leave
+                approved_leave = Leave.objects.filter(student=student, date=today, final_status='Approved').first()
+                if approved_leave:
+                    return Response({
+                        'detail': f'You cannot mark Present because you are approved for {approved_leave.leave_type} today.'
+                    }, status=status.HTTP_400_BAD_REQUEST)
+                    
+                # Also check existing attendance record
+                existing_att = Attendance.objects.filter(student=student, schedule=otp.schedule, date=today).first()
+                if existing_att and existing_att.status in ['Leave', 'OD']:
+                    return Response({
+                        'detail': f'You cannot mark Present because you are marked as {existing_att.status} today.'
+                    }, status=status.HTTP_400_BAD_REQUEST)
                 
                 # Update attendance to Present
                 attendance, created = Attendance.objects.get_or_create(
@@ -189,30 +204,35 @@ def api_session_stats(request, otp_id):
     
     # Students bound to this schedule's class
     students_in_class = Student.objects.filter(student_class=otp.schedule.student_class)
-    attendances = Attendance.objects.filter(student__in=students_in_class, schedule=otp.schedule, date=today)
+    attendances = Attendance.objects.filter(student__in=students_in_class, schedule=otp.schedule, date=today).select_related('student__user')
     
     present_count = attendances.filter(status='Present').count()
-    leave_od_count = attendances.filter(status__in=['Leave', 'OD']).count()
+    absent_count = attendances.filter(status='Absent').count()
+    od_count = attendances.filter(status='OD').count()
+    leave_count = attendances.filter(status='Leave').count()
     
-    total = students_in_class.count()
-    remaining_count = total - present_count - leave_od_count
-    
-    remaining_students = attendances.filter(status='Absent').select_related('student__user')
-    remaining_list = [
+    all_students_list = [
         {
-            'username': a.student.user.username,
-            'name': f"{a.student.user.first_name} {a.student.user.last_name}".strip()
-        } for a in remaining_students
+            'reg_no': a.student.reg_no or a.student.roll_no or a.student.user.username,
+            'name': f"{a.student.user.first_name} {a.student.user.last_name}".strip() or a.student.user.username,
+            'status': a.status
+        } for a in attendances
     ]
     
     # Calculate time left
     time_elapsed = (timezone.now() - otp.created_at).total_seconds()
     time_left = max(0, 60 - time_elapsed) # 1 minute validity
     
+    if time_left <= 0 and otp.is_active:
+        otp.is_active = False
+        otp.save()
+        
     return Response({
         'present_count': present_count,
-        'remaining_count': remaining_count,
-        'remaining_students': remaining_list,
+        'absent_count': absent_count,
+        'od_count': od_count,
+        'leave_count': leave_count,
+        'all_students': all_students_list,
         'time_left': int(time_left),
         'is_active': otp.is_active and time_left > 0,
         'class_name': otp.schedule.student_class.name,
@@ -237,41 +257,171 @@ def api_student_stats(request, username):
     elif request.user.role == 'hod' and request.user.department != student.student_class.department:
         return Response({'detail': 'Unauthorized'}, status=status.HTTP_403_FORBIDDEN)
 
-    attendances = Attendance.objects.filter(student=student)
+    from timetable.models import Schedule
+    from accounts.models import Subject
+    if student.student_class:
+        class_subject_ids = Schedule.objects.filter(student_class=student.student_class).values_list('subject_id', flat=True).distinct()
+        class_subjects = Subject.objects.filter(id__in=class_subject_ids)
+    else:
+        class_subjects = Subject.objects.none()
+
+    attendances = Attendance.objects.filter(student=student, schedule__subject__in=class_subjects)
     
-    total = attendances.count()
-    present_count = attendances.filter(status='Present').count()
-    absent_count = attendances.filter(status='Absent').count()
+    is_today = request.query_params.get('today') == 'true'
+    if is_today:
+        today_date = timezone.localtime(timezone.now()).date()
+        attendances = attendances.filter(date=today_date)
+        
+    total_periods = attendances.count()
+    present_periods = attendances.filter(status='Present').count()
+    absent_periods = attendances.filter(status='Absent').count()
+    od_periods = attendances.filter(status='OD').count()
+    leave_periods = attendances.filter(status='Leave').count()
     
     # Find verified ODs
-    verified_ods = Leave.objects.filter(student=student, leave_type='OD', final_status='Approved', certificate_verified=True).values_list('date', flat=True)
+    from leave.models import Leave
+    verified_ods = Leave.objects.filter(
+        student=student, 
+        leave_type='OD', 
+        final_status='Approved', 
+        certificate_verified=True
+    )
+    if is_today:
+        verified_ods = verified_ods.filter(date=today_date)
+    verified_ods = verified_ods.values_list('date', flat=True)
     
-    od_count_raw = attendances.filter(status='OD').count()
     verified_od_count = attendances.filter(status='OD', date__in=verified_ods).count()
     
-    effective_present = present_count + verified_od_count
-    percentage = (effective_present / total * 100) if total > 0 else 0
+    effective_present = present_periods + verified_od_count
+    overall_percentage = (effective_present / total_periods * 100) if total_periods > 0 else 0
     
+    # Calculate Days
+    dates = list(attendances.values_list('date', flat=True).distinct())
+    total_days = len(dates)
+    present_days = 0
+    absent_days = 0
+    od_days = 0
+    leave_days = 0
+    
+    for dt in dates:
+        day_att = attendances.filter(date=dt)
+        P = day_att.filter(status='Present').count()
+        O = day_att.filter(status='OD').count()
+        A = day_att.filter(status='Absent').count()
+        L = day_att.filter(status='Leave').count()
+        T = P + O + A + L
+        
+        is_verified_od_day = (dt in verified_ods)
+        if is_verified_od_day:
+            verified_od_on_day = O
+            unverified_od_on_day = 0
+        else:
+            verified_od_on_day = 0
+            unverified_od_on_day = O
+            
+        effective_present_on_day = P + verified_od_on_day
+        effective_absent_leave_on_day = A + L + unverified_od_on_day
+        
+        if T > 0:
+            if effective_present_on_day >= T / 2.0:
+                if verified_od_on_day > P:
+                    od_days += 1
+                else:
+                    present_days += 1
+            else:
+                if L >= A + unverified_od_on_day:
+                    leave_days += 1
+                else:
+                    absent_days += 1
+
+    # Subject-wise breakdown
+    subjects_breakdown = []
+    if student.student_class:
+        for sub in class_subjects:
+            sub_att = attendances.filter(schedule__subject=sub)
+            sub_total = sub_att.count()
+            sub_present = sub_att.filter(status='Present').count()
+            sub_absent = sub_att.filter(status='Absent').count()
+            sub_od = sub_att.filter(status='OD').count()
+            sub_leave = sub_att.filter(status='Leave').count()
+            
+            sub_verified_od = sub_att.filter(status='OD', date__in=verified_ods).count()
+            sub_effective_present = sub_present + sub_verified_od
+            sub_percentage = (sub_effective_present / sub_total * 100) if sub_total > 0 else 0
+            
+            subjects_breakdown.append({
+                'id': sub.id,
+                'name': sub.name,
+                'code': sub.code,
+                'total_periods': sub_total,
+                'present_periods': sub_present,
+                'absent_periods': sub_absent,
+                'od_periods': sub_od,
+                'leave_periods': sub_leave,
+                'verified_od_periods': sub_verified_od,
+                'effective_present': sub_effective_present,
+                'percentage': round(sub_percentage, 2)
+            })
+
+    # AI Suggestion
+    if overall_percentage >= 90:
+        ai_suggestion = f"Excellent! Your attendance is outstanding ({overall_percentage:.2f}%). Keep up the great work to maintain this level of consistency."
+    elif overall_percentage >= 75:
+        miss_periods = int((4 * effective_present - 3 * total_periods) // 3)
+        ai_suggestion = f"Good job! Your attendance is at {overall_percentage:.2f}%, which is above the required 75% threshold."
+        if miss_periods > 0:
+            ai_suggestion += f" You can afford to miss up to {miss_periods} periods without dropping below 75%."
+        else:
+            ai_suggestion += " You are close to the limit; try not to miss any more classes."
+    else:
+        req_periods = int(3 * total_periods - 4 * effective_present)
+        ai_suggestion = f"Warning! Your attendance is currently at {overall_percentage:.2f}%, which is below the minimum 75% requirement."
+        if req_periods > 0:
+            ai_suggestion += f" You need to attend at least {req_periods} consecutive periods without any absence to bring your attendance back to 75%."
+
+    low_subjects = [sub['name'] for sub in subjects_breakdown if sub['percentage'] < 75.0 and sub['total_periods'] > 0]
+    if low_subjects:
+        ai_suggestion += f" Note: Your attendance in {', '.join(low_subjects)} is below 75%. Prioritize attending these classes."
+
     return Response({
         'username': student.user.username,
         'name': f"{student.user.first_name} {student.user.last_name}".strip(),
         'class_name': str(student.student_class),
-        'total': total,
-        'present': present_count,
-        'absent': absent_count,
-        'od': od_count_raw,
+        'total': total_periods,
+        'present': present_periods,
+        'absent': absent_periods,
+        'od': od_periods,
         'verified_od': verified_od_count,
-        'percentage': round(percentage, 2)
+        'percentage': round(overall_percentage, 2),
+        'total_periods': total_periods,
+        'present_periods': present_periods,
+        'absent_periods': absent_periods,
+        'od_periods': od_periods,
+        'leave_periods': leave_periods,
+        'verified_od_periods': verified_od_count,
+        'effective_present': effective_present,
+        'total_days': total_days,
+        'present_days': present_days,
+        'absent_days': absent_days,
+        'od_days': od_days,
+        'leave_days': leave_days,
+        'subjects_breakdown': subjects_breakdown,
+        'subjects': subjects_breakdown,
+        'ai_suggestion': ai_suggestion
     })
 
 @api_view(['GET'])
 @permission_classes([IsAuthenticated])
 def api_attendance_report_data(request):
-    # Returns raw report data in JSON format for the front-end to render/download
-    from_date = request.query_params.get('from_date')
+    from_date = request.query_params.get('from_date') or request.query_params.get('date')
     to_date = request.query_params.get('to_date')
     report_type = request.query_params.get('report_type', 'department')
+    report_mode = request.query_params.get('report_mode', 'day')
     
+    if report_mode == 'day':
+        if not to_date:
+            to_date = from_date
+
     if request.user.role == 'student':
         if hasattr(request.user, 'student'):
             records = Attendance.objects.filter(student=request.user.student)
@@ -296,17 +446,25 @@ def api_attendance_report_data(request):
     elif report_type == 'student':
         student_id = request.query_params.get('student_id')
         if student_id:
-            records = records.filter(student__user__username=student_id)
+            records = records.filter(Q(student__user__username=student_id) | Q(student__reg_no=student_id))
 
     if from_date:
         records = records.filter(date__gte=from_date)
     if to_date:
         records = records.filter(date__lte=to_date)
 
+    year = request.query_params.get('year')
+    if year:
+        try:
+            records = records.filter(student__student_class__year=int(year))
+        except ValueError:
+            pass
+
+    subject_id = request.query_params.get('subject_id')
+
     if request.user.role == 'staff':
         class_id = request.query_params.get('class_id')
         student_id = request.query_params.get('student_id')
-        subject_id = request.query_params.get('subject_id')
         
         is_related = False
         if report_type == 'class' and class_id:
@@ -317,42 +475,265 @@ def api_attendance_report_data(request):
                 pass
         elif report_type == 'student' and student_id:
             try:
-                student = Student.objects.get(user__username=student_id)
+                student = Student.objects.get(Q(user__username=student_id) | Q(reg_no=student_id))
                 is_related = (student.tutor == request.user or student.advisor == request.user)
             except Student.DoesNotExist:
                 pass
         elif report_type == 'tutored':
             is_related = True
 
-        if not is_related:
+        if not is_related and report_mode == 'subject_percentage':
             if not subject_id:
                 return Response({'detail': 'Subject is required for this report as you are not the tutor or advisor.'}, status=status.HTTP_400_BAD_REQUEST)
             records = records.filter(schedule__subject_id=subject_id)
         else:
-            if subject_id:
+            if subject_id and report_mode == 'subject_percentage':
                 records = records.filter(schedule__subject_id=subject_id)
     else:
-        subject_id = request.query_params.get('subject_id')
-        if subject_id:
+        if subject_id and report_mode == 'subject_percentage':
             records = records.filter(schedule__subject_id=subject_id)
 
-    records = records.select_related('student__user', 'student__student_class', 'schedule__subject')
-    
     result = []
-    for r in records:
-        result.append({
-            'student_username': r.student.user.username,
-            'student_name': f"{r.student.user.first_name} {r.student.user.last_name}".strip(),
-            'class_name': str(r.student.student_class),
-            'date': r.date.strftime('%Y-%m-%d'),
-            'status': r.status,
-            'subject_name': r.schedule.subject.name if r.schedule else '',
-            'period': r.schedule.period if r.schedule else ''
-        })
+    if report_mode == 'day':
+        students_query = Student.objects.all()
+        if request.user.role == 'hod' or request.user.role == 'staff':
+            students_query = students_query.filter(user__department=request.user.department)
         
+        if report_type == 'class' and class_id:
+            students_query = students_query.filter(student_class_id=class_id)
+        elif report_type == 'tutored':
+            students_query = students_query.filter(tutor=request.user)
+        elif report_type == 'student' and student_id:
+            students_query = students_query.filter(Q(user__username=student_id) | Q(reg_no=student_id))
+            
+        students_list = list(students_query.select_related('user', 'student_class'))
+        
+        import datetime
+        try:
+            start_date = datetime.datetime.strptime(from_date, '%Y-%m-%d').date() if from_date else None
+            end_date = datetime.datetime.strptime(to_date, '%Y-%m-%d').date() if to_date else None
+        except (ValueError, TypeError):
+            start_date = None
+            end_date = None
+
+        target_dates = []
+        if start_date and end_date:
+            if start_date == end_date:
+                target_dates = [start_date]
+            else:
+                db_dates = Attendance.objects.filter(
+                    student__in=students_list,
+                    date__gte=start_date,
+                    date__lte=end_date
+                ).values_list('date', flat=True).distinct()
+                target_dates = sorted(list(set(db_dates)))
+                if not target_dates:
+                    target_dates = [start_date]
+        else:
+            target_dates = [datetime.date.today()]
+
+        records_in_range = Attendance.objects.filter(
+            student__in=students_list,
+            date__in=target_dates
+        ).select_related('student__user', 'student__student_class')
+        
+        attendance_map = {}
+        for r in records_in_range:
+            key = (r.student_id, r.date)
+            curr_status = attendance_map.get(key, 'Absent')
+            new_status = r.status
+            precedence = {'Absent': 0, 'Present': 1, 'Leave': 2, 'OD': 3}
+            if precedence.get(new_status, 0) > precedence.get(curr_status, 0):
+                attendance_map[key] = new_status
+                
+        for d in target_dates:
+            date_str = d.strftime('%Y-%m-%d')
+            for student in students_list:
+                status = attendance_map.get((student.user_id, d), 'Absent')
+                result.append({
+                    'student_username': student.user.username,
+                    'student_reg_no': student.reg_no or student.roll_no or student.user.username,
+                    'student_name': f"{student.user.first_name} {student.user.last_name}".strip() or student.user.username,
+                    'department_name': student.student_class.department.name if student.student_class and student.student_class.department else '',
+                    'year': student.student_class.year if student.student_class else '',
+                    'class_name': str(student.student_class),
+                    'class_only_name': student.student_class.name if student.student_class else '',
+                    'section': student.student_class.section if student.student_class else '',
+                    'date': date_str,
+                    'status': status
+                })
+    else:
+        from leave.models import Leave
+        students_query = Student.objects.all()
+        if request.user.role == 'hod' or request.user.role == 'staff':
+            students_query = students_query.filter(user__department=request.user.department)
+        
+        if report_type == 'class' and class_id:
+            students_query = students_query.filter(student_class_id=class_id)
+        elif report_type == 'tutored':
+            students_query = students_query.filter(tutor=request.user)
+        elif report_type == 'student' and student_id:
+            students_query = students_query.filter(Q(user__username=student_id) | Q(reg_no=student_id))
+            
+        students_list = students_query.select_related('user', 'student_class')
+        
+        for student in students_list:
+            student_atts = Attendance.objects.filter(student=student)
+            if from_date:
+                student_atts = student_atts.filter(date__gte=from_date)
+            if to_date:
+                student_atts = student_atts.filter(date__lte=to_date)
+            
+            if subject_id:
+                student_atts = student_atts.filter(schedule__subject_id=subject_id)
+                try:
+                    subject_label = Subject.objects.get(id=subject_id).name
+                except Subject.DoesNotExist:
+                    subject_label = 'Subject'
+            else:
+                subject_label = 'Overall'
+                
+            total_periods = student_atts.count()
+            if total_periods > 0:
+                present_periods = student_atts.filter(status='Present').count()
+                verified_ods = Leave.objects.filter(
+                    student=student, 
+                    leave_type='OD', 
+                    final_status='Approved', 
+                    certificate_verified=True
+                ).values_list('date', flat=True)
+                verified_od_count = student_atts.filter(status='OD', date__in=verified_ods).count()
+                effective_present = present_periods + verified_od_count
+                percentage = round((effective_present / total_periods * 100), 2)
+            else:
+                percentage = 100.0
+                
+            result.append({
+                'student_username': student.user.username,
+                'student_reg_no': student.reg_no or student.roll_no or student.user.username,
+                'student_name': f"{student.user.first_name} {student.user.last_name}".strip() or student.user.username,
+                'department_name': student.student_class.department.name if student.student_class and student.student_class.department else '',
+                'year': student.student_class.year if student.student_class else '',
+                'class_name': str(student.student_class),
+                'class_only_name': student.student_class.name if student.student_class else '',
+                'section': student.student_class.section if student.student_class else '',
+                'subject_name': subject_label,
+                'percentage': percentage
+            })
+
     return Response(result)
 
 class AttendanceViewSet(viewsets.ModelViewSet):
     queryset = Attendance.objects.all()
     serializer_class = AttendanceSerializer
     permission_classes = [IsAuthenticated]
+
+    @action(detail=False, methods=['get'], url_path='manual-attendance-data')
+    def manual_attendance_data(self, request):
+        user = self.request.user
+        if user.role != 'staff':
+            return Response({'detail': 'Only staff members can access manual attendance.'}, status=status.HTTP_403_FORBIDDEN)
+            
+        student_id = self.request.query_params.get('student_id')
+        date_str = self.request.query_params.get('date')
+        
+        department = user.department
+        students = Student.objects.filter(user__department=department).select_related('user', 'student_class').order_by('user__first_name', 'user__username')
+        
+        students_list = [
+            {
+                'id': s.user_id,
+                'username': s.user.username,
+                'name': f"{s.user.first_name} {s.user.last_name}".strip(),
+                'class_name': s.student_class.name if s.student_class else '',
+                'reg_no': s.reg_no or s.roll_no or s.user.username,
+            } for s in students
+        ]
+        
+        if not date_str:
+            date_str = timezone.localdate().strftime('%Y-%m-%d')
+            
+        schedules_data = []
+        error_message = None
+        
+        if student_id:
+            try:
+                selected_student = Student.objects.get(pk=student_id, user__department=department)
+                target_date = datetime.datetime.strptime(date_str, '%Y-%m-%d').date()
+                weekday = target_date.strftime('%A')
+                
+                if selected_student.student_class:
+                    schedules = Schedule.objects.filter(
+                        student_class=selected_student.student_class,
+                        day=weekday
+                    ).order_by('period')
+                    
+                    for sched in schedules:
+                        att = Attendance.objects.filter(
+                            student=selected_student,
+                            schedule=sched,
+                            date=target_date
+                        ).first()
+                        
+                        schedules_data.append({
+                            'schedule_id': sched.id,
+                            'subject_name': sched.subject.name,
+                            'subject_code': sched.subject.code,
+                            'period': sched.period,
+                            'status': att.status if att else 'Absent'
+                        })
+                else:
+                    error_message = "Selected student has no assigned class."
+            except Student.DoesNotExist:
+                error_message = "Student not found in your department."
+            except ValueError:
+                error_message = "Invalid date format."
+                
+        return Response({
+            'students': students_list,
+            'selected_student_id': int(student_id) if student_id and student_id.isdigit() else None,
+            'selected_date_str': date_str,
+            'schedules_data': schedules_data,
+            'error_message': error_message
+        })
+
+    @action(detail=False, methods=['post'], url_path='save-manual-attendance')
+    def save_manual_attendance(self, request):
+        user = self.request.user
+        if user.role != 'staff':
+            return Response({'detail': 'Only staff members can mark manual attendance.'}, status=status.HTTP_403_FORBIDDEN)
+            
+        student_id = self.request.data.get('student_id')
+        date_str = self.request.data.get('date')
+        status_updates = self.request.data.get('statuses', {})
+        
+        if not student_id or not date_str:
+            return Response({'detail': 'Missing student_id or date.'}, status=status.HTTP_400_BAD_REQUEST)
+            
+        try:
+            student = Student.objects.get(pk=student_id, user__department=user.department)
+            target_date = datetime.datetime.strptime(date_str, '%Y-%m-%d').date()
+            weekday = target_date.strftime('%A')
+            
+            if not student.student_class:
+                return Response({'detail': 'Student has no assigned class.'}, status=status.HTTP_400_BAD_REQUEST)
+                
+            schedules = Schedule.objects.filter(student_class=student.student_class, day=weekday)
+            updated_count = 0
+            for sched in schedules:
+                status_val = status_updates.get(str(sched.id)) or status_updates.get(sched.id)
+                if status_val in ['Present', 'Absent', 'OD', 'Leave']:
+                    Attendance.objects.update_or_create(
+                        student=student,
+                        schedule=sched,
+                        date=target_date,
+                        defaults={'status': status_val}
+                    )
+                    updated_count += 1
+            return Response({'detail': f'Successfully updated attendance for {updated_count} periods.'})
+        except Student.DoesNotExist:
+            return Response({'detail': 'Student not found in your department.'}, status=status.HTTP_404_NOT_FOUND)
+        except ValueError:
+            return Response({'detail': 'Invalid date format.'}, status=status.HTTP_400_BAD_REQUEST)
+        except Exception as e:
+            return Response({'detail': f'Error saving attendance: {str(e)}'}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)

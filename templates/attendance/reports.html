@@ -1,43 +1,89 @@
 {% extends 'base.html' %}
 {% block page_title %}Reports{% endblock %}
 {% block content %}
-<div class="glass-panel" style="padding: 24px; max-width: 600px; margin: 0 auto;">
+<style>
+.print-only {
+    display: none !important;
+}
+@media print {
+    body * {
+        visibility: hidden !important;
+    }
+    #print-section, #print-section * {
+        visibility: visible !important;
+    }
+    #print-section {
+        position: absolute;
+        left: 0;
+        top: 0;
+        width: 100%;
+        background: white !important;
+        color: black !important;
+        box-shadow: none !important;
+        border: none !important;
+        padding: 0 !important;
+        margin: 0 !important;
+    }
+    #print-section table {
+        border-collapse: collapse;
+        width: 100%;
+    }
+    #print-section th, #print-section td {
+        border: 1px solid #ddd !important;
+        padding: 8px !important;
+        color: black !important;
+    }
+    #print-section tr {
+        background: none !important;
+    }
+    .no-print {
+        display: none !important;
+    }
+    .print-only {
+        display: block !important;
+    }
+}
+</style>
+
+<div class="glass-panel no-print" style="padding: 24px; max-width: 600px; margin: 0 auto 24px auto;">
     <div style="margin-bottom: 20px;">
         <a href="javascript:history.back()" style="text-decoration: none; display: inline-flex; align-items: center; gap: 5px; margin-bottom: 15px; color: var(--text-secondary); font-weight: 500;">
             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 12H5M12 19l-7-7 7-7"/></svg>
             Back
         </a>
-        <h3 style="margin-bottom: 0;">Download Attendance Report</h3>
+        <h3 style="margin-bottom: 0;">Generate Attendance Report</h3>
     </div>
     
     <form method="POST" action="{% url 'download_report' %}" id="report-form">
         {% csrf_token %}
         
         <div style="margin-bottom: 16px;">
-            <label style="display: block; margin-bottom: 6px;">Report Type *</label>
+            <label style="display: block; margin-bottom: 6px;">Report Mode *</label>
+            <select name="report_mode" id="report_mode" class="form-control" required onchange="toggleReportModeFields()">
+                <option value="day" {% if selected_report_mode == 'day' or not selected_report_mode %}selected{% endif %}>Day Attendance</option>
+                <option value="subject_percentage" {% if selected_report_mode == 'subject_percentage' %}selected{% endif %}>Subject Percentage</option>
+            </select>
+        </div>
+
+        <div style="margin-bottom: 16px;">
+            <label style="display: block; margin-bottom: 6px;">Report Scope *</label>
             <select name="report_type" id="report_type" class="form-control" required onchange="toggleFields()">
                 {% if request.user.role == 'hod' or request.user.role == 'admin' %}
-                <option value="department">Department</option>
+                <option value="department" {% if selected_report_type == 'department' %}selected{% endif %}>Department</option>
                 {% endif %}
                 {% if request.user.role == 'hod' or request.user.role == 'admin' %}
-                <option value="class">Class</option>
-                <option value="student">Student</option>
+                <option value="class" {% if selected_report_type == 'class' %}selected{% endif %}>Class</option>
+                <option value="student" {% if selected_report_type == 'student' %}selected{% endif %}>Student</option>
                 {% endif %}
                 {% if request.user.role == 'staff' %}
-                    {% if request.user.staff.staff_type == 'Tutor' %}
-                        <option value="tutored">My Tutored Students</option>
-                        <option value="student">Specific Student</option>
-                    {% elif request.user.staff.staff_type == 'Advisor' %}
-                        <option value="class">Class</option>
-                        <option value="tutored">My Tutored Students</option>
-                        <option value="student">Specific Student</option>
-                    {% else %}
-                        <option value="class">Class</option>
-                        <option value="student">Specific Student</option>
+                    <option value="class" {% if selected_report_type == 'class' %}selected{% endif %}>Class</option>
+                    {% if request.user.staff.staff_type != 'Normal' %}
+                        <option value="tutored" {% if selected_report_type == 'tutored' %}selected{% endif %}>My Tutored Students</option>
                     {% endif %}
+                    <option value="student" {% if selected_report_type == 'student' %}selected{% endif %}>Specific Student</option>
                 {% endif %}
                 {% if request.user.role == 'student' %}
-                <option value="student">My Report</option>
+                <option value="student" {% if selected_report_type == 'student' %}selected{% endif %}>My Report</option>
                 {% endif %}
             </select>
         </div>
@@ -47,7 +93,7 @@
             <select name="class_id" class="form-control">
                 <option value="">-- Choose Class --</option>
                 {% for c in classes %}
-                <option value="{{ c.id }}">{{ c.name }} - {{ c.year }} - {{ c.section }}</option>
+                <option value="{{ c.id }}" {% if selected_class_id == c.id %}selected{% endif %}>{{ c.name }} - {{ c.year }} - {{ c.section }}</option>
                 {% endfor %}
             </select>
         </div>
@@ -57,37 +103,139 @@
             <select name="student_id" class="form-control">
                 <option value="">-- Choose Student --</option>
                 {% for s in students %}
-                <option value="{{ s.user.id }}">{{ s.user.username }} ({{ s.user.first_name }} {{ s.user.last_name }})</option>
+                <option value="{{ s.user.id }}" {% if selected_student_id == s.user.id %}selected{% endif %}>{{ s.user.username }} ({{ s.user.first_name }} {{ s.user.last_name }})</option>
                 {% endfor %}
             </select>
         </div>
 
         {% if request.user.role != 'student' %}
-        <div id="subject_field" style="margin-bottom: 16px;">
+        <div id="subject_field" style="margin-bottom: 16px; display: none;">
             <label style="display: block; margin-bottom: 6px;">Select Subject</label>
             <select name="subject_id" id="subject_id" class="form-control">
                 <option value="">-- All Subjects --</option>
                 {% for sub in subjects %}
-                <option value="{{ sub.id }}">{{ sub.name }} ({{ sub.code }})</option>
+                <option value="{{ sub.id }}" {% if selected_subject_id == sub.id %}selected{% endif %}>{{ sub.name }} ({{ sub.code }})</option>
                 {% endfor %}
             </select>
         </div>
         {% endif %}
 
         <div style="margin-bottom: 16px; display: flex; gap: 16px;">
-            <div style="flex: 1;">
-                <label style="display: block; margin-bottom: 6px;">From Date</label>
-                <input type="date" name="from_date" class="form-control">
+            <div style="flex: 1;" id="from_date_field">
+                <label style="display: block; margin-bottom: 6px;" id="from_date_label">From Date *</label>
+                <input type="date" name="from_date" id="from_date" class="form-control" value="{{ selected_from_date }}" required>
             </div>
-            <div style="flex: 1;">
-                <label style="display: block; margin-bottom: 6px;">To Date</label>
-                <input type="date" name="to_date" class="form-control">
+            <div style="flex: 1;" id="to_date_field">
+                <label style="display: block; margin-bottom: 6px;" id="to_date_label">To Date *</label>
+                <input type="date" name="to_date" id="to_date" class="form-control" value="{{ selected_to_date }}">
             </div>
         </div>
         
-        <button type="submit" class="btn btn-primary" style="width: 100%;">Download CSV</button>
+        <div style="display: flex; gap: 12px; margin-top: 20px;">
+            <button type="submit" name="action" value="view" class="btn btn-primary" style="flex: 1;">View Report</button>
+            <button type="submit" name="action" value="download" class="btn btn-secondary" style="flex: 1; border: 1px solid var(--border-overlay);">Download CSV</button>
+        </div>
     </form>
 </div>
+
+{% if has_run %}
+<div id="print-section" class="glass-panel" style="padding: 24px; max-width: 1000px; margin: 0 auto 40px auto;">
+    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;" class="no-print">
+        <h3 style="margin: 0;">Report Results</h3>
+        <div style="display: flex; gap: 10px;">
+            <button onclick="window.print()" class="btn btn-secondary" style="display: inline-flex; align-items: center; gap: 6px; border: 1px solid var(--border-overlay);">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 6 2 18 2 18 9"/><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"/><rect x="6" y="14" width="12" height="8"/></svg>
+                Print Report
+            </button>
+            <form method="POST" action="{% url 'download_report' %}" style="margin: 0;">
+                {% csrf_token %}
+                <input type="hidden" name="action" value="download">
+                <input type="hidden" name="report_type" value="{{ selected_report_type }}">
+                <input type="hidden" name="report_mode" value="{{ selected_report_mode }}">
+                <input type="hidden" name="date" value="{{ selected_date }}">
+                <input type="hidden" name="from_date" value="{{ selected_from_date }}">
+                <input type="hidden" name="to_date" value="{{ selected_to_date }}">
+                <input type="hidden" name="subject_id" value="{{ selected_subject_id }}">
+                <input type="hidden" name="class_id" value="{{ selected_class_id }}">
+                <input type="hidden" name="student_id" value="{{ selected_student_id }}">
+                <button type="submit" class="btn btn-primary" style="display: inline-flex; align-items: center; gap: 6px;">
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+                    Download CSV
+                </button>
+            </form>
+        </div>
+    </div>
+
+    <!-- For print layout: show header -->
+    <div class="print-only">
+        <h2 style="margin-bottom: 5px;">Attendance Report</h2>
+        <p style="color: #666; margin-top: 0; margin-bottom: 20px;">
+            Generated on: {% now "Y-m-d H:i" %}<br>
+            Report Type: {{ selected_report_type|title }} | 
+            Report Mode: {% if selected_report_mode == 'subject_percentage' %}Subject Percentage{% else %}Day Attendance{% endif %} |
+            {% if selected_report_mode == 'subject_percentage' %}
+                {% if selected_from_date %}From: {{ selected_from_date }}{% endif %}
+                {% if selected_to_date %}To: {{ selected_to_date }}{% endif %}
+            {% else %}
+                {% if selected_date %}Date: {{ selected_date }}{% endif %}
+            {% endif %}
+        </p>
+    </div>
+
+    {% if not report_rows %}
+    <div style="text-align: center; padding: 40px; color: var(--text-secondary);">
+        No attendance records found matching the selected filters.
+    </div>
+    {% else %}
+    <div class="table-wrapper" style="overflow-x: auto;">
+        <table style="width: 100%; border-collapse: collapse;">
+            <thead>
+                <tr style="border-bottom: 1px solid var(--border-overlay);">
+                    <th style="text-align: left; padding: 12px; font-weight: 600;">Student Reg/Roll No</th>
+                    <th style="text-align: left; padding: 12px; font-weight: 600;">Name</th>
+                    <th style="text-align: left; padding: 12px; font-weight: 600;">Class</th>
+                    {% if selected_report_mode == 'subject_percentage' %}
+                    <th style="text-align: left; padding: 12px; font-weight: 600;">Subject</th>
+                    <th style="text-align: left; padding: 12px; font-weight: 600;">Attendance Percentage</th>
+                    {% else %}
+                    <th style="text-align: left; padding: 12px; font-weight: 600;">Date</th>
+                    <th style="text-align: left; padding: 12px; font-weight: 600;">Status</th>
+                    {% endif %}
+                </tr>
+            </thead>
+            <tbody>
+                {% for row in report_rows %}
+                <tr style="border-bottom: 1px solid rgba(255, 255, 255, 0.05);">
+                    <td style="padding: 12px;">{% if row.reg_no %}{{ row.reg_no }}{% else %}{{ row.student_username }}{% endif %}</td>
+                    <td style="padding: 12px;">{{ row.student_name }}</td>
+                    <td style="padding: 12px;">{{ row.class }}</td>
+                    {% if selected_report_mode == 'subject_percentage' %}
+                    <td style="padding: 12px;">{{ row.subject }}</td>
+                    <td style="padding: 12px; font-weight: 600; color: var(--text-primary);">{{ row.percentage }}</td>
+                    {% else %}
+                    <td style="padding: 12px;">{{ row.date }}</td>
+                    <td style="padding: 12px;">
+                        {% if row.status == 'Present' %}
+                        <span style="color: var(--success); font-weight: 600;">Present</span>
+                        {% elif row.status == 'Absent' %}
+                        <span style="color: var(--danger); font-weight: 600;">Absent</span>
+                        {% elif row.status == 'Leave' %}
+                        <span style="color: #eab308; font-weight: 600;">Leave</span>
+                        {% elif row.status == 'OD' %}
+                        <span style="color: #6366f1; font-weight: 600;">OD</span>
+                        {% else %}
+                        <span>{{ row.status }}</span>
+                        {% endif %}
+                    </td>
+                    {% endif %}
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+    {% endif %}
+</div>
+{% endif %}
 
 <script>
 function toggleFields() {
@@ -104,9 +252,26 @@ function toggleFields() {
     }
 }
 
-// Trigger on initial load
+function toggleReportModeFields() {
+    var mode = document.getElementById('report_mode').value;
+    var toDateLabel = document.getElementById('to_date_label');
+    var toDateInput = document.getElementById('to_date');
+    var subjectField = document.getElementById('subject_field');
+    
+    if (mode === 'day') {
+        if (toDateLabel) toDateLabel.innerHTML = 'To Date (Optional)';
+        if (toDateInput) toDateInput.required = false;
+        if (subjectField) subjectField.style.display = 'none';
+    } else {
+        if (toDateLabel) toDateLabel.innerHTML = 'To Date *';
+        if (toDateInput) toDateInput.required = true;
+        if (subjectField) subjectField.style.display = 'block';
+    }
+}
+
 document.addEventListener('DOMContentLoaded', function() {
     toggleFields();
+    toggleReportModeFields();
     
     var form = document.getElementById('report-form');
     if (form) {
@@ -114,6 +279,7 @@ document.addEventListener('DOMContentLoaded', function() {
             var role = "{{ request.user.role }}";
             if (role === 'staff') {
                 var reportType = document.getElementById('report_type').value;
+                var reportMode = document.getElementById('report_mode').value;
                 var subjectId = document.getElementById('subject_id').value;
                 var myClassesIds = {{ my_classes_ids|default:"[]" }};
                 var myStudentsIds = {{ my_students_ids|default:"[]" }};
@@ -135,7 +301,13 @@ document.addEventListener('DOMContentLoaded', function() {
                     isRelated = true;
                 }
                 
-                if (!isRelated && !subjectId) {
+                // If action is download, we still check this
+                var submitter = e.submitter || document.activeElement;
+                if (submitter && submitter.name === 'action' && submitter.value === 'download') {
+                    // Let it run if they submit, but validation still applies
+                }
+                
+                if (!isRelated && reportMode === 'subject_percentage' && !subjectId) {
                     alert('Subject selection is required for this report as you are not the tutor or advisor for this class/student.');
                     e.preventDefault();
                 }

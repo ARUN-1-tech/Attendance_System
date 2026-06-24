@@ -33,7 +33,7 @@ class Class(models.Model):
     def __str__(self):
         return f"{self.name} - {self.year} - {self.section}"
 
-    def auto_assign_tutors(self):
+    def auto_assign_tutors(self, force=False):
         students = list(self.student_set.all().order_by('roll_no', 'user__username'))
         N = len(students)
         if N == 0:
@@ -54,19 +54,34 @@ class Class(models.Model):
             
             adv = self.advisor or self.tutor3
             
-            if student.tutor != t or student.advisor != adv:
-                self.student_set.filter(pk=student.pk).update(tutor=t, advisor=adv)
+            updated_tutor = t if force else (student.tutor or t)
+            updated_advisor = adv if force else (student.advisor or adv)
+            
+            if student.tutor != updated_tutor or student.advisor != updated_advisor:
+                self.student_set.filter(pk=student.pk).update(tutor=updated_tutor, advisor=updated_advisor)
 
     def save(self, *args, **kwargs):
         if self.tutor3:
             self.advisor = self.tutor3
         super().save(*args, **kwargs)
-        self.auto_assign_tutors()
+        self.auto_assign_tutors(force=True)
+
+        # Sync all staff types based on class assignments
+        from accounts.models import Staff
+        advisors = Class.objects.exclude(advisor__isnull=True).values_list('advisor_id', flat=True).distinct()
+        tutors = Class.objects.exclude(tutor1__isnull=True).values_list('tutor1_id', flat=True)
+        tutors2 = Class.objects.exclude(tutor2__isnull=True).values_list('tutor2_id', flat=True)
+        all_tutors = set(list(tutors) + list(tutors2)) - set(advisors)
+
+        Staff.objects.filter(user_id__in=list(advisors)).update(staff_type='Advisor')
+        Staff.objects.filter(user_id__in=list(all_tutors)).update(staff_type='Tutor')
+        Staff.objects.exclude(user_id__in=list(advisors) + list(all_tutors)).update(staff_type='Normal')
 
 class Subject(models.Model):
     name = models.CharField(max_length=100)
-    code = models.CharField(max_length=20, unique=True, null=True, blank=True)
+    code = models.CharField(max_length=20, null=True, blank=True)
     department = models.ForeignKey(Department, on_delete=models.CASCADE, null=True, blank=True)
+    student_class = models.ForeignKey(Class, on_delete=models.CASCADE, null=True, blank=True, related_name='subjects')
 
     def __str__(self):
         return f"{self.name} ({self.code})"
@@ -83,6 +98,7 @@ class Student(models.Model):
         return self.user.username
 
     def save(self, *args, **kwargs):
+        skip_auto_assign = kwargs.pop('skip_auto_assign', False)
         old_class = None
         if self.pk:
             try:
@@ -92,10 +108,19 @@ class Student(models.Model):
         
         super().save(*args, **kwargs)
         
-        if self.student_class:
-            self.student_class.auto_assign_tutors()
-        if old_class and old_class != self.student_class:
-            old_class.auto_assign_tutors()
+        if not skip_auto_assign:
+            if self.student_class:
+                self.student_class.auto_assign_tutors(force=True)
+            if old_class and old_class != self.student_class:
+                old_class.auto_assign_tutors(force=True)
+
+from django.db.models.signals import post_delete
+from django.dispatch import receiver
+
+@receiver(post_delete, sender=Student)
+def student_deleted(sender, instance, **kwargs):
+    if instance.student_class:
+        instance.student_class.auto_assign_tutors(force=True)
 
 class Staff(models.Model):
     STAFF_TYPE_CHOICES = (

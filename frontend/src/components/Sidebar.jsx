@@ -6,10 +6,17 @@ import {
   BookOpen
 } from 'lucide-react';
 
-const Sidebar = ({ activeTab, setActiveTab }) => {
+const Sidebar = ({ activeTab, setActiveTab, mobileOpen, setMobileOpen }) => {
   const { user, logout, theme, toggleTheme } = useAuth();
 
   if (!user) return null;
+
+  const handleTabClick = (tab) => {
+    setActiveTab(tab);
+    if (setMobileOpen) {
+      setMobileOpen(false);
+    }
+  };
 
   const renderNavLinks = () => {
     if (user.role === 'student') {
@@ -17,22 +24,30 @@ const Sidebar = ({ activeTab, setActiveTab }) => {
         <>
           <div 
             className={`nav-item ${activeTab === 'dashboard' ? 'active' : ''}`}
-            onClick={() => setActiveTab('dashboard')}
+            onClick={() => handleTabClick('dashboard')}
           >
             <LayoutDashboard size={20} />
             <span>Mark Attendance</span>
           </div>
           <div 
             className={`nav-item ${activeTab === 'leave' ? 'active' : ''}`}
-            onClick={() => setActiveTab('leave')}
+            onClick={() => handleTabClick('leave')}
           >
             <FileText size={20} />
             <span>Leave & OD</span>
           </div>
 
           <div 
+            className={`nav-item ${activeTab === 'analysis' ? 'active' : ''}`}
+            onClick={() => handleTabClick('analysis')}
+          >
+            <BookOpen size={20} />
+            <span>Analysis</span>
+          </div>
+
+          <div 
             className={`nav-item ${activeTab === 'profile' ? 'active' : ''}`}
-            onClick={() => setActiveTab('profile')}
+            onClick={() => handleTabClick('profile')}
           >
             <User size={20} />
             <span>My Profile</span>
@@ -44,15 +59,22 @@ const Sidebar = ({ activeTab, setActiveTab }) => {
         <>
           <div 
             className={`nav-item ${activeTab === 'dashboard' ? 'active' : ''}`}
-            onClick={() => setActiveTab('dashboard')}
+            onClick={() => handleTabClick('dashboard')}
           >
             <LayoutDashboard size={20} />
             <span>Generate OTP</span>
           </div>
+          <div 
+            className={`nav-item ${activeTab === 'manual_attendance' ? 'active' : ''}`}
+            onClick={() => handleTabClick('manual_attendance')}
+          >
+            <CheckSquare size={20} />
+            <span>Manual Attendance</span>
+          </div>
           {user.staff_details?.staff_type !== 'Normal' && (
             <div 
               className={`nav-item ${activeTab === 'approvals' ? 'active' : ''}`}
-              onClick={() => setActiveTab('approvals')}
+              onClick={() => handleTabClick('approvals')}
             >
               <CheckSquare size={20} />
               <span>Leave Approvals</span>
@@ -61,22 +83,40 @@ const Sidebar = ({ activeTab, setActiveTab }) => {
           {user.staff_details?.staff_type !== 'Normal' && (
             <div 
               className={`nav-item ${activeTab === 'students' ? 'active' : ''}`}
-              onClick={() => setActiveTab('students')}
+              onClick={() => handleTabClick('students')}
             >
               <Users size={20} />
               <span>My Students</span>
             </div>
           )}
+          {user.staff_details?.staff_type === 'Advisor' && (
+            <div 
+              className={`nav-item ${activeTab === 'advisor_live' ? 'active' : ''}`}
+              onClick={() => handleTabClick('advisor_live')}
+            >
+              <Calendar size={20} />
+              <span>Live Class Grid</span>
+            </div>
+          )}
+          {user.staff_details?.staff_type === 'Advisor' && (
+            <div 
+              className={`nav-item ${activeTab === 'manage_subjects' ? 'active' : ''}`}
+              onClick={() => handleTabClick('manage_subjects')}
+            >
+              <BookOpen size={20} />
+              <span>Manage Subjects</span>
+            </div>
+          )}
           <div 
             className={`nav-item ${activeTab === 'reports' ? 'active' : ''}`}
-            onClick={() => setActiveTab('reports')}
+            onClick={() => handleTabClick('reports')}
           >
             <Download size={20} />
             <span>Reports</span>
           </div>
           <div 
             className={`nav-item ${activeTab === 'profile' ? 'active' : ''}`}
-            onClick={() => setActiveTab('profile')}
+            onClick={() => handleTabClick('profile')}
           >
             <User size={20} />
             <span>Profile</span>
@@ -88,49 +128,42 @@ const Sidebar = ({ activeTab, setActiveTab }) => {
         <>
           <div 
             className={`nav-item ${activeTab === 'dashboard' ? 'active' : ''}`}
-            onClick={() => setActiveTab('dashboard')}
+            onClick={() => handleTabClick('dashboard')}
           >
             <LayoutDashboard size={20} />
             <span>HOD Dashboard</span>
           </div>
           <div 
-            className={`nav-item ${activeTab === 'students' ? 'active' : ''}`}
-            onClick={() => setActiveTab('students')}
-          >
-            <Users size={20} />
-            <span>Manage Students</span>
-          </div>
-          <div 
             className={`nav-item ${activeTab === 'staff' ? 'active' : ''}`}
-            onClick={() => setActiveTab('staff')}
+            onClick={() => handleTabClick('staff')}
           >
             <Users size={20} />
             <span>Manage Staff</span>
           </div>
           <div 
             className={`nav-item ${activeTab === 'classes' ? 'active' : ''}`}
-            onClick={() => setActiveTab('classes')}
+            onClick={() => handleTabClick('classes')}
           >
             <Calendar size={20} />
             <span>Manage Classes</span>
           </div>
           <div 
             className={`nav-item ${activeTab === 'approvals' ? 'active' : ''}`}
-            onClick={() => setActiveTab('approvals')}
+            onClick={() => handleTabClick('approvals')}
           >
             <CheckSquare size={20} />
             <span>Leave Approvals</span>
           </div>
           <div 
-            className={`nav-item ${activeTab === 'morning' ? 'active' : ''}`}
-            onClick={() => setActiveTab('morning')}
+            className={`nav-item ${activeTab === 'reports' ? 'active' : ''}`}
+            onClick={() => handleTabClick('reports')}
           >
-            <Clock size={20} />
-            <span>Morning Attendance</span>
+            <Download size={20} />
+            <span>Reports</span>
           </div>
           <div 
             className={`nav-item ${activeTab === 'profile' ? 'active' : ''}`}
-            onClick={() => setActiveTab('profile')}
+            onClick={() => handleTabClick('profile')}
           >
             <User size={20} />
             <span>Profile</span>
@@ -152,7 +185,7 @@ const Sidebar = ({ activeTab, setActiveTab }) => {
   };
 
   return (
-    <nav className="sidebar">
+    <nav className={`sidebar ${mobileOpen ? 'mobile-open' : ''}`}>
       <div>
         <div style={{ padding: '0 16px', marginBottom: '24px' }}>
           <h2 style={{ fontSize: '20px', fontWeight: '700', color: 'var(--accent-primary)' }}>Attendance</h2>
@@ -188,14 +221,16 @@ const Sidebar = ({ activeTab, setActiveTab }) => {
             {theme === 'light' ? <Moon size={18} /> : <Sun size={18} />}
           </button>
           
-          <button 
-            className="btn btn-danger" 
-            style={{ flex: 1, padding: '8px' }} 
-            onClick={logout}
-            title="Log Out"
-          >
-            <LogOut size={18} />
-          </button>
+          {!(user && user.hide_logout) && (
+            <button 
+              className="btn btn-danger" 
+              style={{ flex: 1, padding: '8px' }} 
+              onClick={logout}
+              title="Log Out"
+            >
+              <LogOut size={18} />
+            </button>
+          )}
         </div>
       </div>
     </nav>

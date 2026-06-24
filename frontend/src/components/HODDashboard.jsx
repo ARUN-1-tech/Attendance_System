@@ -4,18 +4,29 @@ import { useAuth } from '../AuthContext';
 import { 
   Users, UserCheck, ShieldAlert, Award, 
   Trash2, Edit, Plus, Check, X, FileSpreadsheet, Eye,
-  Calendar, BookOpen, User
+  Calendar, BookOpen, User, Download, Printer,
+  ArrowLeft, ChevronDown, ChevronUp, Clock, Search
 } from 'lucide-react';
 
-const HODDashboard = ({ activeTab }) => {
+const HODDashboard = ({ activeTab, setActiveTab }) => {
   const { user, checkAuth } = useAuth();
   
   // Dashboard stats
   const [stats, setStats] = useState(null);
   const [statsLoading, setStatsLoading] = useState(true);
+  
+  // Selected class for live grid monitor
+  const [selectedClassId, setSelectedClassId] = useState(null);
+  const [classGridData, setClassGridData] = useState(null);
+  const [classGridLoading, setClassGridLoading] = useState(true);
+  const [expandedYear, setExpandedYear] = useState(null);
+  const [gridSearchQuery, setGridSearchQuery] = useState('');
+
 
   // Student CRUD states
   const [students, setStudents] = useState([]);
+  const [selectedStudentStats, setSelectedStudentStats] = useState(null);
+  const [statsModalOpen, setStatsModalOpen] = useState(false);
   const [classes, setClasses] = useState([]);
   const [staffList, setStaffList] = useState([]);
   const [studentFormOpen, setStudentFormOpen] = useState(false);
@@ -30,6 +41,16 @@ const HODDashboard = ({ activeTab }) => {
   const [studentDob, setStudentDob] = useState('');
   const [studentRollNo, setStudentRollNo] = useState('');
   const [studentRegNo, setStudentRegNo] = useState('');
+  const [studentTutorId, setStudentTutorId] = useState('');
+  const [studentAdvisorId, setStudentAdvisorId] = useState('');
+  const [studentAge, setStudentAge] = useState('');
+  const [studentYear, setStudentYear] = useState('');
+  
+  // Bulk upload student states
+  const [bulkUploadOpen, setBulkUploadOpen] = useState(false);
+  const [csvFile, setCsvFile] = useState(null);
+  const [bulkErrors, setBulkErrors] = useState([]);
+  const [bulkSubmitting, setBulkSubmitting] = useState(false);
 
   // Staff CRUD states
   const [staff, setStaff] = useState([]);
@@ -48,6 +69,7 @@ const HODDashboard = ({ activeTab }) => {
 
   // HOD Class CRUD states
   const [classFormOpen, setClassFormOpen] = useState(false);
+  const [selectedClassForStudents, setSelectedClassForStudents] = useState(null);
   const [editingClass, setEditingClass] = useState(null);
   const [className, setClassName] = useState('');
   const [classYear, setClassYear] = useState('');
@@ -67,10 +89,23 @@ const HODDashboard = ({ activeTab }) => {
   const [leaves, setLeaves] = useState([]);
   const [approvalsLoading, setApprovalsLoading] = useState(false);
   const [approvalSubTab, setApprovalSubTab] = useState('leave');
+  const [showHistory, setShowHistory] = useState(false);
 
   // Morning Attendance states
   const [morningData, setMorningData] = useState([]);
   const [morningLoading, setMorningLoading] = useState(true);
+
+  // Report states
+  const [reportMode, setReportMode] = useState('day');
+  const [reportDate, setReportDate] = useState(new Date().toISOString().substring(0, 10));
+  const [reportType, setReportType] = useState('department');
+  const [reportClassId, setReportClassId] = useState('');
+  const [reportStudentId, setReportStudentId] = useState('');
+  const [reportSubjectId, setReportSubjectId] = useState('');
+  const [reportFromDate, setReportFromDate] = useState('');
+  const [reportToDate, setReportToDate] = useState('');
+  const [reportData, setReportData] = useState([]);
+  const [reportsLoading, setReportsLoading] = useState(false);
 
   // Profile states
   const [firstName, setFirstName] = useState(user.first_name || '');
@@ -84,20 +119,24 @@ const HODDashboard = ({ activeTab }) => {
   useEffect(() => {
     if (activeTab === 'dashboard') {
       fetchDashboardStats();
-    } else if (activeTab === 'students') {
-      fetchStudentsList();
-      fetchClassesAndStaff();
-    } else if (activeTab === 'staff') {
-      fetchStaffList();
     } else if (activeTab === 'classes') {
       fetchClassesList();
       fetchStaffListOnly();
+      fetchStudentsList();
+      setSelectedClassForStudents(null);
+      setSelectedClassId(null);
     } else if (activeTab === 'subjects') {
       fetchSubjectsList();
+    } else if (activeTab === 'staff') {
+      fetchStaffList();
     } else if (activeTab === 'approvals') {
       fetchPendingApprovals();
-    } else if (activeTab === 'morning') {
-      fetchMorningAttendance();
+    } else if (activeTab === 'reports') {
+      fetchClassesAndStaff();
+      fetchSubjectsList();
+      if (classes.length > 0 && !reportClassId) {
+        setReportClassId(classes[0].id.toString());
+      }
     }
   }, [activeTab]);
 
@@ -122,13 +161,26 @@ const HODDashboard = ({ activeTab }) => {
     }
   };
 
+  const handleViewStudentStats = async (username) => {
+    try {
+      const data = await api.get(`/api/attendance/student-stats/${username}/`);
+      setSelectedStudentStats(data);
+      setStatsModalOpen(true);
+    } catch (err) {
+      alert(err.message || 'Failed to fetch student analysis.');
+    }
+  };
+
   const fetchClassesAndStaff = async () => {
     try {
       const cls = await api.get('/api/classes/');
       const stf = await api.get('/api/users/?role=staff');
       setClasses(cls);
       setStaffList(stf);
-      if (cls.length > 0) setStudentClassId(cls[0].id.toString());
+      if (cls.length > 0) {
+        setStudentClassId(cls[0].id.toString());
+        setReportClassId(cls[0].id.toString());
+      }
     } catch (err) {
       console.error(err);
     }
@@ -189,7 +241,9 @@ const HODDashboard = ({ activeTab }) => {
   };
 
   const fetchMorningAttendance = async () => {
-    setMorningLoading(true);
+    if (morningData.length === 0) {
+      setMorningLoading(true);
+    }
     try {
       const data = await api.get('/api/hod/morning-attendance/');
       setMorningData(data);
@@ -200,6 +254,131 @@ const HODDashboard = ({ activeTab }) => {
     }
   };
 
+  const fetchClassGrid = async (classId) => {
+    try {
+      const data = await api.get(`/api/hod/morning-attendance/?class_id=${classId}`);
+      setClassGridData(data);
+    } catch (err) {
+      console.error(err);
+      setClassGridData(null);
+    } finally {
+      setClassGridLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    let interval = null;
+    if (activeTab === 'classes' && selectedClassId) {
+      setClassGridLoading(true);
+      fetchClassGrid(selectedClassId);
+      interval = setInterval(() => {
+        fetchClassGrid(selectedClassId);
+      }, 4000);
+    }
+    return () => {
+      if (interval) clearInterval(interval);
+    };
+  }, [activeTab, selectedClassId]);
+
+
+  const handleRunReport = async (e) => {
+    if (e) e.preventDefault();
+    setReportsLoading(true);
+    setReportData([]);
+    try {
+      let query = `?report_type=${reportType}&report_mode=${reportMode}`;
+      if (reportType === 'class') query += `&class_id=${reportClassId}`;
+      if (reportType === 'student') query += `&student_id=${reportStudentId}`;
+      
+      if (reportFromDate) query += `&from_date=${reportFromDate}`;
+      if (reportToDate) query += `&to_date=${reportToDate}`;
+      if (reportMode === 'subject_percentage' && reportSubjectId) {
+        query += `&subject_id=${reportSubjectId}`;
+      }
+      
+      const data = await api.get(`/api/attendance/reports/${query}`);
+      setReportData(data);
+    } catch (err) {
+      alert(err.message || 'Failed to fetch report data.');
+    } finally {
+      setReportsLoading(false);
+    }
+  };
+
+  const handleDownloadReportCSV = () => {
+    if (reportData.length === 0) return;
+    
+    let headers;
+    if (reportMode === 'day') {
+      headers = ['Register Number', 'Name', 'Department', 'Year', 'Class', 'Section', 'Date', 'Status'];
+    } else {
+      headers = ['Register Number', 'Name', 'Department', 'Year', 'Class', 'Section', 'Subject', 'Attendance Percentage'];
+    }
+    
+    const csvRows = [headers.join(',')];
+    let total = 0, present = 0, absent = 0, od = 0;
+
+    reportData.forEach(r => {
+      let row;
+      const regNo = r.student_reg_no || r.student_username;
+      const dept = r.department_name || '';
+      const yr = r.year || '';
+      const cls = r.class_only_name || '';
+      const sec = r.section || '';
+
+      if (reportMode === 'day') {
+        row = [
+          regNo,
+          `"${r.student_name}"`,
+          `"${dept}"`,
+          yr,
+          `"${cls}"`,
+          `"${sec}"`,
+          r.date,
+          r.status
+        ];
+        total++;
+        if (r.status === 'Present') present++;
+        else if (r.status === 'Absent') absent++;
+        else if (r.status === 'OD') od++;
+      } else {
+        row = [
+          regNo,
+          `"${r.student_name}"`,
+          `"${dept}"`,
+          yr,
+          `"${cls}"`,
+          `"${sec}"`,
+          `"${r.subject_name}"`,
+          `"${r.percentage}%"`
+        ];
+      }
+      csvRows.push(row.join(','));
+    });
+    
+    if (reportMode === 'day') {
+      csvRows.push('');
+      csvRows.push('Summary');
+      csvRows.push(`Total Students,${total}`);
+      csvRows.push(`Present,${present}`);
+      csvRows.push(`Absent,${absent}`);
+      csvRows.push(`OD,${od}`);
+    }
+    
+    const blob = new Blob([csvRows.join('\n')], { type: 'text/csv' });
+    const url = window.URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.setAttribute('href', url);
+    a.setAttribute('download', `Attendance_Report_${reportType}_${reportMode}_${new Date().toISOString().substring(0,10)}.csv`);
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+  };
+
+  const handlePrintReport = () => {
+    window.print();
+  };
+
   // Student CRUD functions
   const handleSaveStudent = async (e) => {
     e.preventDefault();
@@ -207,15 +386,16 @@ const HODDashboard = ({ activeTab }) => {
       user: {
         username: studentUsername,
         email: studentEmail,
-        first_name: studentFirstName,
-        last_name: studentLastName,
+        first_name: studentUsername,
+        role: 'student',
         phone_number: studentPhone || null,
-        dob: studentDob || null,
-        role: 'student'
+        age: studentAge ? parseInt(studentAge) : null
       },
       student_class: parseInt(studentClassId),
       roll_no: studentRollNo || '',
-      reg_no: studentRegNo || ''
+      reg_no: studentRegNo || '',
+      tutor: studentTutorId ? parseInt(studentTutorId) : null,
+      advisor: studentAdvisorId ? parseInt(studentAdvisorId) : null
     };
 
     if (studentPassword) {
@@ -239,18 +419,73 @@ const HODDashboard = ({ activeTab }) => {
     }
   };
 
+  const getCookie = (name) => {
+    let cookieValue = null;
+    if (document.cookie && document.cookie !== '') {
+      const cookies = document.cookie.split(';');
+      for (let i = 0; i < cookies.length; i++) {
+        const cookie = cookies[i].trim();
+        if (cookie.substring(0, name.length + 1) === (name + '=')) {
+          cookieValue = decodeURIComponent(cookie.substring(name.length + 1));
+          break;
+        }
+      }
+    }
+    return cookieValue;
+  };
+
+  const handleBulkUpload = async (e) => {
+    e.preventDefault();
+    if (!csvFile) {
+      alert('Please select a CSV file.');
+      return;
+    }
+    setBulkSubmitting(true);
+    setBulkErrors([]);
+    const formData = new FormData();
+    formData.append('file', csvFile);
+
+    try {
+      const csrfToken = getCookie('csrftoken');
+      const response = await fetch(`${api.baseUrl}/api/students/bulk_create/`, {
+        method: 'POST',
+        headers: csrfToken ? { 'X-CSRFToken': csrfToken } : {},
+        body: formData,
+        credentials: 'include'
+      });
+      const data = await response.json();
+      if (!response.ok) {
+        if (data.errors) {
+          setBulkErrors(data.errors);
+        } else {
+          setBulkErrors([data.detail || 'Bulk import failed.']);
+        }
+      } else {
+        alert(data.detail || 'Bulk student import successful!');
+        setBulkUploadOpen(false);
+        setCsvFile(null);
+        fetchStudentsList();
+      }
+    } catch (err) {
+      setBulkErrors([err.message || 'Connection error.']);
+    } finally {
+      setBulkSubmitting(false);
+    }
+  };
+
   const handleEditStudentClick = (s) => {
     setEditingStudent(s);
     setStudentUsername(s.user.username);
     setStudentEmail(s.user.email);
-    setStudentFirstName(s.user.first_name);
-    setStudentLastName(s.user.last_name);
     setStudentClassId(s.student_class?.toString() || '');
     setStudentPassword('');
     setStudentPhone(s.user.phone_number || '');
-    setStudentDob(s.user.dob || '');
     setStudentRollNo(s.roll_no || '');
     setStudentRegNo(s.reg_no || '');
+    setStudentTutorId(s.tutor?.toString() || '');
+    setStudentAdvisorId(s.advisor?.toString() || '');
+    setStudentAge(s.user.age?.toString() || '');
+    setStudentYear(s.class_year?.toString() || '');
     setStudentFormOpen(true);
   };
 
@@ -275,6 +510,10 @@ const HODDashboard = ({ activeTab }) => {
     setStudentDob('');
     setStudentRollNo('');
     setStudentRegNo('');
+    setStudentTutorId('');
+    setStudentAdvisorId('');
+    setStudentAge('');
+    setStudentYear('');
   };
 
   // Staff CRUD functions
@@ -512,13 +751,14 @@ const HODDashboard = ({ activeTab }) => {
   const handleDownloadMorningCSV = () => {
     if (morningData.length === 0) return;
 
-    const headers = ['Date', 'Class', 'Total Students', 'Present', 'Absent', 'On Duty'];
+    const headers = ['Class', 'Year', 'Section', 'Total Students', 'Present', 'Absent', 'On Duty'];
     const csvRows = [headers.join(',')];
 
     morningData.forEach(r => {
       const row = [
-        r.date,
-        `"${r.student__student_class__name} (Sec ${r.student__student_class__section})"`,
+        `"${r.class_name}"`,
+        r.year,
+        `"${r.section}"`,
         r.total_students,
         r.present_count,
         r.absent_count,
@@ -531,7 +771,178 @@ const HODDashboard = ({ activeTab }) => {
     const url = window.URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.setAttribute('href', url);
-    a.setAttribute('download', `Morning_Attendance_Report_${new Date().toISOString().substring(0,10)}.csv`);
+    a.setAttribute('download', `Class_Attendance_Report_${new Date().toISOString().substring(0,10)}.csv`);
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+  };
+
+  const handleDownloadYearCSV = async (year) => {
+    try {
+      const todayStr = new Date().toISOString().substring(0, 10);
+      const data = await api.get(`/api/attendance/reports/?from_date=${todayStr}&to_date=${todayStr}&year=${year}`);
+      if (data.length === 0) {
+        alert(`No attendance records found for today in Year ${year}`);
+        return;
+      }
+      const headers = ['Register Number', 'Name', 'Department', 'Year', 'Class', 'Section', 'Date', 'Period', 'Subject', 'Status'];
+      const csvRows = [headers.join(',')];
+      let total = 0, present = 0, absent = 0, od = 0;
+      data.forEach(r => {
+        const row = [
+          r.student_reg_no || r.student_username,
+          `"${r.student_name}"`,
+          `"${r.department_name || ''}"`,
+          r.year || '',
+          `"${r.class_only_name || ''}"`,
+          `"${r.section || ''}"`,
+          r.date,
+          r.period || '-',
+          `"${r.subject_name || '-'}"`,
+          r.status
+        ];
+        csvRows.push(row.join(','));
+        total++;
+        if (r.status === 'Present') present++;
+        else if (r.status === 'Absent') absent++;
+        else if (r.status === 'OD') od++;
+      });
+
+      csvRows.push('');
+      csvRows.push('Summary');
+      csvRows.push(`Total Students,${total}`);
+      csvRows.push(`Present,${present}`);
+      csvRows.push(`Absent,${absent}`);
+      csvRows.push(`OD,${od}`);
+
+      const blob = new Blob([csvRows.join('\n')], { type: 'text/csv' });
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.setAttribute('href', url);
+      a.setAttribute('download', `Year_${year}_Attendance_Report_${todayStr}.csv`);
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+    } catch (err) {
+      alert(err.message || 'Failed to download year-wise CSV.');
+    }
+  };
+
+  const handleDownloadLiveGridCSV = () => {
+    if (!classGridData || !classGridData.student_rows) return;
+    
+    const search = gridSearchQuery.toLowerCase();
+    const filteredRows = classGridData.student_rows.filter(row => 
+      row.reg_no.toLowerCase().includes(search) || row.name.toLowerCase().includes(search)
+    );
+    
+    const dept = classGridData.class_dept || '';
+    const yr = classGridData.class_year || '';
+    const cls = classGridData.class_only_name || '';
+    const sec = classGridData.class_section || '';
+
+    const headers = ['Reg No', 'Student Name', 'Department', 'Year', 'Class', 'Section'];
+    classGridData.schedules.forEach(s => {
+      headers.push(`Period ${s.period} (${s.subject_name})`);
+    });
+    
+    const csvRows = [headers.join(',')];
+    filteredRows.forEach(row => {
+      const rowData = [row.reg_no, `"${row.name}"`, `"${dept}"`, yr, `"${cls}"`, `"${sec}"`];
+      classGridData.schedules.forEach(s => {
+        const statusObj = row.statuses.find(st => st.schedule_id === s.id);
+        const statusText = statusObj ? statusObj.status : '-';
+        rowData.push(statusText);
+      });
+      csvRows.push(rowData.join(','));
+    });
+
+    // Add summary section
+    csvRows.push('');
+    csvRows.push('Summary');
+    csvRows.push(`Total Students,${filteredRows.length}`);
+    
+    const presentRow = ['Present', '', '', '', '', ''];
+    const absentRow = ['Absent', '', '', '', '', ''];
+    const odRow = ['OD', '', '', '', '', ''];
+    
+    classGridData.schedules.forEach(s => {
+      const colSum = classGridData.columns_summary.find(cs => cs.schedule_id === s.id);
+      if (colSum) {
+        presentRow.push(colSum.present);
+        absentRow.push(colSum.absent);
+        odRow.push(colSum.od);
+      } else {
+        presentRow.push(0);
+        absentRow.push(0);
+        odRow.push(0);
+      }
+    });
+    
+    csvRows.push(presentRow.join(','));
+    csvRows.push(absentRow.join(','));
+    csvRows.push(odRow.join(','));
+    
+    const blob = new Blob([csvRows.join('\n')], { type: 'text/csv' });
+    const url = window.URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.setAttribute('href', url);
+    a.setAttribute('download', `${classGridData.class_name.replace(/\s+/g, '_')}_Live_Grid_${new Date().toISOString().substring(0, 10)}.csv`);
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+  };
+
+  const handleDownloadFirstPeriodCSV = () => {
+    if (!classGridData || !classGridData.student_rows) return;
+    
+    const dept = classGridData.class_dept || '';
+    const yr = classGridData.class_year || '';
+    const cls = classGridData.class_only_name || '';
+    const sec = classGridData.class_section || '';
+
+    const headers = ['Register Number', 'Name', 'Department', 'Year', 'Class', 'Section', 'Date', 'Status'];
+    const csvRows = [headers.join(',')];
+    const dateVal = classGridData.date;
+    
+    const period1Sched = classGridData.schedules.find(s => s.period === 1);
+    
+    let total = 0, present = 0, absent = 0, od = 0;
+    classGridData.student_rows.forEach(row => {
+      let statusText = '-';
+      if (period1Sched) {
+        const statusObj = row.statuses.find(st => st.schedule_id === period1Sched.id);
+        statusText = statusObj ? statusObj.status : 'Absent';
+      }
+      const rowData = [
+        row.reg_no,
+        `"${row.name}"`,
+        `"${dept}"`,
+        yr,
+        `"${cls}"`,
+        `"${sec}"`,
+        dateVal,
+        statusText
+      ];
+      csvRows.push(rowData.join(','));
+      total++;
+      if (statusText === 'Present') present++;
+      else if (statusText === 'Absent') absent++;
+      else if (statusText === 'OD') od++;
+    });
+
+    csvRows.push('');
+    csvRows.push('Summary');
+    csvRows.push(`Total Students,${total}`);
+    csvRows.push(`Present,${present}`);
+    csvRows.push(`Absent,${absent}`);
+    csvRows.push(`OD,${od}`);
+    
+    const blob = new Blob([csvRows.join('\n')], { type: 'text/csv' });
+    const url = window.URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.setAttribute('href', url);
+    a.setAttribute('download', `${classGridData.class_name.replace(/\s+/g, '_')}_1st_Period_Attendance_${dateVal}.csv`);
     document.body.appendChild(a);
     a.click();
     document.body.removeChild(a);
@@ -586,7 +997,7 @@ const HODDashboard = ({ activeTab }) => {
 
             {/* Daily stats breakdown */}
             <div className="card">
-              <h2 style={{ marginBottom: '20px' }}>Today's Student Overview</h2>
+              <h2 style={{ marginBottom: '20px' }}>Today's Student Overview (Period 1)</h2>
               <div className="grid grid-cols-3">
                 <div style={{ padding: '16px', borderLeft: '4px solid var(--success)', backgroundColor: 'var(--bg-tertiary)', borderRadius: 'var(--radius-sm)' }}>
                   <div style={{ fontSize: '12px', color: 'var(--text-muted)', textTransform: 'uppercase' }}>Present</div>
@@ -602,129 +1013,134 @@ const HODDashboard = ({ activeTab }) => {
                 </div>
               </div>
             </div>
-          </div>
-        )}
-      </div>
-    );
-  }
 
-  if (activeTab === 'students') {
-    return (
-      <div>
-        <div className="header">
-          <h1>Manage Students</h1>
-          <button className="btn btn-primary" onClick={() => { setEditingStudent(null); clearStudentForm(); setStudentFormOpen(!studentFormOpen); }}>
-            <Plus size={16} />
-            <span>Add Student</span>
-          </button>
-        </div>
-
-        {studentFormOpen && (
-          <div className="card" style={{ marginBottom: '24px' }}>
-            <h2>{editingStudent ? 'Edit Student Details' : 'Register New Student'}</h2>
-            <form onSubmit={handleSaveStudent} style={{ marginTop: '16px' }}>
-              <div className="grid grid-cols-2">
-                <div className="form-group">
-                  <label className="form-label">Username</label>
-                  <input type="text" className="input" required value={studentUsername} onChange={(e) => setStudentUsername(e.target.value)} disabled={editingStudent !== null} />
-                </div>
-                <div className="form-group">
-                  <label className="form-label">Email</label>
-                  <input type="email" className="input" required value={studentEmail} onChange={(e) => setStudentEmail(e.target.value)} />
-                </div>
-              </div>
-
-              <div className="grid grid-cols-2">
-                <div className="form-group">
-                  <label className="form-label">First Name</label>
-                  <input type="text" className="input" value={studentFirstName} onChange={(e) => setStudentFirstName(e.target.value)} />
-                </div>
-                <div className="form-group">
-                  <label className="form-label">Last Name</label>
-                  <input type="text" className="input" value={studentLastName} onChange={(e) => setStudentLastName(e.target.value)} />
-                </div>
-              </div>
-
-              <div className="grid grid-cols-2">
-                <div className="form-group">
-                  <label className="form-label">Date of Birth (DOB)</label>
-                  <input type="date" className="input" value={studentDob} onChange={(e) => setStudentDob(e.target.value)} />
-                </div>
-                <div className="form-group">
-                  <label className="form-label">Phone Number</label>
-                  <input type="text" className="input" value={studentPhone} onChange={(e) => setStudentPhone(e.target.value)} />
-                </div>
-              </div>
-
-              <div className="grid grid-cols-2">
-                <div className="form-group">
-                  <label className="form-label">Roll Number</label>
-                  <input type="text" className="input" value={studentRollNo} onChange={(e) => setStudentRollNo(e.target.value)} />
-                </div>
-                <div className="form-group">
-                  <label className="form-label">Registration Number</label>
-                  <input type="text" className="input" value={studentRegNo} onChange={(e) => setStudentRegNo(e.target.value)} />
-                </div>
-              </div>
-
-              <div className="form-group">
-                <label className="form-label">Class</label>
-                <select className="input" value={studentClassId} onChange={(e) => setStudentClassId(e.target.value)} required>
-                  <option value="">-- Select Class --</option>
-                  {classes.map(c => <option key={c.id} value={c.id}>{c.name} - Yr {c.year} (Sec {c.section})</option>)}
-                </select>
-              </div>
-
-              <div className="form-group" style={{ marginBottom: '24px' }}>
-                <label className="form-label">Password {editingStudent && '(leave blank to keep unchanged)'}</label>
-                <input type="password" className="input" placeholder="••••••••" value={studentPassword} onChange={(e) => setStudentPassword(e.target.value)} required={!editingStudent} />
-              </div>
-
-              <div style={{ display: 'flex', gap: '12px' }}>
-                <button type="submit" className="btn btn-primary">Save Student</button>
-                <button type="button" className="btn btn-secondary" onClick={() => setStudentFormOpen(false)}>Cancel</button>
-              </div>
-            </form>
-          </div>
-        )}
-
-        <div className="card">
-          <div className="table-container">
-            <table className="table">
-              <thead>
-                <tr>
-                  <th>Roll No</th>
-                  <th>Reg No</th>
-                  <th>Name</th>
-                  <th>Email</th>
-                  <th>Class</th>
-                  <th>Tutor</th>
-                  <th>Advisor</th>
-                  <th>Actions</th>
-                </tr>
-              </thead>
-              <tbody>
-                {students.map(s => (
-                  <tr key={s.user.id}>
-                    <td>{s.roll_no || '-'}</td>
-                    <td style={{ fontWeight: '600' }}>{s.reg_no || '-'}</td>
-                    <td>{s.user.first_name} {s.user.last_name}</td>
-                    <td>{s.user.email}</td>
-                    <td>{s.class_name} (Sec {s.class_section})</td>
-                    <td>{s.tutor_name || '-'}</td>
-                    <td>{s.advisor_name || '-'}</td>
-                    <td>
-                      <div style={{ display: 'flex', gap: '8px' }}>
-                        <button className="btn btn-outline" style={{ padding: '6px', color: 'var(--accent-primary)' }} onClick={() => handleEditStudentClick(s)}><Edit size={14} /></button>
-                        <button className="btn btn-outline" style={{ padding: '6px', color: 'var(--danger)' }} onClick={() => handleDeleteStudent(s.user.id)}><Trash2 size={14} /></button>
+            {/* Year-wise Period 1 Overview */}
+            <div className="card" style={{ marginTop: '24px' }}>
+              <h2 style={{ marginBottom: '20px' }}>Year-wise Period 1 Overview</h2>
+              <div className="grid grid-cols-2" style={{ gap: '20px' }}>
+                {stats.year_stats && stats.year_stats.map((yearStat) => {
+                  const isExpanded = expandedYear === yearStat.year;
+                  const romanYears = ['I', 'II', 'III', 'IV'];
+                  return (
+                    <div 
+                      key={yearStat.year} 
+                      className="card" 
+                      style={{ 
+                        backgroundColor: 'var(--bg-secondary)', 
+                        border: '1px solid var(--border-color)',
+                        padding: '16px',
+                        display: 'flex',
+                        flexDirection: 'column',
+                        gap: '12px'
+                      }}
+                    >
+                      <div 
+                        style={{ 
+                          display: 'flex', 
+                          justifyContent: 'space-between', 
+                          alignItems: 'center', 
+                          cursor: 'pointer' 
+                        }}
+                        onClick={() => setExpandedYear(isExpanded ? null : yearStat.year)}
+                      >
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                          <Award size={20} style={{ color: 'var(--accent-primary)' }} />
+                          <span style={{ fontWeight: '700', fontSize: '15px' }}>Year {yearStat.year} ({romanYears[yearStat.year - 1]} Year)</span>
+                          <button 
+                            className="btn btn-secondary" 
+                            style={{ 
+                              padding: '2px 6px', 
+                              fontSize: '11px', 
+                              display: 'flex', 
+                              alignItems: 'center', 
+                              gap: '4px',
+                              marginLeft: '8px',
+                              height: '24px'
+                            }} 
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              handleDownloadYearCSV(yearStat.year);
+                            }}
+                            title="Download Year CSV"
+                          >
+                            <Download size={12} />
+                            <span>CSV</span>
+                          </button>
+                        </div>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                          <span style={{ fontSize: '11px', color: 'var(--text-muted)' }}>Click to see classes</span>
+                          {isExpanded ? <ChevronUp size={16} /> : <ChevronDown size={16} />}
+                        </div>
                       </div>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
+
+                      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '8px', textAlign: 'center', marginTop: '4px' }}>
+                        <div style={{ backgroundColor: 'var(--success-light)', color: 'var(--success)', borderRadius: '4px', padding: '6px 4px', fontSize: '12px' }}>
+                          <div style={{ fontWeight: 'bold' }}>{yearStat.present}</div>
+                          <div style={{ fontSize: '10px', opacity: 0.8 }}>Present</div>
+                        </div>
+                        <div style={{ backgroundColor: 'var(--danger-light)', color: 'var(--danger)', borderRadius: '4px', padding: '6px 4px', fontSize: '12px' }}>
+                          <div style={{ fontWeight: 'bold' }}>{yearStat.absent}</div>
+                          <div style={{ fontSize: '10px', opacity: 0.8 }}>Absent</div>
+                        </div>
+                        <div style={{ backgroundColor: 'var(--info-light)', color: 'var(--info)', borderRadius: '4px', padding: '6px 4px', fontSize: '12px' }}>
+                          <div style={{ fontWeight: 'bold' }}>{yearStat.od}</div>
+                          <div style={{ fontSize: '10px', opacity: 0.8 }}>OD</div>
+                        </div>
+                      </div>
+
+                      {isExpanded && (
+                        <div style={{ marginTop: '12px', borderTop: '1px solid var(--border-color)', paddingTop: '12px' }}>
+                          <div style={{ fontSize: '12px', fontWeight: '600', marginBottom: '8px', color: 'var(--text-secondary)' }}>Classes Breakdown:</div>
+                          {yearStat.classes.length === 0 ? (
+                            <div style={{ fontSize: '12px', color: 'var(--text-muted)', fontStyle: 'italic' }}>No classes configured for this year.</div>
+                          ) : (
+                            <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+                              {yearStat.classes.map((cls) => (
+                                <div 
+                                  key={cls.class_id}
+                                  style={{
+                                    display: 'flex',
+                                    justifyContent: 'space-between',
+                                    alignItems: 'center',
+                                    padding: '8px 12px',
+                                    borderRadius: '6px',
+                                    backgroundColor: 'var(--bg-tertiary)',
+                                    cursor: 'pointer',
+                                    transition: 'all 0.2s',
+                                    border: '1px solid transparent'
+                                  }}
+                                  onMouseEnter={(e) => {
+                                    e.currentTarget.style.borderColor = 'var(--accent-primary)';
+                                    e.currentTarget.style.backgroundColor = 'var(--bg-surface)';
+                                  }}
+                                  onMouseLeave={(e) => {
+                                    e.currentTarget.style.borderColor = 'transparent';
+                                    e.currentTarget.style.backgroundColor = 'var(--bg-tertiary)';
+                                  }}
+                                  onClick={() => {
+                                    setSelectedClassId(cls.class_id);
+                                    setActiveTab('morning');
+                                  }}
+                                >
+                                  <span style={{ fontWeight: '600', fontSize: '13px' }}>{cls.class_name}</span>
+                                  <div style={{ display: 'flex', gap: '10px', fontSize: '12px' }}>
+                                    <span style={{ color: 'var(--success)' }}>{cls.present} P</span>
+                                    <span style={{ color: 'var(--danger)' }}>{cls.absent} A</span>
+                                    <span style={{ color: 'var(--info)' }}>{cls.od} OD</span>
+                                  </div>
+                                </div>
+                              ))}
+                            </div>
+                          )}
+                        </div>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
           </div>
-        </div>
+        )}
       </div>
     );
   }
@@ -850,6 +1266,446 @@ const HODDashboard = ({ activeTab }) => {
   }
 
   if (activeTab === 'classes') {
+    if (selectedClassId) {
+      return (
+        <div>
+          <div className="header" style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
+            <button 
+              className="btn btn-secondary" 
+              style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '8px 12px' }}
+              onClick={() => { setSelectedClassId(null); setGridSearchQuery(''); }}
+            >
+              <ArrowLeft size={16} />
+              <span>Back to Class List</span>
+            </button>
+            <h1 style={{ margin: 0 }}>Live Class Matrix</h1>
+          </div>
+
+          {classGridLoading && !classGridData ? (
+            <div style={{ textAlign: 'center', padding: '40px' }}>
+              <div className="spinner" style={{ display: 'inline-block', width: '30px', height: '30px', border: '3px solid var(--border-color)', borderTop: '3px solid var(--accent-primary)', borderRadius: '50%', animation: 'spin 1s linear infinite' }} />
+              <p style={{ marginTop: '12px', color: 'var(--text-secondary)' }}>Loading live attendance matrix...</p>
+            </div>
+          ) : !classGridData ? (
+            <div className="card" style={{ textAlign: 'center', padding: '40px' }}>
+              <p style={{ color: 'var(--text-muted)' }}>Could not load live attendance matrix for this class.</p>
+            </div>
+          ) : (
+            <div className="card" style={{ overflowX: 'auto', padding: '24px' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px', borderBottom: '1px solid var(--border-color)', paddingBottom: '12px' }}>
+                <div>
+                  <span style={{ fontSize: '12px', color: 'var(--accent-primary)', fontWeight: '600', textTransform: 'uppercase', letterSpacing: '1px' }}>Class Monitor</span>
+                  <h2 style={{ fontSize: '20px', margin: '4px 0 0 0' }}>{classGridData.class_name}</h2>
+                </div>
+                <div style={{ textAlign: 'right' }}>
+                  <span style={{ fontSize: '11px', color: 'var(--text-muted)', textTransform: 'uppercase' }}>Current Date</span>
+                  <div style={{ fontSize: '14px', fontWeight: '700', color: 'var(--text-primary)', marginTop: '2px' }}>{classGridData.date}</div>
+                </div>
+              </div>
+
+              {/* Search and Action Bar */}
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '16px', marginBottom: '20px', flexWrap: 'wrap' }}>
+                <div style={{ position: 'relative', flex: 1, minWidth: '260px', maxWidth: '300px' }}>
+                  <input
+                    type="text"
+                    className="input"
+                    placeholder="Search by Reg No or Name..."
+                    value={gridSearchQuery}
+                    onChange={(e) => setGridSearchQuery(e.target.value)}
+                    style={{ paddingLeft: '36px', height: '38px', margin: 0 }}
+                  />
+                  <Search size={16} style={{ position: 'absolute', left: '12px', top: '50%', transform: 'translateY(-50%)', color: 'var(--text-muted)' }} />
+                </div>
+                <div style={{ display: 'flex', gap: '12px' }}>
+                  <button
+                    className="btn btn-secondary"
+                    style={{ display: 'flex', alignItems: 'center', gap: '8px', height: '38px' }}
+                    onClick={handleDownloadFirstPeriodCSV}
+                  >
+                    <Download size={16} />
+                    <span>Download 1st Period CSV</span>
+                  </button>
+                  <button
+                    className="btn btn-primary"
+                    style={{ display: 'flex', alignItems: 'center', gap: '8px', height: '38px' }}
+                    onClick={handleDownloadLiveGridCSV}
+                  >
+                    <Download size={16} />
+                    <span>Download CSV</span>
+                  </button>
+                </div>
+              </div>
+
+              {/* Status Legend */}
+              <div style={{ display: 'flex', gap: '16px', alignItems: 'center', marginBottom: '20px', padding: '10px 16px', backgroundColor: 'var(--bg-tertiary)', borderRadius: 'var(--radius-sm)', fontSize: '12px' }}>
+                <span style={{ fontWeight: '600', color: 'var(--text-secondary)', textTransform: 'uppercase', letterSpacing: '0.5px' }}>Status Legend:</span>
+                <div style={{ display: 'flex', gap: '12px' }}>
+                  <span style={{ display: 'flex', alignItems: 'center', gap: '6px' }}><span style={{ display: 'inline-block', width: '8px', height: '8px', borderRadius: '50%', backgroundColor: 'var(--success)' }}></span> Present (P)</span>
+                  <span style={{ display: 'flex', alignItems: 'center', gap: '6px' }}><span style={{ display: 'inline-block', width: '8px', height: '8px', borderRadius: '50%', backgroundColor: 'var(--danger)' }}></span> Absent (A)</span>
+                  <span style={{ display: 'flex', alignItems: 'center', gap: '6px' }}><span style={{ display: 'inline-block', width: '8px', height: '8px', borderRadius: '50%', backgroundColor: 'var(--info)' }}></span> On Duty (OD)</span>
+                  <span style={{ display: 'flex', alignItems: 'center', gap: '6px' }}><span style={{ display: 'inline-block', width: '8px', height: '8px', borderRadius: '50%', backgroundColor: 'var(--warning)' }}></span> Leave (L)</span>
+                </div>
+              </div>
+
+              {classGridData.schedules.length === 0 ? (
+                <div style={{ textAlign: 'center', padding: '40px', color: 'var(--text-muted)', fontStyle: 'italic' }}>
+                  No periods scheduled for today.
+                </div>
+              ) : (
+                <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left', fontSize: '13px' }}>
+                  <thead>
+                    <tr style={{ borderBottom: '2px solid var(--border-color)', color: 'var(--text-secondary)' }}>
+                      <th style={{ padding: '12px 8px' }}>Reg No</th>
+                      <th style={{ padding: '12px 8px' }}>Student Name</th>
+                      {classGridData.schedules.map(s => (
+                        <th key={s.id} style={{ padding: '12px 8px', textAlign: 'center' }}>
+                          <span style={{ display: 'block', fontSize: '10px', color: 'var(--text-muted)', fontWeight: '500' }}>Period {s.period}</span>
+                          <span style={{ color: 'var(--text-primary)', fontWeight: '600', fontSize: '12px' }}>{s.subject_name}</span>
+                        </th>
+                      ))}
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {/* Subject summary row at top */}
+                    <tr style={{ backgroundColor: 'var(--bg-tertiary)', fontWeight: '600', borderBottom: '2px solid var(--border-color)' }}>
+                      <td colSpan={2} style={{ padding: '12px 8px', color: 'var(--text-secondary)' }}>Subject Summary (P / A / OD)</td>
+                      {classGridData.columns_summary.map((col, idx) => (
+                        <td key={idx} style={{ padding: '12px 8px', textAlign: 'center', fontSize: '11px', lineHeight: '1.4' }}>
+                          <div><span style={{ color: 'var(--success)' }}>{col.present}P</span> &bull; <span style={{ color: 'var(--danger)' }}>{col.absent}A</span></div>
+                          <div style={{ color: 'var(--info)', marginTop: '2px' }}>{col.od}OD</div>
+                        </td>
+                      ))}
+                    </tr>
+
+                    {classGridData.student_rows.filter(row => {
+                      const search = gridSearchQuery.toLowerCase();
+                      return row.reg_no.toLowerCase().includes(search) || row.name.toLowerCase().includes(search);
+                    }).map((row, rIdx) => (
+                      <tr 
+                        key={rIdx} 
+                        style={{ borderBottom: '1px solid var(--border-color)' }}
+                        onMouseEnter={(e) => e.currentTarget.style.backgroundColor = 'var(--bg-tertiary)'}
+                        onMouseLeave={(e) => e.currentTarget.style.backgroundColor = 'transparent'}
+                      >
+                        <td style={{ padding: '10px 8px', fontWeight: '600' }}>{row.reg_no}</td>
+                        <td style={{ padding: '10px 8px', color: 'var(--text-primary)' }}>{row.name}</td>
+                        
+                        {row.statuses.map((s, sIdx) => {
+                          let cellText = '-';
+                          let cellBg = 'transparent';
+                          let cellColor = 'var(--text-muted)';
+                          
+                          if (s.status === 'Present') { cellText = 'P'; cellBg = 'var(--success-light)'; cellColor = 'var(--success)'; }
+                          else if (s.status === 'Absent') { cellText = 'A'; cellBg = 'var(--danger-light)'; cellColor = 'var(--danger)'; }
+                          else if (s.status === 'OD') { cellText = 'OD'; cellBg = 'var(--info-light)'; cellColor = 'var(--info)'; }
+                          else if (s.status === 'Leave') { cellText = 'L'; cellBg = 'var(--warning-light)'; cellColor = 'var(--warning)'; }
+
+                          return (
+                            <td key={sIdx} style={{ padding: '10px 8px', textAlign: 'center' }}>
+                              {cellText !== '-' ? (
+                                <span style={{
+                                  padding: '2px 8px',
+                                  borderRadius: '6px',
+                                  fontSize: '11px',
+                                  fontWeight: '700',
+                                  backgroundColor: cellBg,
+                                  color: cellColor,
+                                  display: 'inline-block',
+                                  minWidth: '24px'
+                                }}>
+                                  {cellText}
+                                </span>
+                              ) : (
+                                <span style={{ color: 'rgba(255,255,255,0.12)', fontWeight: '600' }}>-</span>
+                              )}
+                            </td>
+                          );
+                        })}
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              )}
+            </div>
+          )}
+        </div>
+      );
+    }
+
+    if (selectedClassForStudents) {
+      const classStudents = students.filter(s => s.student_class === selectedClassForStudents.id);
+      return (
+        <>
+          <div>
+            <div style={{ marginBottom: '24px' }}>
+              <button 
+                className="btn btn-outline" 
+                onClick={() => { setSelectedClassForStudents(null); setStudentFormOpen(false); setBulkUploadOpen(false); }}
+                style={{ display: 'inline-flex', alignItems: 'center', gap: '6px' }}
+              >
+                <ArrowLeft size={16} />
+                <span>Back to Classes</span>
+              </button>
+            </div>
+
+            <div className="header">
+              <h1>Students in Class: {selectedClassForStudents.name} (Sec {selectedClassForStudents.section})</h1>
+            </div>
+
+            {studentFormOpen && (
+              <div className="card" style={{ marginBottom: '24px' }}>
+                <h2>Edit Student Details</h2>
+                <form onSubmit={handleSaveStudent} style={{ marginTop: '16px' }}>
+                  <div className="grid grid-cols-2">
+                    <div className="form-group">
+                      <label className="form-label">Username</label>
+                      <input type="text" className="input" required value={studentUsername} onChange={(e) => setStudentUsername(e.target.value)} disabled={editingStudent !== null} />
+                    </div>
+                    <div className="form-group">
+                      <label className="form-label">College Mail (Email)</label>
+                      <input type="email" className="input" required value={studentEmail} onChange={(e) => setStudentEmail(e.target.value)} />
+                    </div>
+                  </div>
+
+                  <div className="grid grid-cols-2">
+                    <div className="form-group">
+                      <label className="form-label">Registration Number</label>
+                      <input type="text" className="input" required value={studentRegNo} onChange={(e) => setStudentRegNo(e.target.value)} />
+                    </div>
+                    <div className="form-group">
+                      <label className="form-label">Roll Number</label>
+                      <input type="text" className="input" required value={studentRollNo} onChange={(e) => setStudentRollNo(e.target.value)} />
+                    </div>
+                  </div>
+
+                  <div className="grid grid-cols-2">
+                    <div className="form-group">
+                      <label className="form-label">Age</label>
+                      <input type="number" className="input" required value={studentAge} onChange={(e) => setStudentAge(e.target.value)} min="1" max="120" />
+                    </div>
+                    <div className="form-group">
+                      <label className="form-label">Mobile Number (Phone)</label>
+                      <input type="text" className="input" required value={studentPhone} onChange={(e) => setStudentPhone(e.target.value)} />
+                    </div>
+                  </div>
+
+                  <div className="grid grid-cols-2">
+                    <div className="form-group">
+                      <label className="form-label">Year</label>
+                      <select className="input" value={studentYear} disabled required style={{ backgroundColor: 'var(--bg-tertiary)' }}>
+                        <option value={selectedClassForStudents.year.toString()}>Year {selectedClassForStudents.year}</option>
+                      </select>
+                    </div>
+                    <div className="form-group">
+                      <label className="form-label">Class</label>
+                      <select className="input" value={studentClassId} disabled required style={{ backgroundColor: 'var(--bg-tertiary)' }}>
+                        <option value={selectedClassForStudents.id.toString()}>{selectedClassForStudents.name} (Sec {selectedClassForStudents.section})</option>
+                      </select>
+                    </div>
+                  </div>
+
+                  <div className="grid grid-cols-2">
+                    <div className="form-group">
+                      <label className="form-label">Tutor</label>
+                      <select className="input" value={studentTutorId} onChange={(e) => setStudentTutorId(e.target.value)}>
+                        <option value="">-- Select Tutor --</option>
+                        {staffList.map(s => <option key={s.id} value={s.id}>{s.first_name} {s.last_name} ({s.username})</option>)}
+                      </select>
+                    </div>
+                    <div className="form-group">
+                      <label className="form-label">Advisor</label>
+                      <select className="input" value={studentAdvisorId} onChange={(e) => setStudentAdvisorId(e.target.value)}>
+                        <option value="">-- Select Advisor --</option>
+                        {staffList.map(s => <option key={s.id} value={s.id}>{s.first_name} {s.last_name} ({s.username})</option>)}
+                      </select>
+                    </div>
+                  </div>
+
+                  <div className="form-group" style={{ marginBottom: '24px' }}>
+                    <label className="form-label">Password {editingStudent && '(leave blank to keep unchanged)'}</label>
+                    <input type="password" className="input" placeholder="••••••••" value={studentPassword} onChange={(e) => setStudentPassword(e.target.value)} required={!editingStudent} />
+                  </div>
+
+                  <div style={{ display: 'flex', gap: '12px' }}>
+                    <button type="submit" className="btn btn-primary">Save Student</button>
+                    <button type="button" className="btn btn-secondary" onClick={() => setStudentFormOpen(false)}>Cancel</button>
+                  </div>
+                </form>
+              </div>
+            )}
+
+            <div className="card">
+              <div className="table-container">
+                <table className="table">
+                  <thead>
+                    <tr>
+                      <th>Roll / Reg No</th>
+                      <th>Name</th>
+                      <th>Roll No</th>
+                      <th>Reg No</th>
+                      <th>Attendance %</th>
+                      <th>Actions</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {classStudents.length === 0 ? (
+                      <tr>
+                        <td colSpan={6} style={{ textAlign: 'center', padding: '20px', color: 'var(--text-muted)' }}>
+                          No students in this class yet.
+                        </td>
+                      </tr>
+                    ) : (
+                      classStudents.map(s => (
+                        <tr key={s.user.id}>
+                          <td style={{ fontWeight: '600' }}>{s.user.username}</td>
+                          <td>{s.user.first_name} {s.user.last_name}</td>
+                          <td>{s.roll_no}</td>
+                          <td>{s.reg_no}</td>
+                          <td style={{ fontWeight: '600', color: (s.attendance_percentage || 0) >= 75 ? 'var(--success)' : 'var(--danger)' }}>
+                            {s.attendance_percentage !== undefined ? `${s.attendance_percentage}%` : '-'}
+                          </td>
+                          <td>
+                            <div style={{ display: 'flex', gap: '8px' }}>
+                              <button className="btn btn-outline" style={{ padding: '6px', color: 'var(--accent-primary)' }} onClick={() => handleViewStudentStats(s.user.username)} title="View Analytics"><Eye size={14} /></button>
+                              <button className="btn btn-outline" style={{ padding: '6px', color: 'var(--accent-primary)' }} onClick={() => handleEditStudentClick(s)} title="Edit"><Edit size={14} /></button>
+                              <button className="btn btn-outline" style={{ padding: '6px', color: 'var(--danger)' }} onClick={() => handleDeleteStudent(s.user.id)} title="Delete"><Trash2 size={14} /></button>
+                            </div>
+                          </td>
+                        </tr>
+                      ))
+                    )}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          </div>
+          {statsModalOpen && selectedStudentStats && (
+            <div style={{
+              position: 'fixed', top: 0, left: 0, right: 0, bottom: 0,
+              backgroundColor: 'rgba(0,0,0,0.6)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000,
+              backdropFilter: 'blur(4px)'
+            }}>
+              <div className="card" style={{ width: '90%', maxWidth: '800px', maxHeight: '90vh', overflowY: 'auto', padding: '30px', position: 'relative' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '24px', alignItems: 'center', borderBottom: '1px solid var(--border-color)', paddingBottom: '16px' }}>
+                  <div>
+                    <h2 style={{ fontSize: '22px', fontWeight: '700', margin: 0, color: 'var(--text-primary)' }}>Attendance Analysis & Insights</h2>
+                    <span style={{ fontSize: '13px', color: 'var(--text-secondary)' }}>
+                      Student: <strong>{selectedStudentStats.name}</strong> ({selectedStudentStats.username}) | Class: <strong>{selectedStudentStats.class_name}</strong>
+                    </span>
+                  </div>
+                  <button className="btn btn-outline" style={{ padding: '8px 16px', fontSize: '13px' }} onClick={() => setStatsModalOpen(false)}>Close</button>
+                </div>
+
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 2fr', gap: '24px', marginBottom: '24px' }}>
+                  <div style={{ background: 'var(--bg-secondary)', border: '1px solid var(--border-color)', borderRadius: 'var(--radius-md)', padding: '24px', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center' }}>
+                    <div style={{ position: 'relative', width: '120px', height: '120px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                      <svg width="120" height="120" viewBox="0 0 100 100">
+                        <circle cx="50" cy="50" r="40" stroke="var(--border-color)" strokeWidth="8" fill="transparent" />
+                        <circle 
+                          cx="50" cy="50" r="40" 
+                          stroke={selectedStudentStats.percentage >= 75.0 ? 'var(--success)' : 'var(--danger)'} 
+                          strokeWidth="8" fill="transparent" 
+                          strokeDasharray={`${2 * Math.PI * 40}`} 
+                          strokeDashoffset={`${2 * Math.PI * 40 * (1 - selectedStudentStats.percentage / 100)}`}
+                          strokeLinecap="round"
+                          style={{ transition: 'stroke-dashoffset 0.5s ease', transform: 'rotate(-90deg)', transformOrigin: '50% 50%' }}
+                        />
+                      </svg>
+                      <div style={{ position: 'absolute', fontSize: '20px', fontWeight: '800', color: 'var(--text-primary)' }}>
+                        {selectedStudentStats.percentage}%
+                      </div>
+                    </div>
+                    <div style={{ fontSize: '14px', color: 'var(--text-primary)', fontWeight: '600', marginTop: '14px' }}>Overall Attendance</div>
+                    <span className={`badge ${selectedStudentStats.percentage >= 75.0 ? 'badge-present' : 'badge-absent'}`} style={{ marginTop: '8px' }}>
+                      {selectedStudentStats.percentage >= 75.0 ? 'Eligible' : 'Low Attendance'}
+                    </span>
+                  </div>
+
+                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: '16px' }}>
+                    <div style={{ background: 'var(--bg-secondary)', border: '1px solid var(--border-color)', borderRadius: 'var(--radius-sm)', padding: '16px' }}>
+                      <div style={{ fontSize: '12px', color: 'var(--text-secondary)', fontWeight: '500' }}>Total Period Hours</div>
+                      <div style={{ fontSize: '24px', fontWeight: '700', color: 'var(--text-primary)', marginTop: '4px' }}>{selectedStudentStats.total}</div>
+                    </div>
+                    <div style={{ background: 'var(--bg-secondary)', border: '1px solid var(--border-color)', borderRadius: 'var(--radius-sm)', padding: '16px' }}>
+                      <div style={{ fontSize: '12px', color: 'var(--text-secondary)', fontWeight: '500' }}>Present Hours</div>
+                      <div style={{ fontSize: '24px', fontWeight: '700', color: 'var(--success)', marginTop: '4px' }}>{selectedStudentStats.present}</div>
+                    </div>
+                    <div style={{ background: 'var(--bg-secondary)', border: '1px solid var(--border-color)', borderRadius: 'var(--radius-sm)', padding: '16px' }}>
+                      <div style={{ fontSize: '12px', color: 'var(--text-secondary)', fontWeight: '500' }}>Absent Hours</div>
+                      <div style={{ fontSize: '24px', fontWeight: '700', color: 'var(--danger)', marginTop: '4px' }}>{selectedStudentStats.absent}</div>
+                    </div>
+                    <div style={{ background: 'var(--bg-secondary)', border: '1px solid var(--border-color)', borderRadius: 'var(--radius-sm)', padding: '16px' }}>
+                      <div style={{ fontSize: '12px', color: 'var(--text-secondary)', fontWeight: '500' }}>Approved OD Hours</div>
+                      <div style={{ fontSize: '24px', fontWeight: '700', color: 'var(--info)', marginTop: '4px' }}>{selectedStudentStats.verified_od}</div>
+                    </div>
+                  </div>
+                </div>
+
+                {selectedStudentStats.ai_suggestion && (
+                  <div style={{
+                    backgroundColor: selectedStudentStats.percentage >= 75.0 ? 'rgba(16, 185, 129, 0.08)' : 'rgba(239, 68, 68, 0.08)',
+                    border: `1px solid ${selectedStudentStats.percentage >= 75.0 ? 'rgba(16, 185, 129, 0.2)' : 'rgba(239, 68, 68, 0.2)'}`,
+                    borderRadius: 'var(--radius-sm)',
+                    padding: '16px',
+                    marginBottom: '24px',
+                    fontSize: '13.5px',
+                    color: 'var(--text-primary)',
+                    lineHeight: '1.5'
+                  }}>
+                    <strong style={{ color: selectedStudentStats.percentage >= 75.0 ? 'var(--success)' : 'var(--danger)', display: 'block', marginBottom: '4px' }}>Status Summary:</strong>
+                    {selectedStudentStats.ai_suggestion}
+                  </div>
+                )}
+
+                {selectedStudentStats.subjects && selectedStudentStats.subjects.length > 0 && (
+                  <div style={{ marginTop: '24px' }}>
+                    <h3 style={{ fontSize: '16px', fontWeight: '600', marginBottom: '12px', color: 'var(--text-primary)' }}>Subject-wise Breakdown</h3>
+                    <div className="table-container" style={{ border: '1px solid var(--border-color)', borderRadius: 'var(--radius-sm)' }}>
+                      <table className="table" style={{ margin: 0 }}>
+                        <thead>
+                          <tr>
+                            <th>Subject</th>
+                            <th>Total Hours</th>
+                            <th>Present Hours</th>
+                            <th>Percentage</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {selectedStudentStats.subjects.map(sub => (
+                            <tr key={sub.id}>
+                              <td>
+                                <strong style={{ color: 'var(--accent-primary)' }}>{sub.code}</strong> - {sub.name}
+                              </td>
+                              <td>{sub.total_periods}</td>
+                              <td>{sub.effective_present}</td>
+                              <td>
+                                <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                                  <span style={{ fontWeight: '600', minWidth: '45px', color: sub.percentage >= 75.0 ? 'var(--success)' : 'var(--danger)' }}>
+                                    {sub.percentage}%
+                                  </span>
+                                  <div style={{ flex: 1, height: '6px', backgroundColor: 'var(--border-color)', borderRadius: '3px', overflow: 'hidden', maxWidth: '80px' }}>
+                                    <div style={{
+                                      width: `${sub.percentage}%`,
+                                      height: '100%',
+                                      backgroundColor: sub.percentage >= 75.0 ? 'var(--success)' : 'var(--danger)'
+                                    }} />
+                                  </div>
+                                </div>
+                              </td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
+        </>
+      );
+    }
+
     return (
       <div>
         <div className="header">
@@ -936,6 +1792,12 @@ const HODDashboard = ({ activeTab }) => {
                     <td>{c.tutor3_name || '-'}</td>
                     <td>
                       <div style={{ display: 'flex', gap: '8px' }}>
+                        <button className="btn btn-outline" style={{ padding: '6px 12px', fontSize: '12px' }} onClick={() => { setSelectedClassForStudents(c); setStudentFormOpen(false); setBulkUploadOpen(false); }}>
+                          <span>View Students</span>
+                        </button>
+                        <button className="btn btn-outline" style={{ padding: '6px 12px', fontSize: '12px', color: 'var(--accent-primary)' }} onClick={() => { setSelectedClassId(c.id); setGridSearchQuery(''); }}>
+                          <span>View Live Grid</span>
+                        </button>
                         <button className="btn btn-outline" style={{ padding: '6px', color: 'var(--accent-primary)' }} onClick={() => handleEditClassClick(c)}><Edit size={14} /></button>
                         <button className="btn btn-outline" style={{ padding: '6px', color: 'var(--danger)' }} onClick={() => handleDeleteClass(c.id)}><Trash2 size={14} /></button>
                       </div>
@@ -1015,13 +1877,19 @@ const HODDashboard = ({ activeTab }) => {
 
   if (activeTab === 'approvals') {
     const pendingHOD = leaves.filter(l => l.advisor_approved === 'Approved' && l.hod_approved === 'Pending' && l.leave_type === (approvalSubTab === 'leave' ? 'Leave' : 'OD'));
-    const processedHOD = leaves.filter(l => !l.is_archived && l.hod_approved !== 'Pending' && l.leave_type === (approvalSubTab === 'leave' ? 'Leave' : 'OD'));
+    const processedHOD = leaves.filter(l => l.hod_approved !== 'Pending' && l.leave_type === (approvalSubTab === 'leave' ? 'Leave' : 'OD'));
 
     return (
       <div>
         <div className="header">
           <h1>Department Leave/OD Approvals</h1>
-          <button className="btn btn-secondary" onClick={handleCleanupApprovals}>Cleanup List</button>
+          <button 
+            className="btn btn-outline" 
+            onClick={() => setShowHistory(!showHistory)}
+            style={{ padding: '8px 16px', fontSize: '14px' }}
+          >
+            {showHistory ? 'Hide History' : 'Show History'}
+          </button>
         </div>
 
         <div style={{ display: 'flex', gap: '8px', marginBottom: '20px' }}>
@@ -1045,134 +1913,236 @@ const HODDashboard = ({ activeTab }) => {
           <div>Loading approvals...</div>
         ) : (
           <div className="grid">
-            <div className="card">
-              <h2 style={{ marginBottom: '16px', color: 'var(--accent-primary)' }}>Pending HOD Action (Approved by Advisor)</h2>
-              <div className="table-container">
-                <table className="table">
-                  <thead>
-                    <tr>
-                      <th>Student</th>
-                      <th>Class</th>
-                      <th>Date</th>
-                      <th>Type</th>
-                      <th>Reason</th>
-                      <th>Actions</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {pendingHOD.length === 0 ? (
-                      <tr>
-                        <td colSpan={6} style={{ textAlign: 'center', color: 'var(--text-muted)' }}>No requests pending HOD approval.</td>
-                      </tr>
-                    ) : (
-                      pendingHOD.map(l => (
-                        <tr key={l.id}>
-                          <td>{l.student_details?.user.first_name} ({l.student_details?.user.username})</td>
-                          <td>{l.student_details?.class_name}</td>
-                          <td>{l.date}</td>
-                          <td><span className={`badge ${l.leave_type === 'OD' ? 'badge-od' : 'badge-leave'}`}>{l.leave_type}</span></td>
-                          <td>{l.reason}</td>
-                          <td>
-                            <div style={{ display: 'flex', gap: '8px' }}>
-                              <button className="btn btn-outline" style={{ padding: '6px', color: 'var(--success)' }} onClick={() => handleApproveAction(l.id, 'Approve')}><Check size={16} /></button>
-                              <button className="btn btn-outline" style={{ padding: '6px', color: 'var(--danger)' }} onClick={() => handleApproveAction(l.id, 'Reject')}><X size={16} /></button>
-                            </div>
-                          </td>
-                        </tr>
-                      ))
-                    )}
-                  </tbody>
-                </table>
-              </div>
+            <div style={{ gridColumn: '1 / -1' }}>
+              <h2 style={{ marginBottom: '16px', fontSize: '18px', color: 'var(--text-secondary)', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                <span style={{ width: '8px', height: '8px', borderRadius: '50%', backgroundColor: 'var(--accent-primary)' }}></span>
+                Pending HOD Action (Approved by Advisor)
+              </h2>
+              {pendingHOD.length === 0 ? (
+                <div className="card" style={{ textAlign: 'center', padding: '32px', color: 'var(--text-muted)' }}>
+                  No requests pending HOD approval.
+                </div>
+              ) : (
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(310px, 1fr))', gap: '16px', marginBottom: '24px' }}>
+                  {pendingHOD.map(l => (
+                    <div className="card" key={l.id} style={{ display: 'flex', flexDirection: 'column', justifyContent: 'space-between', padding: '20px', minHeight: '220px' }}>
+                      <div>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '12px' }}>
+                          <div style={{ width: '40px', height: '40px', borderRadius: '50%', backgroundColor: 'var(--accent-light)', color: 'var(--accent-primary)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: '600', fontSize: '14px' }}>
+                            {(l.student_details?.user.first_name || 'S').substring(0, 1)}{(l.student_details?.user.last_name || 'S').substring(0, 1)}
+                          </div>
+                          <div style={{ flex: 1, minWidth: 0 }}>
+                            <h4 style={{ margin: 0, fontSize: '14px', fontWeight: '600', color: 'var(--text-primary)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{l.student_details?.user.first_name} {l.student_details?.user.last_name} ({l.student_details?.reg_no})</h4>
+                            <span style={{ fontSize: '11px', color: 'var(--text-secondary)', display: 'block', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>Class: {l.student_details?.class_name} | Reg: {l.student_details?.reg_no}</span>
+                          </div>
+                          <span className={`badge ${l.leave_type === 'OD' ? 'badge-od' : 'badge-leave'}`}>{l.leave_type}</span>
+                        </div>
+                        <div style={{ backgroundColor: 'var(--bg-primary)', padding: '12px', borderRadius: 'var(--radius-sm)', marginBottom: '14px', border: '1px solid var(--border-color)', fontSize: '12px' }}>
+                          <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '4px' }}>
+                            <span style={{ color: 'var(--text-secondary)', fontWeight: '500' }}>Date:</span>
+                            <strong style={{ color: 'var(--text-primary)' }}>{l.date}</strong>
+                          </div>
+                          <div>
+                            <span style={{ color: 'var(--text-secondary)', fontWeight: '500', display: 'block', marginBottom: '2px' }}>Reason:</span>
+                            <span style={{ color: 'var(--text-primary)' }}>{l.reason}</span>
+                          </div>
+                        </div>
+                      </div>
+                      <div style={{ display: 'flex', gap: '8px' }}>
+                        <button className="btn btn-primary" style={{ flex: 1, height: '34px', fontSize: '13px', backgroundColor: 'var(--success)', borderColor: 'var(--success)' }} onClick={() => handleApproveAction(l.id, 'Approve')}>Approve</button>
+                        <button className="btn btn-outline" style={{ flex: 1, height: '34px', fontSize: '13px', color: 'var(--danger)', borderColor: 'rgba(239, 68, 68, 0.2)', backgroundColor: 'rgba(239, 68, 68, 0.05)' }} onClick={() => handleApproveAction(l.id, 'Reject')}>Reject</button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
             </div>
 
-            <div className="card">
-              <h2 style={{ marginBottom: '16px', color: 'var(--text-secondary)' }}>Processed Approvals (Recent)</h2>
-              <div className="table-container">
-                <table className="table">
-                  <thead>
-                    <tr>
-                      <th>Student</th>
-                      <th>Date</th>
-                      <th>Type</th>
-                      <th>Tutor Status</th>
-                      <th>Advisor Status</th>
-                      <th>HOD Status</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {processedHOD.length === 0 ? (
-                      <tr>
-                        <td colSpan={6} style={{ textAlign: 'center', color: 'var(--text-muted)' }}>No processed records.</td>
-                      </tr>
-                    ) : (
-                      processedHOD.map(l => (
-                        <tr key={l.id}>
-                          <td>{l.student_details?.user.first_name} ({l.student_details?.user.username})</td>
-                          <td>{l.date}</td>
-                          <td><span className={`badge ${l.leave_type === 'OD' ? 'badge-od' : 'badge-leave'}`}>{l.leave_type}</span></td>
-                          <td>{l.tutor_approved}</td>
-                          <td>{l.advisor_approved}</td>
-                          <td><span className={`badge ${l.hod_approved === 'Approved' ? 'badge-present' : 'badge-absent'}`}>{l.hod_approved}</span></td>
-                        </tr>
-                      ))
-                    )}
-                  </tbody>
-                </table>
+            {/* Processed History */}
+            {showHistory && (
+              <div className="card" style={{ gridColumn: '1 / -1' }}>
+                <h2 style={{ marginBottom: '16px', fontSize: '18px', color: 'var(--text-secondary)' }}>Processed History</h2>
+                {processedHOD.length === 0 ? (
+                  <p style={{ color: 'var(--text-muted)', textAlign: 'center', fontSize: '14px', margin: '20px 0' }}>No processed records.</p>
+                ) : (
+                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(290px, 1fr))', gap: '16px' }}>
+                    {processedHOD.map(l => (
+                      <div key={l.id} style={{ border: '1px solid var(--border-color)', backgroundColor: 'var(--bg-primary)', borderRadius: 'var(--radius-sm)', padding: '16px', minHeight: '140px', display: 'flex', flexDirection: 'column', justifyContent: 'space-between' }}>
+                        <div>
+                          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '8px' }}>
+                            <strong style={{ fontSize: '14px', color: 'var(--text-primary)' }}>{l.student_details?.user.first_name} {l.student_details?.user.last_name} ({l.student_details?.reg_no})</strong>
+                            <span className={`badge ${l.leave_type === 'OD' ? 'badge-od' : 'badge-leave'}`}>{l.leave_type}</span>
+                          </div>
+                          <span style={{ fontSize: '12px', color: 'var(--text-secondary)', display: 'block', marginBottom: '4px' }}>Date: {l.date}</span>
+                          <span style={{ fontSize: '12px', color: 'var(--text-primary)', display: 'block', marginBottom: '10px' }}>Reason: {l.reason}</span>
+                        </div>
+                        <div style={{ borderTop: '1px dashed var(--border-color)', paddingTop: '8px', fontSize: '11px', display: 'flex', gap: '8px', justifyContent: 'space-between', color: 'var(--text-secondary)' }}>
+                          <span>Tutor: <strong style={{ color: l.tutor_approved === 'Approved' ? 'var(--success)' : (l.tutor_approved === 'Rejected' ? 'var(--danger)' : 'var(--warning)') }}>{l.tutor_approved}</strong></span>
+                          <span>Advisor: <strong style={{ color: l.advisor_approved === 'Approved' ? 'var(--success)' : (l.advisor_approved === 'Rejected' ? 'var(--danger)' : 'var(--warning)') }}>{l.advisor_approved}</strong></span>
+                          <span>HOD: <strong style={{ color: l.hod_approved === 'Approved' ? 'var(--success)' : (l.hod_approved === 'Rejected' ? 'var(--danger)' : 'var(--warning)') }}>{l.hod_approved}</strong></span>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
               </div>
-            </div>
+            )}
           </div>
         )}
       </div>
     );
   }
 
-  if (activeTab === 'morning') {
+
+  if (activeTab === 'reports') {
     return (
       <div>
         <div className="header">
-          <h1>Morning Attendance Analysis</h1>
-          {morningData.length > 0 && (
-            <button className="btn btn-secondary" style={{ display: 'flex', alignItems: 'center', gap: '6px' }} onClick={handleDownloadMorningCSV}>
-              <FileSpreadsheet size={16} />
-              <span>Download CSV</span>
-            </button>
+          <h1>Attendance Reports</h1>
+          {reportData.length > 0 && (
+            <div style={{ display: 'flex', gap: '8px' }}>
+              <button className="btn btn-secondary" style={{ display: 'flex', alignItems: 'center', gap: '6px' }} onClick={handlePrintReport}>
+                <Printer size={16} />
+                <span>Print Report</span>
+              </button>
+              <button className="btn btn-primary" style={{ display: 'flex', alignItems: 'center', gap: '6px' }} onClick={handleDownloadReportCSV}>
+                <FileSpreadsheet size={16} />
+                <span>Download CSV</span>
+              </button>
+            </div>
           )}
         </div>
 
-        {morningLoading ? (
-          <div>Loading morning reports...</div>
-        ) : (
-          <div className="card">
-            <h2>Period 1 Statistics (By Class)</h2>
-            <div className="table-container" style={{ marginTop: '16px' }}>
+        <div className="grid grid-cols-3">
+          <div className="card" style={{ gridColumn: 'span 1' }}>
+            <h2 style={{ marginBottom: '16px' }}>Report Filters</h2>
+            <form onSubmit={handleRunReport}>
+              <div className="form-group">
+                <label className="form-label">Report Mode</label>
+                <select className="input" value={reportMode} onChange={(e) => setReportMode(e.target.value)}>
+                  <option value="day">Day Attendance</option>
+                  <option value="subject_percentage">Subject Percentage</option>
+                </select>
+              </div>
+
+              <div className="form-group">
+                <label className="form-label">Report Scope</label>
+                <select className="input" value={reportType} onChange={(e) => setReportType(e.target.value)}>
+                  <option value="department">Entire Department</option>
+                  <option value="class">Class-wise</option>
+                  <option value="student">Student-wise</option>
+                </select>
+              </div>
+
+              {reportType === 'class' && (
+                <div className="form-group">
+                  <label className="form-label">Select Class</label>
+                  <select className="input" value={reportClassId} onChange={(e) => setReportClassId(e.target.value)} required>
+                    <option value="">-- Choose Class --</option>
+                    {classes.map(c => (
+                      <option key={c.id} value={c.id}>{c.name} - Year {c.year} (Sec {c.section})</option>
+                    ))}
+                  </select>
+                </div>
+              )}
+
+              {reportType === 'student' && (
+                <div className="form-group">
+                  <label className="form-label">Student Reg. No.</label>
+                  <input 
+                    type="text" 
+                    className="input" 
+                    placeholder="e.g. 1001" 
+                    value={reportStudentId} 
+                    onChange={(e) => setReportStudentId(e.target.value)} 
+                    required 
+                  />
+                </div>
+              )}
+
+              {reportMode !== 'day' && (
+                <div className="form-group">
+                  <label className="form-label">Subject</label>
+                  <select className="input" value={reportSubjectId} onChange={(e) => setReportSubjectId(e.target.value)}>
+                    <option value="">-- All Subjects --</option>
+                    {subjects.map(s => (
+                      <option key={s.id} value={s.id}>{s.name} ({s.code})</option>
+                    ))}
+                  </select>
+                </div>
+              )}
+
+              <div className="form-group">
+                <label className="form-label">From Date</label>
+                <input type="date" className="input" value={reportFromDate} onChange={(e) => setReportFromDate(e.target.value)} required />
+              </div>
+
+              <div className="form-group" style={{ marginBottom: '24px' }}>
+                <label className="form-label">{reportMode === 'day' ? 'To Date (Optional)' : 'To Date'}</label>
+                <input type="date" className="input" value={reportToDate} onChange={(e) => setReportToDate(e.target.value)} required={reportMode !== 'day'} />
+              </div>
+
+              <button type="submit" className="btn btn-primary" style={{ width: '100%' }} disabled={reportsLoading}>
+                {reportsLoading ? 'Fetching Data...' : 'Fetch Report Data'}
+              </button>
+            </form>
+          </div>
+
+          <div className="card" style={{ gridColumn: 'span 2' }}>
+            <h2 style={{ marginBottom: '16px' }}>Query Output ({reportData.length} records)</h2>
+            <div className="table-container">
               <table className="table">
                 <thead>
-                  <tr>
-                    <th>Date</th>
-                    <th>Class Name</th>
-                    <th>Total Students</th>
-                    <th>Present Count</th>
-                    <th>Absent Count</th>
-                    <th>OD Count</th>
-                    <th>Advisor</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {morningData.length === 0 ? (
+                  {reportMode === 'day' ? (
                     <tr>
-                      <td colSpan={7} style={{ textAlign: 'center', color: 'var(--text-muted)' }}>No morning period data found.</td>
+                      <th>Reg No</th>
+                      <th>Student Name</th>
+                      <th>Class</th>
+                      <th>Date</th>
+                      <th>Status</th>
                     </tr>
                   ) : (
-                    morningData.map((m, idx) => (
+                    <tr>
+                      <th>Reg No</th>
+                      <th>Student Name</th>
+                      <th>Class</th>
+                      <th>Subject</th>
+                      <th>Attendance Percentage</th>
+                    </tr>
+                  )}
+                </thead>
+                <tbody>
+                  {reportData.length === 0 ? (
+                    <tr>
+                      <td colSpan={5} style={{ textAlign: 'center', color: 'var(--text-muted)' }}>
+                        No report data loaded. Adjust filters and click Fetch.
+                      </td>
+                    </tr>
+                  ) : (
+                    reportData.map((r, idx) => (
                       <tr key={idx}>
-                        <td>{m.date}</td>
-                        <td style={{ fontWeight: '600' }}>{m.student__student_class__name} (Yr {m.student__student_class__year}, Sec {m.student__student_class__section})</td>
-                        <td>{m.total_students}</td>
-                        <td style={{ color: 'var(--success)', fontWeight: '500' }}>{m.present_count}</td>
-                        <td style={{ color: 'var(--danger)', fontWeight: '500' }}>{m.absent_count}</td>
-                        <td style={{ color: 'var(--info)', fontWeight: '500' }}>{m.od_count}</td>
-                        <td>{m.student__student_class__advisor__first_name ? `${m.student__student_class__advisor__first_name} ${m.student__student_class__advisor__last_name}` : m.student__student_class__advisor__username}</td>
+                        <td style={{ fontWeight: '600' }}>{r.student_reg_no || r.student_username}</td>
+                        <td>{r.student_name}</td>
+                        <td>{r.class_name}</td>
+                        {reportMode === 'day' ? (
+                          <>
+                            <td>{r.date}</td>
+                            <td>
+                              <span className={`badge ${
+                                r.status === 'Present' ? 'badge-present' : 
+                                r.status === 'Absent' ? 'badge-absent' : 
+                                r.status === 'OD' ? 'badge-od' : 'badge-leave'
+                              }`}>
+                                {r.status}
+                              </span>
+                            </td>
+                          </>
+                        ) : (
+                          <>
+                            <td>{r.subject_name}</td>
+                            <td style={{ fontWeight: '600' }}>{r.percentage}%</td>
+                          </>
+                        )}
                       </tr>
                     ))
                   )}
@@ -1180,7 +2150,7 @@ const HODDashboard = ({ activeTab }) => {
               </table>
             </div>
           </div>
-        )}
+        </div>
       </div>
     );
   }

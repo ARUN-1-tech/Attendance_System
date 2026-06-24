@@ -13,8 +13,29 @@ class UserSerializer(serializers.ModelSerializer):
         model = User
         fields = ['id', 'username', 'email', 'first_name', 'last_name', 'role', 'department', 'department_name', 'phone_number', 'age', 'is_superuser', 'password', 'dob']
         extra_kwargs = {
-            'password': {'write_only': True}
+            'password': {'write_only': True},
+            'username': {
+                'validators': []
+            }
         }
+
+    def validate_username(self, value):
+        user_id = None
+        if self.instance:
+            user_id = self.instance.id
+        elif self.root and getattr(self.root, 'instance', None):
+            instance = self.root.instance
+            if hasattr(instance, 'user'):
+                user_id = instance.user.id
+            elif isinstance(instance, User):
+                user_id = instance.id
+
+        qs = User.objects.filter(username=value)
+        if user_id:
+            qs = qs.exclude(id=user_id)
+        if qs.exists():
+            raise serializers.ValidationError("A user with that username already exists.")
+        return value
 
 class ClassSerializer(serializers.ModelSerializer):
     department_name = serializers.CharField(source='department.name', read_only=True)
@@ -32,6 +53,7 @@ class ClassSerializer(serializers.ModelSerializer):
 
 class SubjectSerializer(serializers.ModelSerializer):
     department_name = serializers.CharField(source='department.name', read_only=True)
+    class_name = serializers.CharField(source='student_class.name', read_only=True)
 
     class Meta:
         model = Subject
@@ -45,10 +67,42 @@ class StudentSerializer(serializers.ModelSerializer):
     tutor_name = serializers.CharField(source='tutor.username', read_only=True)
     advisor_name = serializers.CharField(source='advisor.username', read_only=True)
     class_advisor_id = serializers.IntegerField(source='student_class.advisor.id', read_only=True)
+    attendance_percentage = serializers.SerializerMethodField()
 
     class Meta:
         model = Student
         fields = '__all__'
+
+    def get_attendance_percentage(self, obj):
+        from attendance.models import Attendance
+        from timetable.models import Schedule
+        from accounts.models import Subject
+        from leave.models import Leave
+        
+        if not obj.student_class:
+            return 100.0
+            
+        class_subject_ids = Schedule.objects.filter(student_class=obj.student_class).values_list('subject_id', flat=True).distinct()
+        class_subjects = Subject.objects.filter(id__in=class_subject_ids)
+        
+        attendances = Attendance.objects.filter(student=obj, schedule__subject__in=class_subjects)
+        total_periods = attendances.count()
+        if total_periods == 0:
+            return 100.0
+            
+        present_periods = attendances.filter(status='Present').count()
+        
+        verified_ods = Leave.objects.filter(
+            student=obj, 
+            leave_type='OD', 
+            final_status='Approved', 
+            certificate_verified=True
+        ).values_list('date', flat=True)
+        
+        verified_od_count = attendances.filter(status='OD', date__in=verified_ods).count()
+        effective_present = present_periods + verified_od_count
+        percentage = (effective_present / total_periods * 100)
+        return round(percentage, 2)
 
     def create(self, validated_data):
         user_data = validated_data.pop('user')
@@ -79,6 +133,8 @@ class StudentSerializer(serializers.ModelSerializer):
         instance.student_class = validated_data.get('student_class', instance.student_class)
         instance.tutor = validated_data.get('tutor', instance.tutor)
         instance.advisor = validated_data.get('advisor', instance.advisor)
+        instance.roll_no = validated_data.get('roll_no', instance.roll_no)
+        instance.reg_no = validated_data.get('reg_no', instance.reg_no)
         instance.save()
         return instance
 

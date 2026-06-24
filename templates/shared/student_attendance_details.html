@@ -2,45 +2,201 @@
 {% block page_title %}{{ student_user.first_name }}'s Attendance{% endblock %}
 
 {% block content %}
-<div class="glass-panel" style="padding: 24px; max-width: 800px; margin: 0 auto;">
-    <div style="margin-bottom: 20px;">
-        <!-- generic back button based on referer or role -->
-        <a href="javascript:history.back()" style="text-decoration: none; display: inline-flex; align-items: center; gap: 5px; margin-bottom: 15px; color: var(--text-secondary); font-weight: 500;">
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 12H5M12 19l-7-7 7-7"/></svg>
-            Back
-        </a>
-        <h3>Attendance Details: {{ student_user.first_name }} {{ student_user.last_name }}</h3>
-        <p style="color: var(--text-muted); font-size: 0.9rem;">Class: {{ student_class.name }} - {{ student_class.year }} - {{ student_class.section }} | Register No: {{ student_user.username }}</p>
+<div style="max-width: 1100px; margin: 0 auto;">
+    <div style="margin-bottom: 24px; display: flex; align-items: center; justify-content: space-between;">
+        <div>
+            <!-- Generic back button -->
+            <a href="javascript:history.back()" style="text-decoration: none; display: inline-flex; align-items: center; gap: 6px; margin-bottom: 12px; color: var(--text-secondary); font-weight: 500; font-size: 0.95rem; transition: color 0.2s;">
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+                    <path d="M19 12H5M12 19l-7-7 7-7"/>
+                </svg>
+                Back to Students
+            </a>
+            <h2 style="font-size: 1.8rem; font-weight: 700; margin: 0; color: var(--text-primary);">
+                Attendance Insights: {{ student_user.first_name }} {{ student_user.last_name }}
+            </h2>
+            <p style="color: var(--text-secondary); font-size: 0.95rem; margin-top: 4px; font-weight: 500;">
+                Class: {{ student_class.name }} - Year {{ student_class.year }} (Sec {{ student_class.section }}) | Register No: {{ student_user.username }}
+            </p>
+        </div>
     </div>
 
-    <div class="dashboard-grid" style="margin-bottom: 24px;">
-        <div class="stat-card glass-panel" style="grid-column: span 2; text-align: center;">
-            <h3 style="margin-bottom: 10px;">Overall Percentage</h3>
-            <div class="value" style="font-size: 3rem; color: {% if percentage >= 75 %}var(--success, #2ecc71){% else %}var(--danger, #e74c3c){% endif %};">
-                {{ percentage }}%
+    <!-- AI Suggestion Box -->
+    <div class="glass-panel" style="
+        background: {% if percentage >= 75 %}linear-gradient(135deg, rgba(16, 185, 129, 0.08) 0%, rgba(16, 185, 129, 0.15) 100%){% else %}linear-gradient(135deg, rgba(244, 63, 94, 0.08) 0%, rgba(244, 63, 94, 0.15) 100%){% endif %};
+        border-left: 5px solid {% if percentage >= 75 %}var(--success){% else %}var(--danger){% endif %};
+        padding: 24px;
+        border-radius: 16px;
+        margin-bottom: 28px;
+    ">
+        <h3 style="font-size: 1.1rem; font-weight: 700; color: {% if percentage >= 75 %}var(--success){% else %}var(--danger){% endif %}; display: flex; align-items: center; gap: 8px; margin: 0 0 8px 0;">
+            <span>🤖 AI Assistant Suggestion</span>
+        </h3>
+        <p style="font-size: 0.98rem; line-height: 1.6; font-weight: 500; color: var(--text-primary); margin: 0;">
+            {{ ai_suggestion }}
+        </p>
+    </div>
+
+    <!-- Stats Grid -->
+    <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 20px; margin-bottom: 28px;">
+        
+        <!-- Overall Attendance (Circular) -->
+        <div class="glass-panel" style="display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 24px; text-align: center;">
+            <div style="position: relative; width: 120px; height: 120px; display: flex; align-items: center; justify-content: center;">
+                <svg width="120" height="120" viewBox="0 0 120 120" style="transform: rotate(-90deg);">
+                    <circle cx="60" cy="60" r="50" fill="transparent" stroke="rgba(255, 255, 255, 0.04)" stroke-width="10" />
+                    <circle cx="60" cy="60" r="50" fill="transparent" stroke="{% if percentage >= 75 %}var(--success){% else %}var(--danger){% endif %}" stroke-width="10" 
+                      stroke-dasharray="314.159"
+                      style="stroke-dashoffset: calc(314.159 - (314.159 * {{ percentage|default:0 }} / 100)); stroke-linecap: round; transition: stroke-dashoffset 0.5s ease;"
+                    />
+                </svg>
+                <div style="position: absolute; font-size: 1.4rem; font-weight: 800; color: var(--text-primary);">
+                    {{ percentage }}%
+                </div>
             </div>
-            <p style="font-size: 0.85rem; color: var(--text-muted);">Calculated as (Present + Verified ODs) / Total Completed Sessions</p>
+            <div style="font-size: 0.9rem; color: var(--text-secondary); font-weight: 600; margin-top: 16px;">
+                Overall Attendance
+            </div>
         </div>
-        
-        <div class="stat-card glass-panel">
-            <h3>Total Sessions</h3>
-            <div class="value">{{ total }}</div>
+
+        <!-- Periods Stats -->
+        <div class="glass-panel" style="display: flex; flex-direction: column; gap: 12px; padding: 24px;">
+            <h3 style="font-size: 1rem; color: var(--text-secondary); font-weight: 600; border-bottom: 1px solid var(--border-overlay); padding-bottom: 8px; margin: 0;">
+                Periods Breakdown
+            </h3>
+            <div style="display: flex; justify-content: space-between; font-size: 0.9rem;">
+                <span>Total Periods:</span>
+                <strong style="color: var(--text-primary);">{{ total_periods }}</strong>
+            </div>
+            <div style="display: flex; justify-content: space-between; font-size: 0.9rem;">
+                <span style="color: var(--success);">Present Periods:</span>
+                <strong style="color: var(--success);">{{ present_periods }}</strong>
+            </div>
+            <div style="display: flex; justify-content: space-between; font-size: 0.9rem;">
+                <span style="color: #6366f1;">Verified OD (Present):</span>
+                <strong style="color: #6366f1;">{{ verified_od_periods }}</strong>
+            </div>
+            <div style="display: flex; justify-content: space-between; font-size: 0.9rem;">
+                <span style="color: var(--danger);">Absent Periods:</span>
+                <strong style="color: var(--danger);">{{ absent_periods }}</strong>
+            </div>
         </div>
-        
-        <div class="stat-card glass-panel">
-            <h3>Present</h3>
-            <div class="value" style="color: var(--success, #2ecc71)">{{ present }}</div>
+
+        <!-- Days Stats -->
+        <div class="glass-panel" style="display: flex; flex-direction: column; gap: 12px; padding: 24px;">
+            <h3 style="font-size: 1rem; color: var(--text-secondary); font-weight: 600; border-bottom: 1px solid var(--border-overlay); padding-bottom: 8px; margin: 0;">
+                Days Breakdown
+            </h3>
+            <div style="display: flex; justify-content: space-between; font-size: 0.9rem;">
+                <span>Total Working Days:</span>
+                <strong style="color: var(--text-primary);">{{ total_days }}</strong>
+            </div>
+            <div style="display: flex; justify-content: space-between; font-size: 0.9rem;">
+                <span style="color: var(--success);">Present Days:</span>
+                <strong style="color: var(--success);">{{ present_days }}</strong>
+            </div>
+            <div style="display: flex; justify-content: space-between; font-size: 0.9rem;">
+                <span style="color: #6366f1;">On-Duty (OD) Days:</span>
+                <strong style="color: #6366f1;">{{ od_days }}</strong>
+            </div>
+            <div style="display: flex; justify-content: space-between; font-size: 0.9rem;">
+                <span style="color: var(--danger);">Absent Days:</span>
+                <strong style="color: var(--danger);">{{ absent_days }}</strong>
+            </div>
         </div>
-        
-        <div class="stat-card glass-panel">
-            <h3>Absent</h3>
-            <div class="value" style="color: var(--danger, #e74c3c)">{{ absent }}</div>
+
+        <!-- Leaves & ODs -->
+        <div class="glass-panel" style="display: flex; flex-direction: column; gap: 12px; padding: 24px;">
+            <h3 style="font-size: 1rem; color: var(--text-secondary); font-weight: 600; border-bottom: 1px solid var(--border-overlay); padding-bottom: 8px; margin: 0;">
+                Leaves & ODs
+            </h3>
+            <div style="display: flex; justify-content: space-between; font-size: 0.9rem;">
+                <span>Total OD Periods:</span>
+                <strong style="color: var(--text-primary);">{{ od_periods }}</strong>
+            </div>
+            <div style="display: flex; justify-content: space-between; font-size: 0.9rem;">
+                <span>Total Leave Periods:</span>
+                <strong style="color: var(--text-primary);">{{ leave_periods }}</strong>
+            </div>
+            <div style="display: flex; justify-content: space-between; font-size: 0.9rem;">
+                <span style="color: #6366f1;">OD Days Count:</span>
+                <strong style="color: #6366f1;">{{ od_days }}</strong>
+            </div>
+            <div style="display: flex; justify-content: space-between; font-size: 0.9rem;">
+                <span style="color: #eab308;">Leave Days Count:</span>
+                <strong style="color: #eab308;">{{ leave_days }}</strong>
+            </div>
         </div>
+
+    </div>
+
+    <!-- Subject Wise breakdown -->
+    <div class="glass-panel" style="padding: 24px; margin-bottom: 28px;">
+        <h3 style="font-size: 1.25rem; font-weight: 600; margin-top: 0; margin-bottom: 20px; color: var(--text-primary);">
+            Subject-wise Attendance Details
+        </h3>
         
-        <div class="stat-card glass-panel">
-            <h3>OD (Raw / Verified)</h3>
-            <div class="value" style="color: var(--info, #3498db)">{{ od }} / {{ verified_od }}</div>
+        <div class="table-wrapper">
+            <table>
+                <thead>
+                    <tr>
+                        <th style="font-size: 0.8rem;">Subject</th>
+                        <th style="font-size: 0.8rem;">Attendance Status</th>
+                        <th style="font-size: 0.8rem;">Periods (Attended/Total)</th>
+                        <th style="font-size: 0.8rem;">Percentage</th>
+                        <th style="font-size: 0.8rem;">Status</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% if not subjects_breakdown %}
+                    <tr>
+                        <td colspan="5" style="text-align: center; color: var(--text-secondary); font-style: italic;">
+                            No subject-wise details available.
+                        </td>
+                    </tr>
+                    {% else %}
+                        {% for sub in subjects_breakdown %}
+                        <tr>
+                            <td>
+                                <div style="font-weight: 600; color: var(--text-primary);">{{ sub.name }}</div>
+                                <div style="font-size: 0.75rem; color: var(--text-secondary); margin-top: 2px;">{{ sub.code }}</div>
+                            </td>
+                            <td style="width: 240px; vertical-align: middle;">
+                                <div style="width: 100%; height: 8px; background: rgba(255, 255, 255, 0.05); border-radius: 4px; overflow: hidden;">
+                                    <div style="width: {{ sub.percentage }}%; height: 100%; background: {% if sub.percentage >= 75.0 %}var(--success){% else %}var(--danger){% endif %}; border-radius: 4px;"></div>
+                                </div>
+                            </td>
+                            <td style="color: var(--text-primary);">
+                                <strong>{{ sub.effective_present }}</strong> / {{ sub.total_periods }}
+                                <div style="font-size: 0.75rem; color: var(--text-secondary); margin-top: 4px;">
+                                    (Raw Pres: {{ sub.present_periods }}, OD: {{ sub.verified_od_periods }})
+                                </div>
+                            </td>
+                            <td style="font-weight: 700; color: {% if sub.percentage >= 75.0 %}var(--success){% else %}var(--danger){% endif %};">
+                                {{ sub.percentage }}%
+                            </td>
+                            <td>
+                                {% if sub.total_periods == 0 %}
+                                    <span style="display: inline-block; padding: 4px 10px; font-size: 0.75rem; font-weight: 600; border-radius: 6px; background: rgba(255, 255, 255, 0.05); color: var(--text-secondary);">
+                                        N/A
+                                    </span>
+                                {% elif sub.percentage >= 75.0 %}
+                                    <span style="display: inline-block; padding: 4px 10px; font-size: 0.75rem; font-weight: 600; border-radius: 6px; background: rgba(16, 185, 129, 0.1); color: #6ee7b7; border: 1px solid rgba(16, 185, 129, 0.2);">
+                                        Safe
+                                    </span>
+                                {% else %}
+                                    <span style="display: inline-block; padding: 4px 10px; font-size: 0.75rem; font-weight: 600; border-radius: 6px; background: rgba(244, 63, 94, 0.1); color: #fda4af; border: 1px solid rgba(244, 63, 94, 0.2);">
+                                        Critical
+                                    </span>
+                                {% endif %}
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    {% endif %}
+                </tbody>
+            </table>
         </div>
     </div>
 </div>
 {% endblock %}
+

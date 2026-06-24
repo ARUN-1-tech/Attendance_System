@@ -3,155 +3,345 @@
 {% block page_title %}Leave & OD Approvals{% endblock %}
 
 {% block content %}
-<div style="margin-bottom: 20px;">
-    <a href="{% url 'staff_dashboard' %}" style="text-decoration: none; display: inline-flex; align-items: center; gap: 5px; color: var(--text-secondary); font-weight: 500;">
+<div style="margin-bottom: 24px;">
+    <a href="{% url 'staff_dashboard' %}" style="text-decoration: none; display: inline-flex; align-items: center; gap: 5px; color: var(--text-secondary); font-weight: 500; font-size: 0.9rem;">
         <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 12H5M12 19l-7-7 7-7"/></svg>
         Back to Dashboard
     </a>
 </div>
 
-<div style="display: flex; gap: 10px; margin-bottom: 20px;">
-    <button onclick="showTab('leave')" id="tab-leave" class="btn btn-primary" style="padding: 10px 20px;">Leave Approvals</button>
-    <button onclick="showTab('od')" id="tab-od" class="btn" style="background-color: var(--card-bg); color: var(--text-primary); border: 1px solid var(--border-color); padding: 10px 20px;">OD Approvals</button>
+<div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 24px; border-bottom: 1px solid var(--border-color); padding-bottom: 12px;">
+    <div style="display: flex; gap: 8px;">
+        <button onclick="showTab('leave')" id="tab-leave" class="btn btn-primary" style="padding: 8px 16px; font-size: 0.9rem; border-radius: 9999px;">Leave Approvals</button>
+        <button onclick="showTab('od')" id="tab-od" class="btn btn-outline" style="padding: 8px 16px; font-size: 0.9rem; border-radius: 9999px;">OD Approvals</button>
+    </div>
+    
+    <div style="display: flex; gap: 8px;">
+        <button type="button" id="toggle-global-history" onclick="toggleGlobalHistory()" class="btn btn-outline" style="padding: 6px 12px; font-size: 0.85rem; border-color: var(--border-color); color: var(--text-secondary);">
+            Show History
+        </button>
+    </div>
 </div>
 
 <!-- LEAVE SECTION -->
 <div id="section-leave">
-    <div class="glass-panel" style="padding: 24px; margin-bottom: 24px;">
-        <h3 style="margin-bottom: 20px;">Pending Leave Requests</h3>
+    <!-- 1. Pending Tutor Leave -->
+    <div style="margin-bottom: 32px;">
+        <h3 style="margin-bottom: 18px; font-size: 1.2rem; display: flex; align-items: center; gap: 8px;">
+            <span style="width: 8px; height: 8px; border-radius: 50%; background-color: var(--warning);"></span>
+            As Tutor: Pending Leave Approval
+        </h3>
         
-        <div style="display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 16px;">
-        {% for leave in pending_leaves %}
-        <div class="stat-card glass-panel" style="padding: 16px;">
-            <div style="display: flex; justify-content: space-between; margin-bottom: 10px;">
-                <strong>{{ leave.student.user.first_name }} {{ leave.student.user.last_name }} ({{ leave.student.user.username }})</strong>
-                <span class="badge" style="background-color: var(--warning, #f1c40f); color: #fff; padding: 4px 8px; border-radius: 4px; font-size: 0.8rem;">Leave</span>
+        <div style="display: grid; grid-template-columns: repeat(auto-fill, minmax(310px, 1fr)); gap: 20px;">
+        {% for leave in pending_tutor_leaves %}
+        <div class="card" style="padding: 20px; border-radius: var(--radius-md); box-shadow: var(--shadow-sm); display: flex; flex-direction: column; justify-content: space-between; min-height: 220px;">
+            <div>
+                <div style="display: flex; align-items: center; gap: 12px; margin-bottom: 14px;">
+                    <div style="width: 40px; height: 40px; border-radius: 50%; background-color: var(--accent-light); color: var(--accent-primary); display: flex; align-items: center; justify-content: center; font-weight: 600; font-size: 0.95rem;">
+                        {{ leave.student.user.first_name|slice:":1" }}{{ leave.student.user.last_name|slice:":1" }}
+                    </div>
+                    <div style="flex: 1; min-width: 0;">
+                        <h4 style="margin: 0; font-size: 0.95rem; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; color: var(--text-primary);">{{ leave.student.user.first_name }} {{ leave.student.user.last_name }} ({{ leave.student.reg_no }})</h4>
+                        <span style="font-size: 0.75rem; color: var(--text-secondary); display: block; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">Roll: {{ leave.student.roll_no }} | Reg: {{ leave.student.reg_no }}</span>
+                    </div>
+                    <span style="background-color: var(--warning-light); color: var(--warning); padding: 4px 8px; border-radius: 9999px; font-size: 0.7rem; font-weight: 600; height: fit-content;">Leave</span>
+                </div>
+                
+                <div style="background-color: var(--bg-primary); padding: 12px; border-radius: var(--radius-sm); margin-bottom: 16px; border: 1px solid var(--border-color);">
+                    <div style="display: flex; justify-content: space-between; margin-bottom: 6px; font-size: 0.8rem;">
+                        <span style="color: var(--text-secondary); font-weight: 500;">Date:</span>
+                        <span style="font-weight: 600; color: var(--text-primary);">{{ leave.date }}</span>
+                    </div>
+                    <div style="font-size: 0.8rem; line-height: 1.4;">
+                        <span style="color: var(--text-secondary); font-weight: 500; display: block; margin-bottom: 2px;">Reason:</span>
+                        <span style="color: var(--text-primary);">{{ leave.reason }}</span>
+                    </div>
+                </div>
             </div>
-            <p style="font-size: 0.9rem; margin-bottom: 8px;"><strong>Date:</strong> {{ leave.date }}</p>
-            <p style="font-size: 0.9rem; margin-bottom: 12px;"><strong>Reason:</strong> {{ leave.reason }}</p>
             
-            <form method="POST" action="{% url 'approve_leave' leave.id %}" style="display: flex; gap: 10px;">
+            <form method="POST" action="{% url 'approve_leave' leave.id %}" style="display: flex; gap: 10px; margin: 0;">
                 {% csrf_token %}
-                <button type="submit" name="action" value="Approve" class="btn btn-success" style="flex: 1;">Approve</button>
-                <button type="submit" name="action" value="Reject" class="btn" style="flex: 1; background-color: var(--danger, #e74c3c); color: white;">Reject</button>
+                <button type="submit" name="action" value="Approve" class="btn btn-primary" style="flex: 1; height: 36px; padding: 0; font-size: 0.85rem; background-color: var(--success); border-color: var(--success);">Approve</button>
+                <button type="submit" name="action" value="Reject" class="btn" style="flex: 1; height: 36px; padding: 0; font-size: 0.85rem; background-color: var(--danger); border-color: var(--danger); color: white;">Reject</button>
             </form>
         </div>
         {% empty %}
-        <p style="color: var(--text-muted); text-align: center; grid-column: 1 / -1;">No pending leave requests.</p>
+        <div style="grid-column: 1 / -1; text-align: center; padding: 40px; background-color: var(--bg-secondary); border: 1px dashed var(--border-color); border-radius: var(--radius-md);">
+            <p style="color: var(--text-muted); margin: 0; font-size: 0.95rem;">No pending tutor leave approvals found.</p>
+        </div>
         {% endfor %}
         </div>
     </div>
 
-    <div class="glass-panel" style="padding: 24px; opacity: 0.8;">
-        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
-            <h3 style="margin-bottom: 0;">Processed Leaves</h3>
-            <form method="POST" action="{% url 'cleanup_approvals' %}">
+    <!-- 2. Pending Advisor Leave -->
+    {% if request.user.staff.staff_type == 'Advisor' %}
+    <div style="margin-bottom: 32px;">
+        <h3 style="margin-bottom: 18px; font-size: 1.2rem; display: flex; align-items: center; gap: 8px;">
+            <span style="width: 8px; height: 8px; border-radius: 50%; background-color: var(--accent-primary);"></span>
+            As Advisor: Pending Leave Approval
+        </h3>
+        
+        <div style="display: grid; grid-template-columns: repeat(auto-fill, minmax(310px, 1fr)); gap: 20px;">
+        {% for leave in pending_advisor_leaves %}
+        <div class="card" style="padding: 20px; border-radius: var(--radius-md); box-shadow: var(--shadow-sm); display: flex; flex-direction: column; justify-content: space-between; min-height: 220px;">
+            <div>
+                <div style="display: flex; align-items: center; gap: 12px; margin-bottom: 14px;">
+                    <div style="width: 40px; height: 40px; border-radius: 50%; background-color: var(--accent-light); color: var(--accent-primary); display: flex; align-items: center; justify-content: center; font-weight: 600; font-size: 0.95rem;">
+                        {{ leave.student.user.first_name|slice:":1" }}{{ leave.student.user.last_name|slice:":1" }}
+                    </div>
+                    <div style="flex: 1; min-width: 0;">
+                        <h4 style="margin: 0; font-size: 0.95rem; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; color: var(--text-primary);">{{ leave.student.user.first_name }} {{ leave.student.user.last_name }} ({{ leave.student.reg_no }})</h4>
+                        <span style="font-size: 0.75rem; color: var(--text-secondary); display: block; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">Roll: {{ leave.student.roll_no }} | Reg: {{ leave.student.reg_no }}</span>
+                    </div>
+                    <span style="background-color: var(--warning-light); color: var(--warning); padding: 4px 8px; border-radius: 9999px; font-size: 0.7rem; font-weight: 600; height: fit-content;">Leave</span>
+                </div>
+                
+                <div style="background-color: var(--bg-primary); padding: 12px; border-radius: var(--radius-sm); margin-bottom: 16px; border: 1px solid var(--border-color);">
+                    <div style="display: flex; justify-content: space-between; margin-bottom: 6px; font-size: 0.8rem;">
+                        <span style="color: var(--text-secondary); font-weight: 500;">Date:</span>
+                        <span style="font-weight: 600; color: var(--text-primary);">{{ leave.date }}</span>
+                    </div>
+                    <div style="font-size: 0.8rem; line-height: 1.4;">
+                        <span style="color: var(--text-secondary); font-weight: 500; display: block; margin-bottom: 2px;">Reason:</span>
+                        <span style="color: var(--text-primary);">{{ leave.reason }}</span>
+                    </div>
+                </div>
+            </div>
+            
+            <form method="POST" action="{% url 'approve_leave' leave.id %}" style="display: flex; gap: 10px; margin: 0;">
                 {% csrf_token %}
-                <button type="submit" class="btn btn-secondary" style="padding: 6px 12px; font-size: 0.85rem;">Clean up</button>
+                <button type="submit" name="action" value="Approve" class="btn btn-primary" style="flex: 1; height: 36px; padding: 0; font-size: 0.85rem; background-color: var(--success); border-color: var(--success);">Approve</button>
+                <button type="submit" name="action" value="Reject" class="btn" style="flex: 1; height: 36px; padding: 0; font-size: 0.85rem; background-color: var(--danger); border-color: var(--danger); color: white;">Reject</button>
             </form>
         </div>
+        {% empty %}
+        <div style="grid-column: 1 / -1; text-align: center; padding: 40px; background-color: var(--bg-secondary); border: 1px dashed var(--border-color); border-radius: var(--radius-md);">
+            <p style="color: var(--text-muted); margin: 0; font-size: 0.95rem;">No pending advisor leave approvals found.</p>
+        </div>
+        {% endfor %}
+        </div>
+    </div>
+    {% endif %}
+
+    <!-- 3. Processed Leaves History -->
+    <div id="leave-history-container" class="card" style="padding: 24px; border-radius: var(--radius-md); display: none;">
+        <div style="margin-bottom: 18px;">
+            <h3 style="margin: 0; font-size: 1.1rem; color: var(--text-secondary);">Processed Leave History</h3>
+        </div>
         
-        {% regroup processed_leaves_today by updated_at.date as leaves_by_date %}
-        
-        {% for date_group in leaves_by_date %}
-        <h4 style="margin-top: 15px; margin-bottom: 10px; color: var(--text-secondary); border-bottom: 1px solid var(--border-color); padding-bottom: 5px;">{{ date_group.grouper }}</h4>
-        <div style="display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 16px;">
-            {% for leave in date_group.list %}
-            <div class="stat-card glass-panel" style="padding: 16px;">
-                <div style="display: flex; justify-content: space-between; margin-bottom: 10px;">
-                    <strong>{{ leave.student.user.first_name }} {{ leave.student.user.last_name }} ({{ leave.student.user.username }})</strong>
-                    <span class="badge" style="background-color: {% if leave.hod_approved == 'Approved' %}var(--success, #2ecc71){% else %}var(--danger, #e74c3c){% endif %}; color: #fff; padding: 4px 8px; border-radius: 4px; font-size: 0.8rem;">{{ leave.hod_approved }}</span>
+        <div style="margin-top: 16px; border-top: 1px solid var(--border-color); padding-top: 16px;">
+            {% regroup processed_leaves_today by updated_at.date as leaves_by_date %}
+            
+            {% for date_group in leaves_by_date %}
+            <h4 style="margin-top: 16px; margin-bottom: 12px; color: var(--text-secondary); font-size: 0.9rem; padding-bottom: 4px; border-bottom: 1px solid var(--border-color);">{{ date_group.grouper }}</h4>
+            <div style="display: grid; grid-template-columns: repeat(auto-fill, minmax(310px, 1fr)); gap: 16px;">
+                {% for leave in date_group.list %}
+                <div style="border: 1px solid var(--border-color); background-color: var(--bg-primary); border-radius: var(--radius-sm); padding: 16px; display: flex; flex-direction: column; justify-content: space-between; min-height: 150px;">
+                    <div>
+                        <div style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 8px;">
+                            <strong style="font-size: 0.9rem; color: var(--text-primary);">{{ leave.student.user.first_name }} {{ leave.student.user.last_name }} ({{ leave.student.reg_no }})</strong>
+                            <span style="background-color: {% if leave.hod_approved == 'Approved' %}var(--success-light){% else %}var(--danger-light){% endif %}; color: {% if leave.hod_approved == 'Approved' %}var(--success){% else %}var(--danger){% endif %}; padding: 2px 8px; border-radius: 9999px; font-size: 0.7rem; font-weight: 600;">
+                                {{ leave.hod_approved }}
+                            </span>
+                        </div>
+                        <p style="font-size: 0.8rem; color: var(--text-secondary); margin: 0 0 6px 0;"><strong>Date:</strong> {{ leave.date }}</p>
+                        <p style="font-size: 0.8rem; color: var(--text-primary); margin: 0; line-height: 1.4;"><strong>Reason:</strong> {{ leave.reason }}</p>
+                    </div>
                 </div>
-                <p style="font-size: 0.9rem; margin-bottom: 8px;"><strong>Date:</strong> {{ leave.date }}</p>
-                <p style="font-size: 0.9rem; margin-bottom: 0;"><strong>Reason:</strong> {{ leave.reason }}</p>
+                {% endfor %}
             </div>
+            {% empty %}
+            <p style="color: var(--text-muted); text-align: center; font-size: 0.9rem; margin: 20px 0;">No processed leaves to show.</p>
             {% endfor %}
         </div>
-        {% empty %}
-        <p style="color: var(--text-muted); text-align: center; margin-top: 20px;">No processed leaves to show.</p>
-        {% endfor %}
     </div>
 </div>
 
 <!-- OD SECTION -->
 <div id="section-od" style="display: none;">
-    <div class="glass-panel" style="padding: 24px; margin-bottom: 24px;">
-        <h3 style="margin-bottom: 20px;">Pending OD Requests</h3>
+    <!-- 1. Pending Tutor OD -->
+    <div style="margin-bottom: 32px;">
+        <h3 style="margin-bottom: 18px; font-size: 1.2rem; display: flex; align-items: center; gap: 8px;">
+            <span style="width: 8px; height: 8px; border-radius: 50%; background-color: var(--info);"></span>
+            As Tutor: Pending OD Approval
+        </h3>
         
-        <div style="display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 16px;">
-        {% for od in pending_ods %}
-        <div class="stat-card glass-panel" style="padding: 16px;">
-            <div style="display: flex; justify-content: space-between; margin-bottom: 10px;">
-                <strong>{{ od.student.user.first_name }} {{ od.student.user.last_name }} ({{ od.student.user.username }})</strong>
-                <span class="badge" style="background-color: var(--info, #3498db); color: #fff; padding: 4px 8px; border-radius: 4px; font-size: 0.8rem;">OD</span>
+        <div style="display: grid; grid-template-columns: repeat(auto-fill, minmax(310px, 1fr)); gap: 20px;">
+        {% for od in pending_tutor_ods %}
+        <div class="card" style="padding: 20px; border-radius: var(--radius-md); box-shadow: var(--shadow-sm); display: flex; flex-direction: column; justify-content: space-between; min-height: 220px;">
+            <div>
+                <div style="display: flex; align-items: center; gap: 12px; margin-bottom: 14px;">
+                    <div style="width: 40px; height: 40px; border-radius: 50%; background-color: var(--accent-light); color: var(--accent-primary); display: flex; align-items: center; justify-content: center; font-weight: 600; font-size: 0.95rem;">
+                        {{ od.student.user.first_name|slice:":1" }}{{ od.student.user.last_name|slice:":1" }}
+                    </div>
+                    <div style="flex: 1; min-width: 0;">
+                        <h4 style="margin: 0; font-size: 0.95rem; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; color: var(--text-primary);">{{ od.student.user.first_name }} {{ od.student.user.last_name }} ({{ od.student.reg_no }})</h4>
+                        <span style="font-size: 0.75rem; color: var(--text-secondary); display: block; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">Roll: {{ od.student.roll_no }} | Reg: {{ od.student.reg_no }}</span>
+                    </div>
+                    <span style="background-color: var(--info-light); color: var(--info); padding: 4px 8px; border-radius: 9999px; font-size: 0.7rem; font-weight: 600; height: fit-content;">OD</span>
+                </div>
+                
+                <div style="background-color: var(--bg-primary); padding: 12px; border-radius: var(--radius-sm); margin-bottom: 16px; border: 1px solid var(--border-color);">
+                    <div style="display: flex; justify-content: space-between; margin-bottom: 6px; font-size: 0.8rem;">
+                        <span style="color: var(--text-secondary); font-weight: 500;">Date:</span>
+                        <span style="font-weight: 600; color: var(--text-primary);">{{ od.date }}</span>
+                    </div>
+                    <div style="font-size: 0.8rem; line-height: 1.4;">
+                        <span style="color: var(--text-secondary); font-weight: 500; display: block; margin-bottom: 2px;">Reason:</span>
+                        <span style="color: var(--text-primary);">{{ od.reason }}</span>
+                    </div>
+                </div>
             </div>
-            <p style="font-size: 0.9rem; margin-bottom: 8px;"><strong>Date:</strong> {{ od.date }}</p>
-            <p style="font-size: 0.9rem; margin-bottom: 12px;"><strong>Reason:</strong> {{ od.reason }}</p>
             
-            <form method="POST" action="{% url 'approve_leave' od.id %}" style="display: flex; gap: 10px;">
+            <form method="POST" action="{% url 'approve_leave' od.id %}" style="display: flex; gap: 10px; margin: 0;">
                 {% csrf_token %}
-                <button type="submit" name="action" value="Approve" class="btn btn-success" style="flex: 1;">Approve</button>
-                <button type="submit" name="action" value="Reject" class="btn" style="flex: 1; background-color: var(--danger, #e74c3c); color: white;">Reject</button>
+                <button type="submit" name="action" value="Approve" class="btn btn-primary" style="flex: 1; height: 36px; padding: 0; font-size: 0.85rem; background-color: var(--success); border-color: var(--success);">Approve</button>
+                <button type="submit" name="action" value="Reject" class="btn" style="flex: 1; height: 36px; padding: 0; font-size: 0.85rem; background-color: var(--danger); border-color: var(--danger); color: white;">Reject</button>
             </form>
         </div>
         {% empty %}
-        <p style="color: var(--text-muted); text-align: center; grid-column: 1 / -1;">No pending OD requests.</p>
+        <div style="grid-column: 1 / -1; text-align: center; padding: 40px; background-color: var(--bg-secondary); border: 1px dashed var(--border-color); border-radius: var(--radius-md);">
+            <p style="color: var(--text-muted); margin: 0; font-size: 0.95rem;">No pending tutor OD approvals found.</p>
+        </div>
         {% endfor %}
         </div>
     </div>
 
-    <div class="glass-panel" style="padding: 24px; opacity: 0.8;">
-        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
-            <h3 style="margin-bottom: 0;">Processed ODs</h3>
-            <form method="POST" action="{% url 'cleanup_approvals' %}">
+    <!-- 2. Pending Advisor OD -->
+    {% if request.user.staff.staff_type == 'Advisor' %}
+    <div style="margin-bottom: 32px;">
+        <h3 style="margin-bottom: 18px; font-size: 1.2rem; display: flex; align-items: center; gap: 8px;">
+            <span style="width: 8px; height: 8px; border-radius: 50%; background-color: var(--accent-primary);"></span>
+            As Advisor: Pending OD Approval
+        </h3>
+        
+        <div style="display: grid; grid-template-columns: repeat(auto-fill, minmax(310px, 1fr)); gap: 20px;">
+        {% for od in pending_advisor_ods %}
+        <div class="card" style="padding: 20px; border-radius: var(--radius-md); box-shadow: var(--shadow-sm); display: flex; flex-direction: column; justify-content: space-between; min-height: 220px;">
+            <div>
+                <div style="display: flex; align-items: center; gap: 12px; margin-bottom: 14px;">
+                    <div style="width: 40px; height: 40px; border-radius: 50%; background-color: var(--accent-light); color: var(--accent-primary); display: flex; align-items: center; justify-content: center; font-weight: 600; font-size: 0.95rem;">
+                        {{ od.student.user.first_name|slice:":1" }}{{ od.student.user.last_name|slice:":1" }}
+                    </div>
+                    <div style="flex: 1; min-width: 0;">
+                        <h4 style="margin: 0; font-size: 0.95rem; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; color: var(--text-primary);">{{ od.student.user.first_name }} {{ od.student.user.last_name }} ({{ od.student.reg_no }})</h4>
+                        <span style="font-size: 0.75rem; color: var(--text-secondary); display: block; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">Roll: {{ od.student.roll_no }} | Reg: {{ od.student.reg_no }}</span>
+                    </div>
+                    <span style="background-color: var(--info-light); color: var(--info); padding: 4px 8px; border-radius: 9999px; font-size: 0.7rem; font-weight: 600; height: fit-content;">OD</span>
+                </div>
+                
+                <div style="background-color: var(--bg-primary); padding: 12px; border-radius: var(--radius-sm); margin-bottom: 16px; border: 1px solid var(--border-color);">
+                    <div style="display: flex; justify-content: space-between; margin-bottom: 6px; font-size: 0.8rem;">
+                        <span style="color: var(--text-secondary); font-weight: 500;">Date:</span>
+                        <span style="font-weight: 600; color: var(--text-primary);">{{ od.date }}</span>
+                    </div>
+                    <div style="font-size: 0.8rem; line-height: 1.4;">
+                        <span style="color: var(--text-secondary); font-weight: 500; display: block; margin-bottom: 2px;">Reason:</span>
+                        <span style="color: var(--text-primary);">{{ od.reason }}</span>
+                    </div>
+                </div>
+            </div>
+            
+            <form method="POST" action="{% url 'approve_leave' od.id %}" style="display: flex; gap: 10px; margin: 0;">
                 {% csrf_token %}
-                <button type="submit" class="btn btn-secondary" style="padding: 6px 12px; font-size: 0.85rem;">Clean up</button>
+                <button type="submit" name="action" value="Approve" class="btn btn-primary" style="flex: 1; height: 36px; padding: 0; font-size: 0.85rem; background-color: var(--success); border-color: var(--success);">Approve</button>
+                <button type="submit" name="action" value="Reject" class="btn" style="flex: 1; height: 36px; padding: 0; font-size: 0.85rem; background-color: var(--danger); border-color: var(--danger); color: white;">Reject</button>
             </form>
         </div>
+        {% empty %}
+        <div style="grid-column: 1 / -1; text-align: center; padding: 40px; background-color: var(--bg-secondary); border: 1px dashed var(--border-color); border-radius: var(--radius-md);">
+            <p style="color: var(--text-muted); margin: 0; font-size: 0.95rem;">No pending advisor OD approvals found.</p>
+        </div>
+        {% endfor %}
+        </div>
+    </div>
+    {% endif %}
+
+    <!-- 3. Pending OD Certificate Verification -->
+    <div style="margin-bottom: 32px;">
+        <h3 style="margin-bottom: 18px; font-size: 1.2rem; display: flex; align-items: center; gap: 8px;">
+            <span style="width: 8px; height: 8px; border-radius: 50%; background-color: var(--accent-secondary);"></span>
+            Pending OD Certificate Verification
+        </h3>
         
-        {% regroup processed_ods_today by updated_at.date as ods_by_date %}
-        
-        {% for date_group in ods_by_date %}
-        <h4 style="margin-top: 15px; margin-bottom: 10px; color: var(--text-secondary); border-bottom: 1px solid var(--border-color); padding-bottom: 5px;">{{ date_group.grouper }}</h4>
-        <div style="display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 16px;">
-            {% for od in date_group.list %}
-            <div class="stat-card glass-panel" style="padding: 16px;">
-                <div style="display: flex; justify-content: space-between; margin-bottom: 10px;">
-                    <strong>{{ od.student.user.first_name }} {{ od.student.user.last_name }} ({{ od.student.user.username }})</strong>
-                    <span class="badge" style="background-color: {% if od.hod_approved == 'Approved' %}var(--success, #2ecc71){% else %}var(--danger, #e74c3c){% endif %}; color: #fff; padding: 4px 8px; border-radius: 4px; font-size: 0.8rem;">{{ od.hod_approved }}</span>
+        <div style="display: grid; grid-template-columns: repeat(auto-fill, minmax(310px, 1fr)); gap: 20px;">
+        {% for od in pending_verification_ods %}
+        <div class="card" style="padding: 20px; border-radius: var(--radius-md); box-shadow: var(--shadow-sm); display: flex; flex-direction: column; justify-content: space-between; min-height: 180px;">
+            <div>
+                <div style="display: flex; align-items: center; gap: 12px; margin-bottom: 12px;">
+                    <div style="width: 40px; height: 40px; border-radius: 50%; background-color: var(--accent-light); color: var(--accent-primary); display: flex; align-items: center; justify-content: center; font-weight: 600; font-size: 0.95rem;">
+                        {{ od.student.user.first_name|slice:":1" }}{{ od.student.user.last_name|slice:":1" }}
+                    </div>
+                    <div style="flex: 1; min-width: 0;">
+                        <h4 style="margin: 0; font-size: 0.95rem; font-weight: 600; color: var(--text-primary); white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">{{ od.student.user.first_name }} {{ od.student.user.last_name }} ({{ od.student.reg_no }})</h4>
+                        <span style="font-size: 0.75rem; color: var(--text-secondary);">Reg: {{ od.student.reg_no }}</span>
+                    </div>
                 </div>
-                <p style="font-size: 0.9rem; margin-bottom: 8px;"><strong>Date:</strong> {{ od.date }}</p>
-                <p style="font-size: 0.9rem; margin-bottom: 8px;"><strong>Reason:</strong> {{ od.reason }}</p>
-                {% if od.hod_approved == 'Approved' %}
-                    {% if request.user == od.student.tutor %}
-                        {% if not od.certificate_verified and od.proof %}
-                            <div style="background: rgba(52, 152, 219, 0.1); padding: 10px; border-radius: 5px; margin-top: 10px;">
-                                <p style="font-size: 0.85rem; margin-bottom: 5px;"><strong>Certificate Uploaded:</strong> <a href="{{ od.proof.url }}" target="_blank">View Proof</a></p>
-                                <form method="POST" action="{% url 'verify_certificate' od.id %}" style="display: flex; gap: 8px;">
-                                    {% csrf_token %}
-                                    <button type="submit" name="action" value="Approve" class="btn btn-success" style="flex: 1; padding: 4px; font-size: 0.8rem;">Verify</button>
-                                    <button type="submit" name="action" value="Reject" class="btn btn-danger" style="flex: 1; padding: 4px; font-size: 0.8rem;">Reject</button>
-                                </form>
-                            </div>
-                        {% elif od.certificate_verified %}
-                            <span style="font-size: 0.85rem; color: var(--success, #2ecc71); font-weight: bold;">✔ Certificate Verified</span>
-                        {% else %}
-                            <span style="font-size: 0.85rem; color: var(--warning, #f1c40f);">⌛ Awaiting Student Certificate</span>
-                        {% endif %}
+                <div style="margin-bottom: 14px; background-color: var(--bg-primary); padding: 12px; border-radius: var(--radius-sm); border: 1px solid var(--border-color);">
+                    <span style="font-size: 0.8rem; color: var(--text-secondary); display: block; margin-bottom: 4px;">Request Date: <strong>{{ od.date }}</strong></span>
+                    {% if od.proof %}
+                        <a href="{{ od.proof.url }}" target="_blank" class="btn btn-outline" style="width: 100%; height: 32px; padding: 0; font-size: 0.75rem; display: flex; align-items: center; justify-content: center; border-color: var(--border-color); color: var(--text-secondary);">
+                            View Uploaded Proof
+                        </a>
                     {% else %}
-                        {% if od.certificate_verified %}
-                            <span style="font-size: 0.85rem; color: var(--success, #2ecc71); font-weight: bold;">✔ Certificate Verified (by Tutor)</span>
-                        {% else %}
-                            <span style="font-size: 0.85rem; color: var(--warning, #f1c40f);">⌛ Awaiting Tutor Verification</span>
-                        {% endif %}
+                        <span style="color: var(--danger); font-size: 0.75rem;">No proof uploaded yet</span>
                     {% endif %}
-                {% endif %}
+                </div>
             </div>
-            {% endfor %}
+            {% if od.proof %}
+            <form method="POST" action="{% url 'verify_certificate' od.id %}" style="display: flex; gap: 8px; margin: 0;">
+                {% csrf_token %}
+                <button type="submit" name="action" value="Approve" class="btn btn-primary" style="flex: 1; padding: 6px; font-size: 0.8rem; background-color: var(--success); color: white; border: none;">Verify</button>
+                <button type="submit" name="action" value="Reject" class="btn" style="flex: 1; padding: 6px; font-size: 0.8rem; background-color: var(--danger); color: white; border: none;">Reject</button>
+            </form>
+            {% endif %}
         </div>
         {% empty %}
-        <p style="color: var(--text-muted); text-align: center; margin-top: 20px;">No processed ODs to show.</p>
+        <div style="grid-column: 1 / -1; text-align: center; padding: 40px; background-color: var(--bg-secondary); border: 1px dashed var(--border-color); border-radius: var(--radius-md);">
+            <p style="color: var(--text-muted); margin: 0; font-size: 0.95rem;">No pending OD documents to verify.</p>
+        </div>
         {% endfor %}
+        </div>
+    </div>
+
+    <!-- 4. Processed OD History -->
+    <div id="od-history-container" class="card" style="padding: 24px; border-radius: var(--radius-md); display: none;">
+        <div style="margin-bottom: 18px;">
+            <h3 style="margin: 0; font-size: 1.1rem; color: var(--text-secondary);">Processed OD History</h3>
+        </div>
+        
+        <div style="margin-top: 16px; border-top: 1px solid var(--border-color); padding-top: 16px;">
+            {% regroup processed_ods_today by updated_at.date as ods_by_date %}
+            
+            {% for date_group in ods_by_date %}
+            <h4 style="margin-top: 16px; margin-bottom: 12px; color: var(--text-secondary); font-size: 0.9rem; padding-bottom: 4px; border-bottom: 1px solid var(--border-color);">{{ date_group.grouper }}</h4>
+            <div style="display: grid; grid-template-columns: repeat(auto-fill, minmax(310px, 1fr)); gap: 16px;">
+                {% for od in date_group.list %}
+                <div style="border: 1px solid var(--border-color); background-color: var(--bg-primary); border-radius: var(--radius-sm); padding: 16px; display: flex; flex-direction: column; justify-content: space-between; min-height: 120px;">
+                    <div>
+                        <div style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 8px;">
+                            <strong style="font-size: 0.9rem; color: var(--text-primary);">{{ od.student.user.first_name }} {{ od.student.user.last_name }} ({{ od.student.reg_no }})</strong>
+                            <span style="background-color: {% if od.hod_approved == 'Approved' %}var(--success-light){% else %}var(--danger-light){% endif %}; color: {% if od.hod_approved == 'Approved' %}var(--success){% else %}var(--danger){% endif %}; padding: 2px 8px; border-radius: 9999px; font-size: 0.7rem; font-weight: 600;">
+                                {{ od.hod_approved }}
+                            </span>
+                        </div>
+                        <p style="font-size: 0.8rem; color: var(--text-secondary); margin: 0 0 4px 0;"><strong>Date:</strong> {{ od.date }}</p>
+                        <p style="font-size: 0.8rem; color: var(--text-primary); margin: 0 0 8px 0; line-height: 1.4;"><strong>Reason:</strong> {{ od.reason }}</p>
+                        <div style="font-size: 0.75rem; border-top: 1px dashed var(--border-color); padding-top: 6px; color: var(--text-muted);">
+                            {% if od.certificate_verified %}
+                                <span style="color: var(--success); font-weight: 600;">✔ Certificate Verified (by Tutor)</span>
+                            {% else %}
+                                <span style="color: var(--text-muted);">⌛ Certificate Not Verified</span>
+                            {% endif %}
+                        </div>
+                    </div>
+                </div>
+                {% endfor %}
+            </div>
+            {% empty %}
+            <p style="color: var(--text-muted); text-align: center; font-size: 0.9rem; margin: 20px 0;">No processed ODs to show.</p>
+            {% endfor %}
+        </div>
     </div>
 </div>
 
@@ -160,20 +350,35 @@ function showTab(tabName) {
     document.getElementById('section-leave').style.display = 'none';
     document.getElementById('section-od').style.display = 'none';
     
-    document.getElementById('tab-leave').className = 'btn';
-    document.getElementById('tab-leave').style.backgroundColor = 'var(--card-bg)';
-    document.getElementById('tab-leave').style.color = 'var(--text-primary)';
+    document.getElementById('tab-leave').className = 'btn btn-outline';
+    document.getElementById('tab-leave').style.backgroundColor = 'transparent';
+    document.getElementById('tab-leave').style.color = 'var(--text-secondary)';
+    document.getElementById('tab-leave').style.borderColor = 'var(--border-color)';
     
-    document.getElementById('tab-od').className = 'btn';
-    document.getElementById('tab-od').style.backgroundColor = 'var(--card-bg)';
-    document.getElementById('tab-od').style.color = 'var(--text-primary)';
+    document.getElementById('tab-od').className = 'btn btn-outline';
+    document.getElementById('tab-od').style.backgroundColor = 'transparent';
+    document.getElementById('tab-od').style.color = 'var(--text-secondary)';
+    document.getElementById('tab-od').style.borderColor = 'var(--border-color)';
     
     var activeTab = document.getElementById('tab-' + tabName);
     activeTab.className = 'btn btn-primary';
     activeTab.style.backgroundColor = '';
     activeTab.style.color = '';
+    activeTab.style.borderColor = '';
     
     document.getElementById('section-' + tabName).style.display = 'block';
+}
+
+let globalHistoryVisible = false;
+function toggleGlobalHistory() {
+    globalHistoryVisible = !globalHistoryVisible;
+    const btn = document.getElementById('toggle-global-history');
+    btn.textContent = globalHistoryVisible ? 'Hide History' : 'Show History';
+    
+    const leaveHistory = document.getElementById('leave-history-container');
+    const odHistory = document.getElementById('od-history-container');
+    if (leaveHistory) leaveHistory.style.display = globalHistoryVisible ? 'block' : 'none';
+    if (odHistory) odHistory.style.display = globalHistoryVisible ? 'block' : 'none';
 }
 </script>
 {% endblock %}

@@ -1,0 +1,98 @@
+{% extends 'base.html' %}
+
+{% block page_title %}Manual Attendance{% endblock %}
+
+{% block content %}
+<div class="glass-panel" style="padding: 24px; max-width: 800px; margin: 0 auto;">
+    <div style="margin-bottom: 24px;">
+        <h3 style="margin-bottom: 8px;">Mark / Update Manual Attendance</h3>
+        <p style="color: var(--text-secondary); font-size: 0.9rem; margin-bottom: 0;">Select a student and date to modify class period attendance records manually.</p>
+    </div>
+
+    <!-- Selection Form -->
+    <form method="GET" style="display: flex; gap: 16px; align-items: flex-end; margin-bottom: 32px; flex-wrap: wrap;">
+        <div style="flex: 2; min-width: 250px;">
+            <label style="display: block; margin-bottom: 6px; color: var(--text-secondary); font-size: 0.9rem;">Select Student *</label>
+            <select name="student_id" class="form-control" required style="padding: 10px; width: 100%;">
+                <option value="">-- Select Student --</option>
+                {% for s in students %}
+                <option value="{{ s.user.id }}" {% if selected_student_id == s.user.id %}selected{% endif %}>
+                    {{ s.user.first_name }} {{ s.user.last_name }} ({{ s.reg_no|default:s.user.username }}) {% if s.student_class %}- {{ s.student_class }}{% endif %}
+                </option>
+                {% endfor %}
+            </select>
+        </div>
+        <div style="flex: 1; min-width: 150px;">
+            <label style="display: block; margin-bottom: 6px; color: var(--text-secondary); font-size: 0.9rem;">Select Date *</label>
+            <input type="date" name="date" class="form-control" value="{{ selected_date_str }}" required style="padding: 9px; width: 100%;">
+        </div>
+        <div style="min-width: 120px;">
+            <button type="submit" class="btn btn-primary" style="width: 100%; height: 44px;">Load Timetable</button>
+        </div>
+    </form>
+
+    {% if error_message %}
+    <div style="background-color: var(--danger-light); color: var(--danger); border: 1px solid rgba(244, 63, 94, 0.2); padding: 12px; border-radius: var(--radius-sm); margin-bottom: 24px;">
+        {{ error_message }}
+    </div>
+    {% endif %}
+
+    {% if selected_student %}
+    <div class="card" style="padding: 20px; border-radius: var(--radius-md); background: rgba(255, 255, 255, 0.02); border: 1px solid var(--border-overlay);">
+        <div style="border-bottom: 1px solid var(--border-overlay); padding-bottom: 12px; margin-bottom: 20px; display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 10px;">
+            <div>
+                <h4 style="margin: 0; font-size: 1.1rem; font-weight: 600;">{{ selected_student.user.first_name }} {{ selected_student.user.last_name }}</h4>
+                <p style="margin: 4px 0 0 0; font-size: 0.85rem; color: var(--text-secondary);">Reg No: {{ selected_student.reg_no }} | Class: {{ selected_student.student_class }}</p>
+            </div>
+            <div>
+                <span class="badge badge-present" style="font-size: 0.85rem; padding: 6px 12px;">Date: {{ selected_date_str }}</span>
+            </div>
+        </div>
+
+        {% if schedules_data %}
+        <form method="POST">
+            {% csrf_token %}
+            <input type="hidden" name="student_id" value="{{ selected_student.user.id }}">
+            <input type="hidden" name="date" value="{{ selected_date_str }}">
+
+            <div style="display: flex; flex-direction: column; gap: 16px; margin-bottom: 24px;">
+                {% for item in schedules_data %}
+                <div style="display: flex; justify-content: space-between; align-items: center; padding: 14px 18px; background: rgba(0,0,0,0.2); border: 1px solid var(--border-overlay); border-radius: var(--radius-sm); flex-wrap: wrap; gap: 12px;">
+                    <div style="flex: 1; min-width: 200px;">
+                        <span style="font-weight: 600; color: var(--accent); font-size: 0.95rem; display: block; margin-bottom: 2px;">Period {{ item.schedule.period }}</span>
+                        <span style="color: var(--text-primary); font-weight: 500; font-size: 0.9rem;">{{ item.schedule.subject.name }} ({{ item.schedule.subject.code }})</span>
+                        <span style="color: var(--text-secondary); font-size: 0.75rem; display: block; margin-top: 2px;">Time: {{ item.schedule.start_time }} - {{ item.schedule.end_time }}</span>
+                    </div>
+                    <div style="display: flex; gap: 12px; align-items: center;">
+                        <label style="display: inline-flex; align-items: center; gap: 6px; cursor: pointer; color: var(--text-primary); font-size: 0.85rem;">
+                            <input type="radio" name="status_{{ item.schedule.id }}" value="Present" {% if item.status == 'Present' %}checked{% endif %} style="accent-color: var(--success);">
+                            Present
+                        </label>
+                        <label style="display: inline-flex; align-items: center; gap: 6px; cursor: pointer; color: var(--text-primary); font-size: 0.85rem;">
+                            <input type="radio" name="status_{{ item.schedule.id }}" value="Absent" {% if item.status == 'Absent' %}checked{% endif %} style="accent-color: var(--danger);">
+                            Absent
+                        </label>
+                        <label style="display: inline-flex; align-items: center; gap: 6px; cursor: pointer; color: var(--text-primary); font-size: 0.85rem;">
+                            <input type="radio" name="status_{{ item.schedule.id }}" value="OD" {% if item.status == 'OD' %}checked{% endif %} style="accent-color: var(--info);">
+                            OD
+                        </label>
+                        <label style="display: inline-flex; align-items: center; gap: 6px; cursor: pointer; color: var(--text-primary); font-size: 0.85rem;">
+                            <input type="radio" name="status_{{ item.schedule.id }}" value="Leave" {% if item.status == 'Leave' %}checked{% endif %} style="accent-color: var(--warning);">
+                            Leave
+                        </label>
+                    </div>
+                </div>
+                {% endfor %}
+            </div>
+
+            <button type="submit" class="btn btn-primary" style="width: 100%; height: 46px; font-size: 0.95rem;">Save Attendance Updates</button>
+        </form>
+        {% else %}
+        <div style="text-align: center; padding: 32px; background-color: rgba(0,0,0,0.1); border: 1px dashed var(--border-overlay); border-radius: var(--radius-sm); color: var(--text-muted); font-size: 0.9rem;">
+            No scheduled classes found for this student on this day.
+        </div>
+        {% endif %}
+    </div>
+    {% endif %}
+</div>
+{% endblock %}

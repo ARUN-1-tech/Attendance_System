@@ -41,7 +41,9 @@
 
             <div style="flex: 1; min-width: 180px;">
                 <label style="display: block; margin-bottom: 5px; font-size: 0.9rem; color: var(--text-secondary);">Subject</label>
-                <input type="text" name="subject_name" class="form-control" placeholder="e.g. Database Systems" required style="padding: 10px;">
+                <select name="subject_name" id="subject-select" class="form-control" required style="padding: 10px;">
+                    <option value="">-- Choose Subject --</option>
+                </select>
             </div>
 
             <div style="flex: 1; min-width: 120px;">
@@ -91,6 +93,38 @@
                 });
             }
         }
+
+        document.getElementById('class-select').addEventListener('change', function() {
+            var classId = this.value;
+            var subjectSelect = document.getElementById('subject-select');
+            subjectSelect.innerHTML = '<option value="">-- Choose Subject --</option>';
+            
+            if (classId) {
+                fetch('/api/schedules/?class_id=' + classId)
+                    .then(response => response.json())
+                    .then(data => {
+                        var seen = new Set();
+                        data.forEach(function(s) {
+                            if (s.subject_details && !seen.has(s.subject_details.name)) {
+                                seen.add(s.subject_details.name);
+                                var opt = document.createElement('option');
+                                opt.value = s.subject_details.name;
+                                opt.innerText = s.subject_details.name + ' (' + s.subject_details.code + ')';
+                                subjectSelect.appendChild(opt);
+                            }
+                        });
+                        if (seen.size === 0) {
+                            var opt = document.createElement('option');
+                            opt.value = "";
+                            opt.innerText = "No subjects configured in schedule";
+                            subjectSelect.appendChild(opt);
+                        }
+                    })
+                    .catch(err => {
+                        console.error('Error fetching schedules:', err);
+                    });
+            }
+        });
 
         document.getElementById('otp-form').addEventListener('submit', function(e) {
             e.preventDefault();

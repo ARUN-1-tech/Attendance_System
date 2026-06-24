@@ -38,6 +38,8 @@
                     <td>{% if c.tutor2 %}{{ c.tutor2.first_name }} {{ c.tutor2.last_name }} ({{ c.tutor2.username }}){% else %}-{% endif %}</td>
                     <td>{% if c.tutor3 %}{{ c.tutor3.first_name }} {{ c.tutor3.last_name }} ({{ c.tutor3.username }}){% else %}-{% endif %}</td>
                     <td>
+                        <a href="{% url 'hod_class_students' c.id %}" class="btn btn-primary" style="padding: 4px 10px; font-size: 0.8rem; margin-right: 5px;">Students</a>
+                        <a href="{% url 'hod_morning_attendance' %}?class_id={{ c.id }}" class="btn btn-secondary" style="padding: 4px 10px; font-size: 0.8rem; margin-right: 5px; border: 1px solid var(--border-overlay);">View Live Grid</a>
                         <a href="{% url 'edit_class' c.id %}" class="btn" style="background-color: var(--card-bg); color: var(--text-primary); border: 1px solid var(--border-color); padding: 4px 10px; font-size: 0.8rem; margin-right: 5px;">Edit</a>
                         <form method="POST" action="{% url 'delete_class' c.id %}" style="display:inline;">
                             {% csrf_token %}

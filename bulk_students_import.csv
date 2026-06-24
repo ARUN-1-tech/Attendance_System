@@ -1,0 +1,11 @@
+username,email,reg_no,roll_no,age,mobile_no,class,year,password
+cse_student_01,cse_stud1@example.com,710724104001,CS001,20,9876543210,B.E CSE,3,abc123
+cse_student_02,cse_stud2@example.com,710724104002,CS002,20,9876543211,B.E CSE,3,abc123
+cse_student_03,cse_stud3@example.com,710724104003,CS003,20,9876543212,B.E CSE,3,abc123
+cse_student_04,cse_stud4@example.com,710724104004,CS004,20,9876543213,B.E CSE,3,abc123
+cse_student_05,cse_stud5@example.com,710724104005,CS005,20,9876543214,B.E CSE,3,abc123
+cse_student_06,cse_stud6@example.com,710724104006,CS006,20,9876543215,B.E CSE,3,abc123
+cse_student_07,cse_stud7@example.com,710724104007,CS007,20,9876543216,B.E CSE,3,abc123
+cse_student_08,cse_stud8@example.com,710724104008,CS008,20,9876543217,B.E CSE,3,abc123
+cse_student_09,cse_stud9@example.com,710724104009,CS009,20,9876543218,B.E CSE,3,abc123
+cse_student_10,cse_stud10@example.com,710724104010,CS010,20,9876543219,B.E CSE,3,abc123

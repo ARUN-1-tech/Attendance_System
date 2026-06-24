@@ -1,0 +1,71 @@
+{% extends 'base.html' %}
+{% block page_title %}Manage Head of Departments (HODs){% endblock %}
+
+{% block content %}
+<div class="glass-panel" style="padding: 24px; margin-bottom: 2rem;">
+    <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 16px;">
+        <div>
+            <h3 style="margin-bottom: 8px;">HOD Accounts</h3>
+            <p style="color: var(--text-secondary); font-size: 0.95rem;">Manage the credentials, departments, and details of Head of Departments.</p>
+        </div>
+        <a href="{% url 'admin_add_hod' %}" class="btn btn-primary" style="display: flex; align-items: center; gap: 8px;">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M16 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"></path><circle cx="9" cy="7" r="4"></circle><line x1="19" y1="8" x2="19" y2="14"></line><line x1="22" y1="11" x2="16" y2="11"></line></svg>
+            Add New HOD
+        </a>
+    </div>
+</div>
+
+<div class="glass-panel" style="padding: 24px;">
+    <div class="table-wrapper">
+        <table>
+            <thead>
+                <tr>
+                    <th>Username</th>
+                    <th>Name</th>
+                    <th>Email</th>
+                    <th>Department</th>
+                    <th>Phone</th>
+                    <th>Age / DOB</th>
+                    <th>Staff ID</th>
+                    <th>Designation</th>
+                    <th style="text-align: right;">Actions</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for hod in hods %}
+                <tr>
+                    <td style="font-weight: 600; color: var(--text-primary);">{{ hod.username }}</td>
+                    <td>{{ hod.first_name }} {{ hod.last_name }}</td>
+                    <td>{{ hod.email }}</td>
+                    <td>
+                        <span style="padding: 4px 8px; border-radius: 6px; background: rgba(99, 102, 241, 0.15); color: #818cf8; font-size: 0.9rem; font-weight: 500;">
+                            {{ hod.department.name }}
+                        </span>
+                    </td>
+                    <td>{{ hod.phone_number|default:"-" }}</td>
+                    <td>
+                        {% if hod.age %}{{ hod.age }}{% else %}-{% endif %} / 
+                        {% if hod.dob %}{{ hod.dob|date:"Y-m-d" }}{% else %}-{% endif %}
+                    </td>
+                    <td><code style="background: rgba(255,255,255,0.05); padding: 2px 6px; border-radius: 4px; font-size: 0.9rem;">{{ hod.staff.staff_id|default:"-" }}</code></td>
+                    <td>{{ hod.staff.designation|default:"HOD" }}</td>
+                    <td style="text-align: right;">
+                        <div style="display: flex; gap: 8px; justify-content: flex-end;">
+                            <a href="{% url 'admin_edit_hod' hod.id %}" class="btn" style="padding: 6px 12px; font-size: 0.85rem;">Edit</a>
+                            <form method="POST" action="{% url 'admin_delete_hod' hod.id %}" style="display: inline;" onsubmit="return confirm('Are you sure you want to delete HOD user \'{{ hod.username }}\'?');">
+                                {% csrf_token %}
+                                <button type="submit" class="btn btn-danger" style="padding: 6px 12px; font-size: 0.85rem; color: var(--danger) !important; border-color: rgba(244, 63, 94, 0.2);">Delete</button>
+                            </form>
+                        </div>
+                    </td>
+                </tr>
+                {% empty %}
+                <tr>
+                    <td colspan="9" style="text-align: center; color: var(--text-secondary); padding: 2rem 0;">No Head of Departments found. Click "Add New HOD" to create one.</td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+{% endblock %}

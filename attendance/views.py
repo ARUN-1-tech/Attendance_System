@@ -2,10 +2,11 @@ from django.shortcuts import render, redirect, get_object_or_404
 from django.contrib.auth.decorators import login_required
 from django.utils import timezone
 from django.contrib import messages
-from datetime import timedelta
-from datetime import date
+from datetime import timedelta, date
 import random
 import string
+import csv
+from django.http import HttpResponse
 
 from .models import OTP, Attendance
 from accounts.models import Student
@@ -84,7 +85,7 @@ def generate_otp(request):
         lng = float(lng) if lng else None
 
         code = ''.join(random.choices(string.digits, k=6))
-        otp = OTP.objects.create(code=code, schedule=schedule, staff_latitude=lat, staff_longitude=lng)
+        otp = OTP.objects.create(code=code, schedule=schedule, staff_latitude=lat, staff_longitude=lng, creator=request.user)
         
         request.session['active_otp_id'] = otp.id
         
@@ -153,6 +154,19 @@ def verify_otp(request):
                     student = request.user.student
                     today = date.today()
                     
+                    # Check if student has approved Leave/OD today
+                    from leave.models import Leave
+                    approved_leave = Leave.objects.filter(student=student, date=today, final_status='Approved').first()
+                    if approved_leave:
+                        messages.error(request, f"You cannot mark Present because you are approved for {approved_leave.leave_type} today.")
+                        return redirect('student_dashboard')
+                        
+                    # Also check existing attendance record
+                    existing_att = Attendance.objects.filter(student=student, schedule=otp.schedule, date=today).first()
+                    if existing_att and existing_att.status in ['Leave', 'OD']:
+                        messages.error(request, f"You cannot mark Present because you are marked as {existing_att.status} today.")
+                        return redirect('student_dashboard')
+                    
                     # Update attendance to Present
                     attendance, created = Attendance.objects.get_or_create(
                         student=student, 
@@ -197,28 +211,35 @@ def session_stats_api(request, otp_id):
     # Students bound to this schedule's class
     students_in_class = Student.objects.filter(student_class=otp.schedule.student_class)
     
-    attendances = Attendance.objects.filter(student__in=students_in_class, schedule=otp.schedule, date=today)
+    attendances = Attendance.objects.filter(student__in=students_in_class, schedule=otp.schedule, date=today).select_related('student__user')
     
     present_count = attendances.filter(status='Present').count()
-    leave_od_count = attendances.filter(status__in=['Leave', 'OD']).count()
+    absent_count = attendances.filter(status='Absent').count()
+    od_count = attendances.filter(status='OD').count()
+    leave_count = attendances.filter(status='Leave').count()
     
-    total = students_in_class.count()
-    remaining_count = total - present_count - leave_od_count
-    
-    remaining_students = attendances.filter(status='Absent').select_related('student__user')
-    remaining_list = [
-        f"{a.student.user.first_name} {a.student.user.last_name} ({a.student.user.username})" 
-        for a in remaining_students
+    all_students_list = [
+        {
+            'reg_no': a.student.reg_no or a.student.roll_no or a.student.user.username,
+            'name': f"{a.student.user.first_name} {a.student.user.last_name}".strip() or a.student.user.username,
+            'status': a.status
+        } for a in attendances
     ]
     
     # Calculate time left
     time_elapsed = (timezone.now() - otp.created_at).total_seconds()
     time_left = max(0, 60 - time_elapsed) # 1 minute validity
     
+    if time_left <= 0 and otp.is_active:
+        otp.is_active = False
+        otp.save()
+        
     return JsonResponse({
         'present_count': present_count,
-        'remaining_count': remaining_count,
-        'remaining_students': remaining_list,
+        'absent_count': absent_count,
+        'od_count': od_count,
+        'leave_count': leave_count,
+        'all_students': all_students_list,
         'time_left': int(time_left),
         'is_active': otp.is_active and time_left > 0
     })
@@ -228,10 +249,58 @@ from django.http import HttpResponse
 
 @login_required
 def download_report(request):
+    from accounts.models import Department, Class, Student, Subject
+    from django.db.models import Q
+    from leave.models import Leave
+    from timetable.models import Schedule
+    
+    context = {}
+    if request.user.role == 'hod':
+        context['classes'] = Class.objects.filter(department=request.user.department)
+        context['students'] = Student.objects.filter(student_class__department=request.user.department).select_related('user')
+        context['subjects'] = Subject.objects.filter(department=request.user.department)
+    elif request.user.role == 'staff':
+        context['classes'] = Class.objects.filter(department=request.user.department)
+        context['students'] = Student.objects.filter(user__department=request.user.department).select_related('user')
+        context['subjects'] = Subject.objects.filter(department=request.user.department)
+        
+        tutored_students = Student.objects.filter(Q(tutor=request.user) | Q(advisor=request.user))
+        context['my_students_ids'] = list(tutored_students.values_list('user_id', flat=True))
+        
+        my_classes = Class.objects.filter(advisor=request.user)
+        context['my_classes_ids'] = list(my_classes.values_list('id', flat=True))
+    elif request.user.role == 'admin':
+        context['departments'] = Department.objects.all()
+        context['classes'] = Class.objects.all()
+        context['students'] = Student.objects.all().select_related('user')
+
     if request.method == 'POST':
+        action_type = request.POST.get('action', 'view')
         report_type = request.POST.get('report_type', 'department')
-        from_date = request.POST.get('from_date')
+        report_mode = request.POST.get('report_mode', 'day')
+        
+        from_date = request.POST.get('from_date') or request.POST.get('date')
         to_date = request.POST.get('to_date')
+        
+        if report_mode == 'day':
+            if not to_date:
+                to_date = from_date
+            
+        subject_id = request.POST.get('subject_id')
+        class_id = request.POST.get('class_id')
+        student_id = request.POST.get('student_id')
+
+        # Keep values in forms
+        context.update({
+            'selected_report_type': report_type,
+            'selected_report_mode': report_mode,
+            'selected_date': from_date,
+            'selected_from_date': from_date,
+            'selected_to_date': to_date,
+            'selected_subject_id': int(subject_id) if subject_id else '',
+            'selected_class_id': int(class_id) if class_id else '',
+            'selected_student_id': int(student_id) if student_id else '',
+        })
 
         if request.user.role == 'student':
             if hasattr(request.user, 'student'):
@@ -247,14 +316,11 @@ def download_report(request):
         else:
             records = Attendance.objects.none()
 
-        # Enforce staff-specific restrictions before other filters
+        validation_error = False
         if request.user.role == 'staff':
-            from accounts.models import Class, Student
-            subject_id = request.POST.get('subject_id')
             is_related = False
             
             if report_type == 'class':
-                class_id = request.POST.get('class_id')
                 if class_id:
                     try:
                         student_class = Class.objects.get(id=class_id)
@@ -262,7 +328,6 @@ def download_report(request):
                     except Class.DoesNotExist:
                         pass
             elif report_type == 'student':
-                student_id = request.POST.get('student_id')
                 if student_id:
                     try:
                         student = Student.objects.get(user_id=student_id)
@@ -272,90 +337,217 @@ def download_report(request):
             elif report_type == 'tutored':
                 is_related = True
 
-            if not is_related:
+            if not is_related and report_mode == 'subject_percentage':
                 if not subject_id:
                     messages.error(request, "Subject selection is required for this report as you are not the tutor or advisor.")
-                    return redirect('download_report')
-                records = records.filter(schedule__subject_id=subject_id)
+                    validation_error = True
+                    records = Attendance.objects.none()
+                else:
+                    records = records.filter(schedule__subject_id=subject_id)
             else:
-                if subject_id:
+                if subject_id and report_mode == 'subject_percentage':
                     records = records.filter(schedule__subject_id=subject_id)
         else:
-            subject_id = request.POST.get('subject_id')
-            if subject_id:
+            if subject_id and report_mode == 'subject_percentage':
                 records = records.filter(schedule__subject_id=subject_id)
 
-        if from_date:
-            records = records.filter(date__gte=from_date)
-        if to_date:
-            records = records.filter(date__lte=to_date)
+        if not validation_error:
+            if from_date:
+                records = records.filter(date__gte=from_date)
+            if to_date:
+                records = records.filter(date__lte=to_date)
 
-        if report_type == 'department':
-            pass
-        elif report_type == 'class':
-            class_id = request.POST.get('class_id')
-            if class_id:
+            if report_type == 'class' and class_id:
                 records = records.filter(student__student_class_id=class_id)
-        elif report_type == 'tutored':
-            records = records.filter(student__tutor=request.user)
-        elif report_type == 'student':
-            student_id = request.POST.get('student_id')
-            if student_id:
+            elif report_type == 'tutored':
+                records = records.filter(student__tutor=request.user)
+            elif report_type == 'student' and student_id:
                 records = records.filter(student__user_id=student_id)
 
-        response = HttpResponse(content_type='text/csv')
-        response['Content-Disposition'] = f'attachment; filename="attendance_{report_type}_report.csv"'
-        
-        writer = csv.writer(response)
-        
-        if from_date and from_date == to_date:
-            writer.writerow(['Student', 'Class', 'Date', 'Day Status'])
-            student_records = {}
-            for r in records:
-                student_id_val = r.student.user.username
-                if student_id_val not in student_records:
-                    student_records[student_id_val] = {'student': r.student, 'status': 'Absent', 'date': r.date}
+        report_rows = []
+        if not validation_error:
+            if report_mode == 'day':
+                students_query = Student.objects.all()
+                if request.user.role == 'hod' or request.user.role == 'staff':
+                    students_query = students_query.filter(user__department=request.user.department)
                 
-                curr_status = student_records[student_id_val]['status']
-                new_status = r.status
-                precedence = {'Absent': 0, 'Present': 1, 'Leave': 2, 'OD': 3}
+                if report_type == 'class' and class_id:
+                    students_query = students_query.filter(student_class_id=class_id)
+                elif report_type == 'tutored':
+                    students_query = students_query.filter(tutor=request.user)
+                elif report_type == 'student' and student_id:
+                    students_query = students_query.filter(user_id=student_id)
                 
-                if precedence.get(new_status, 0) > precedence.get(curr_status, 0):
-                    student_records[student_id_val]['status'] = new_status
+                students_list = list(students_query.select_related('user', 'student_class'))
+                
+                import datetime
+                try:
+                    start_date = datetime.datetime.strptime(from_date, '%Y-%m-%d').date() if from_date else None
+                    end_date = datetime.datetime.strptime(to_date, '%Y-%m-%d').date() if to_date else None
+                except (ValueError, TypeError):
+                    start_date = None
+                    end_date = None
+
+                target_dates = []
+                if start_date and end_date:
+                    if start_date == end_date:
+                        target_dates = [start_date]
+                    else:
+                        db_dates = Attendance.objects.filter(
+                            student__in=students_list,
+                            date__gte=start_date,
+                            date__lte=end_date
+                        ).values_list('date', flat=True).distinct()
+                        target_dates = sorted(list(set(db_dates)))
+                        if not target_dates:
+                            target_dates = [start_date]
+                else:
+                    target_dates = [datetime.date.today()]
+
+                records_in_range = Attendance.objects.filter(
+                    student__in=students_list,
+                    date__in=target_dates
+                ).select_related('student__user', 'student__student_class')
+                
+                attendance_map = {}
+                for r in records_in_range:
+                    key = (r.student_id, r.date)
+                    curr_status = attendance_map.get(key, 'Absent')
+                    new_status = r.status
+                    precedence = {'Absent': 0, 'Present': 1, 'Leave': 2, 'OD': 3}
+                    if precedence.get(new_status, 0) > precedence.get(curr_status, 0):
+                        attendance_map[key] = new_status
+                        
+                for d in target_dates:
+                    date_str = d.strftime('%Y-%m-%d')
+                    for student in students_list:
+                        status = attendance_map.get((student.user_id, d), 'Absent')
+                        report_rows.append({
+                            'reg_no': student.reg_no or student.roll_no or student.user.username,
+                            'student_username': student.user.username,
+                            'student_name': f"{student.user.first_name} {student.user.last_name}".strip() or student.user.username,
+                            'department': student.student_class.department.name if student.student_class and student.student_class.department else '',
+                            'year': student.student_class.year if student.student_class else '',
+                            'class_name': student.student_class.name if student.student_class else '',
+                            'section': student.student_class.section if student.student_class else '',
+                            'class': str(student.student_class),
+                            'date': date_str,
+                            'status': status
+                        })
+            else:
+                students_query = Student.objects.all()
+                if request.user.role == 'hod' or request.user.role == 'staff':
+                    students_query = students_query.filter(user__department=request.user.department)
+                
+                if report_type == 'class' and class_id:
+                    students_query = students_query.filter(student_class_id=class_id)
+                elif report_type == 'tutored':
+                    students_query = students_query.filter(tutor=request.user)
+                elif report_type == 'student' and student_id:
+                    students_query = students_query.filter(user_id=student_id)
+                
+                students_list = students_query.select_related('user', 'student_class')
+                
+                for student in students_list:
+                    student_atts = Attendance.objects.filter(student=student)
+                    if from_date:
+                        student_atts = student_atts.filter(date__gte=from_date)
+                    if to_date:
+                        student_atts = student_atts.filter(date__lte=to_date)
                     
-            for rec in student_records.values():
-                writer.writerow([rec['student'].user.username, str(rec['student'].student_class), rec['date'], rec['status']])
-        else:
-            writer.writerow(['Student', 'Class', 'Date', 'Status', 'Schedule'])
-            for r in records:
-                writer.writerow([r.student.user.username, str(r.student.student_class), r.date, r.status, str(r.schedule)])
-        return response
+                    if subject_id:
+                        student_atts = student_atts.filter(schedule__subject_id=subject_id)
+                        try:
+                            subject_label = Subject.objects.get(id=subject_id).name
+                        except Subject.DoesNotExist:
+                            subject_label = 'Subject'
+                    else:
+                        subject_label = 'Overall'
+                        
+                    total_periods = student_atts.count()
+                    if total_periods > 0:
+                        present_periods = student_atts.filter(status='Present').count()
+                        verified_ods = Leave.objects.filter(
+                            student=student, 
+                            leave_type='OD', 
+                            final_status='Approved', 
+                            certificate_verified=True
+                        ).values_list('date', flat=True)
+                        verified_od_count = student_atts.filter(status='OD', date__in=verified_ods).count()
+                        effective_present = present_periods + verified_od_count
+                        percentage = round((effective_present / total_periods * 100), 2)
+                    else:
+                        percentage = 100.0
+                        
+                    report_rows.append({
+                        'reg_no': student.reg_no or student.roll_no or student.user.username,
+                        'student_username': student.user.username,
+                        'student_name': f"{student.user.first_name} {student.user.last_name}".strip() or student.user.username,
+                        'department': student.student_class.department.name if student.student_class and student.student_class.department else '',
+                        'year': student.student_class.year if student.student_class else '',
+                        'class_name': student.student_class.name if student.student_class else '',
+                        'section': student.student_class.section if student.student_class else '',
+                        'class': str(student.student_class),
+                        'subject': subject_label,
+                        'percentage': f"{percentage}%"
+                    })
 
-    context = {}
-    if request.user.role == 'hod':
-        from accounts.models import Department, Class, Student, Subject
-        context['classes'] = Class.objects.filter(department=request.user.department)
-        context['students'] = Student.objects.filter(student_class__department=request.user.department).select_related('user')
-        context['subjects'] = Subject.objects.filter(department=request.user.department)
-    elif request.user.role == 'staff':
-        from accounts.models import Department, Class, Student, Subject
-        from django.db.models import Q
-        
-        context['classes'] = Class.objects.filter(department=request.user.department)
-        context['students'] = Student.objects.filter(user__department=request.user.department).select_related('user')
-        context['subjects'] = Subject.objects.filter(department=request.user.department)
-        
-        tutored_students = Student.objects.filter(Q(tutor=request.user) | Q(advisor=request.user))
-        context['my_students_ids'] = list(tutored_students.values_list('user_id', flat=True))
-        
-        my_classes = Class.objects.filter(advisor=request.user)
-        context['my_classes_ids'] = list(my_classes.values_list('id', flat=True))
-    elif request.user.role == 'admin':
-        from accounts.models import Department, Class, Student
-        context['departments'] = Department.objects.all()
-        context['classes'] = Class.objects.all()
-        context['students'] = Student.objects.all().select_related('user')
+        if action_type == 'download' and not validation_error:
+            response = HttpResponse(content_type='text/csv')
+            if report_mode == 'day':
+                response['Content-Disposition'] = f'attachment; filename="attendance_{report_type}_day_report.csv"'
+                writer = csv.writer(response)
+                writer.writerow(['Register Number', 'Name', 'Department', 'Year', 'Class', 'Section', 'Date', 'Status'])
+                total_c = 0
+                present_c = 0
+                absent_c = 0
+                od_c = 0
+                for row in report_rows:
+                    writer.writerow([
+                        row['reg_no'], 
+                        row['student_name'], 
+                        row['department'], 
+                        row['year'], 
+                        row['class_name'], 
+                        row['section'], 
+                        row['date'], 
+                        row['status']
+                    ])
+                    total_c += 1
+                    if row['status'] == 'Present':
+                        present_c += 1
+                    elif row['status'] == 'Absent':
+                        absent_c += 1
+                    elif row['status'] == 'OD':
+                        od_c += 1
+                
+                writer.writerow([])
+                writer.writerow(['Summary'])
+                writer.writerow(['Total Students', total_c])
+                writer.writerow(['Present', present_c])
+                writer.writerow(['Absent', absent_c])
+                writer.writerow(['OD', od_c])
+            else:
+                response['Content-Disposition'] = f'attachment; filename="attendance_{report_type}_percentage_report.csv"'
+                writer = csv.writer(response)
+                writer.writerow(['Register Number', 'Name', 'Department', 'Year', 'Class', 'Section', 'Subject', 'Attendance Percentage'])
+                for row in report_rows:
+                    writer.writerow([
+                        row['reg_no'], 
+                        row['student_name'], 
+                        row['department'], 
+                        row['year'], 
+                        row['class_name'], 
+                        row['section'], 
+                        row['subject'], 
+                        row['percentage']
+                    ])
+            return response
 
+        context.update({
+            'report_rows': report_rows,
+            'has_run': True,
+        })
     return render(request, 'attendance/reports.html', context)
 
 @login_required
@@ -377,7 +569,9 @@ def download_session(request, otp_id):
     today = timezone.now().date()
     
     session_date = otp.created_at.date()
-    records = Attendance.objects.filter(schedule=otp.schedule, date=session_date).select_related('student__user')
+    records = Attendance.objects.filter(schedule=otp.schedule, date=session_date).select_related(
+        'student__user', 'student__student_class', 'student__student_class__department', 'schedule__subject'
+    )
     
     from django.http import HttpResponse
     import csv
@@ -386,10 +580,40 @@ def download_session(request, otp_id):
     response['Content-Disposition'] = f'attachment; filename="{filename}"'
     
     writer = csv.writer(response)
-    writer.writerow(['Register Number', 'Name', 'Status'])
+    writer.writerow(['Register Number', 'Name', 'Department', 'Year', 'Class', 'Section', 'Date', 'Time', 'Subject', 'Status'])
+    
+    total = 0
+    present = 0
+    absent = 0
+    od = 0
     
     for r in records:
-        writer.writerow([r.student.user.username, f"{r.student.user.first_name} {r.student.user.last_name}".strip(), r.status])
+        reg_no = r.student.reg_no or r.student.roll_no or r.student.user.username
+        full_name = f"{r.student.user.first_name} {r.student.user.last_name}".strip() or r.student.user.username
+        time_str = otp.schedule.start_time.strftime('%H:%M') if otp.schedule.start_time else ''
+        subject_str = otp.schedule.subject.name
+        
+        dept = r.student.student_class.department.name if r.student.student_class and r.student.student_class.department else ''
+        yr = r.student.student_class.year if r.student.student_class else ''
+        cls = r.student.student_class.name if r.student.student_class else ''
+        sec = r.student.student_class.section if r.student.student_class else ''
+        
+        writer.writerow([reg_no, full_name, dept, yr, cls, sec, session_date.strftime('%Y-%m-%d'), time_str, subject_str, r.status])
+        
+        total += 1
+        if r.status == 'Present':
+            present += 1
+        elif r.status == 'Absent':
+            absent += 1
+        elif r.status == 'OD':
+            od += 1
+            
+    writer.writerow([])
+    writer.writerow(['Summary'])
+    writer.writerow(['Total Students', total])
+    writer.writerow(['Present', present])
+    writer.writerow(['Absent', absent])
+    writer.writerow(['OD', od])
         
     return response
 
@@ -397,45 +621,156 @@ def download_session(request, otp_id):
 def student_attendance_stats(request, user_id):
     student = get_object_or_404(Student, user__username=user_id)
     
-    # Authorize: Only self, tutor, advisor, or HOD can see this.
+    # Authorize: Only self, tutor, advisor, class advisor, or HOD can see this.
     if request.user.role == 'student' and request.user != student.user:
         messages.error(request, 'Unauthorized')
         return redirect('student_dashboard')
-    elif request.user.role == 'staff' and request.user not in [student.tutor, student.advisor]:
-        messages.error(request, 'Unauthorized')
-        return redirect('staff_dashboard')
+    elif request.user.role == 'staff':
+        is_tutor = (request.user == student.tutor)
+        is_advisor = (request.user == student.advisor)
+        is_class_advisor = (student.student_class and student.student_class.advisor == request.user)
+        if not (is_tutor or is_advisor or is_class_advisor):
+            messages.error(request, 'Unauthorized')
+            return redirect('staff_dashboard')
     elif request.user.role == 'hod' and request.user.department != student.student_class.department:
         messages.error(request, 'Unauthorized')
         return redirect('hod_dashboard')
 
-    from django.db.models import Count
-    # Fetch attendances for student
-    attendances = Attendance.objects.filter(student=student)
+    from timetable.models import Schedule
+    from accounts.models import Subject
+    if student.student_class:
+        class_subject_ids = Schedule.objects.filter(student_class=student.student_class).values_list('subject_id', flat=True).distinct()
+        class_subjects = Subject.objects.filter(id__in=class_subject_ids)
+    else:
+        class_subjects = Subject.objects.none()
+
+    attendances = Attendance.objects.filter(student=student, schedule__subject__in=class_subjects)
     
-    total = attendances.count()
-    present_count = attendances.filter(status='Present').count()
-    absent_count = attendances.filter(status='Absent').count()
+    total_periods = attendances.count()
+    present_periods = attendances.filter(status='Present').count()
+    absent_periods = attendances.filter(status='Absent').count()
+    od_periods = attendances.filter(status='OD').count()
+    leave_periods = attendances.filter(status='Leave').count()
     
     # Find verified ODs
     from leave.models import Leave
-    verified_ods = Leave.objects.filter(student=student, leave_type='OD', final_status='Approved', certificate_verified=True).values_list('date', flat=True)
+    verified_ods = Leave.objects.filter(
+        student=student, 
+        leave_type='OD', 
+        final_status='Approved', 
+        certificate_verified=True
+    ).values_list('date', flat=True)
     
-    od_count_raw = attendances.filter(status='OD').count()
-    
-    # We must see how many ODs actually match the verified leave dates
     verified_od_count = attendances.filter(status='OD', date__in=verified_ods).count()
     
-    effective_present = present_count + verified_od_count
-    percentage = (effective_present / total * 100) if total > 0 else 0
+    effective_present = present_periods + verified_od_count
+    overall_percentage = (effective_present / total_periods * 100) if total_periods > 0 else 0
     
+    # Calculate Days
+    dates = list(attendances.values_list('date', flat=True).distinct())
+    total_days = len(dates)
+    present_days = 0
+    absent_days = 0
+    od_days = 0
+    leave_days = 0
+    
+    for dt in dates:
+        day_att = attendances.filter(date=dt)
+        P = day_att.filter(status='Present').count()
+        O = day_att.filter(status='OD').count()
+        A = day_att.filter(status='Absent').count()
+        L = day_att.filter(status='Leave').count()
+        T = P + O + A + L
+        
+        is_verified_od_day = (dt in verified_ods)
+        if is_verified_od_day:
+            verified_od_on_day = O
+            unverified_od_on_day = 0
+        else:
+            verified_od_on_day = 0
+            unverified_od_on_day = O
+            
+        effective_present_on_day = P + verified_od_on_day
+        effective_absent_leave_on_day = A + L + unverified_od_on_day
+        
+        if T > 0:
+            if effective_present_on_day >= T / 2.0:
+                if verified_od_on_day > P:
+                    od_days += 1
+                else:
+                    present_days += 1
+            else:
+                if L >= A + unverified_od_on_day:
+                    leave_days += 1
+                else:
+                    absent_days += 1
+
+    # Subject-wise breakdown
+    subjects_breakdown = []
+    if student.student_class:
+        for sub in class_subjects:
+            sub_att = attendances.filter(schedule__subject=sub)
+            sub_total = sub_att.count()
+            sub_present = sub_att.filter(status='Present').count()
+            sub_absent = sub_att.filter(status='Absent').count()
+            sub_od = sub_att.filter(status='OD').count()
+            sub_leave = sub_att.filter(status='Leave').count()
+            
+            sub_verified_od = sub_att.filter(status='OD', date__in=verified_ods).count()
+            sub_effective_present = sub_present + sub_verified_od
+            sub_percentage = (sub_effective_present / sub_total * 100) if sub_total > 0 else 0
+            
+            subjects_breakdown.append({
+                'id': sub.id,
+                'name': sub.name,
+                'code': sub.code,
+                'total_periods': sub_total,
+                'present_periods': sub_present,
+                'absent_periods': sub_absent,
+                'od_periods': sub_od,
+                'leave_periods': sub_leave,
+                'verified_od_periods': sub_verified_od,
+                'effective_present': sub_effective_present,
+                'percentage': round(sub_percentage, 2)
+            })
+
+    # AI Suggestion
+    ai_suggestion = ""
+    if overall_percentage >= 90:
+        ai_suggestion = f"Excellent! Your attendance is outstanding ({overall_percentage:.2f}%). Keep up the great work to maintain this level of consistency."
+    elif overall_percentage >= 75:
+        miss_periods = int((4 * effective_present - 3 * total_periods) // 3)
+        ai_suggestion = f"Good job! Your attendance is at {overall_percentage:.2f}%, which is above the required 75% threshold."
+        if miss_periods > 0:
+            ai_suggestion += f" You can afford to miss up to {miss_periods} periods without dropping below 75%."
+        else:
+            ai_suggestion += " You are close to the limit; try not to miss any more classes."
+    else:
+        req_periods = int(3 * total_periods - 4 * effective_present)
+        ai_suggestion = f"Warning! Your attendance is currently at {overall_percentage:.2f}%, which is below the minimum 75% requirement."
+        if req_periods > 0:
+            ai_suggestion += f" You need to attend at least {req_periods} consecutive periods without any absence to bring your attendance back to 75%."
+
+    low_subjects = [sub['name'] for sub in subjects_breakdown if sub['percentage'] < 75.0 and sub['total_periods'] > 0]
+    if low_subjects:
+        ai_suggestion += f" Note: Your attendance in {', '.join(low_subjects)} is below 75%. Prioritize attending these classes."
+
     context = {
         'student_user': student.user,
         'student_class': student.student_class,
-        'total': total,
-        'present': present_count,
-        'absent': absent_count,
-        'od': od_count_raw,
-        'verified_od': verified_od_count,
-        'percentage': round(percentage, 2)
+        'percentage': round(overall_percentage, 2),
+        'total_periods': total_periods,
+        'present_periods': present_periods,
+        'verified_od_periods': verified_od_count,
+        'absent_periods': absent_periods,
+        'total_days': total_days,
+        'present_days': present_days,
+        'od_days': od_days,
+        'absent_days': absent_days,
+        'od_periods': od_periods,
+        'leave_periods': leave_periods,
+        'leave_days': leave_days,
+        'subjects_breakdown': subjects_breakdown,
+        'ai_suggestion': ai_suggestion
     }
     return render(request, 'shared/student_attendance_details.html', context)

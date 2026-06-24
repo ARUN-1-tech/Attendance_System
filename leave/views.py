@@ -24,8 +24,7 @@ def apply_leave(request):
             student=student,
             date=leave_date,
             leave_type=leave_type,
-            reason=reason,
-            tutor_approved='Approved'
+            reason=reason
         )
         messages.success(request, f"{leave_type} request submitted for {leave_date}.")
         return redirect('leave_od_status')

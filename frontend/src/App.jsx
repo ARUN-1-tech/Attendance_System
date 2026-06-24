@@ -5,16 +5,28 @@ import Login from './components/Login';
 import StudentDashboard from './components/StudentDashboard';
 import StaffDashboard from './components/StaffDashboard';
 import HODDashboard from './components/HODDashboard';
+import { Menu } from 'lucide-react';
 import './App.css';
 
 const MainPortal = () => {
-  const { user, loading } = useAuth();
+  const { user, loading, checkAuth } = useAuth();
   const [activeTab, setActiveTab] = useState('dashboard');
+  const [mobileOpen, setMobileOpen] = useState(false);
 
   // Reset tab to default when user changes/logs out
   useEffect(() => {
     setActiveTab('dashboard');
-  }, [user]);
+  }, [user?.username]);
+
+  // Poll auth details every 5 seconds for students to update logout availability dynamically
+  useEffect(() => {
+    if (user && user.role === 'student') {
+      const interval = setInterval(() => {
+        checkAuth();
+      }, 5000);
+      return () => clearInterval(interval);
+    }
+  }, [user, checkAuth]);
 
   if (loading) {
     return (
@@ -58,7 +70,7 @@ const MainPortal = () => {
       case 'staff':
         return <StaffDashboard activeTab={activeTab} />;
       case 'hod':
-        return <HODDashboard activeTab={activeTab} />;
+        return <HODDashboard activeTab={activeTab} setActiveTab={setActiveTab} />;
       case 'admin':
         return (
           <div className="card" style={{ maxWidth: '600px', marginTop: '40px' }}>
@@ -83,7 +95,42 @@ const MainPortal = () => {
 
   return (
     <div className="app-container">
-      <Sidebar activeTab={activeTab} setActiveTab={setActiveTab} />
+      {user && (
+        <button 
+          className="mobile-sidebar-toggle"
+          onClick={() => setMobileOpen(!mobileOpen)}
+          style={{
+            position: 'fixed',
+            top: '12px',
+            left: '12px',
+            zIndex: 1000,
+            display: 'none',
+            padding: '8px',
+            borderRadius: '6px',
+            backgroundColor: 'var(--bg-secondary)',
+            border: '1px solid var(--border-color)',
+            color: 'var(--text-primary)',
+            cursor: 'pointer',
+            boxShadow: 'var(--shadow-sm)',
+            alignItems: 'center',
+            justifyContent: 'center'
+          }}
+        >
+          <Menu size={20} />
+        </button>
+      )}
+      {user && mobileOpen && (
+        <div 
+          className="sidebar-backdrop"
+          onClick={() => setMobileOpen(false)}
+        />
+      )}
+      <Sidebar 
+        activeTab={activeTab} 
+        setActiveTab={setActiveTab} 
+        mobileOpen={mobileOpen} 
+        setMobileOpen={setMobileOpen} 
+      />
       <main className="main-content">
         {renderDashboard()}
       </main>
