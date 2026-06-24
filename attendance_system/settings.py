@@ -217,3 +217,10 @@ SESSION_COOKIE_SECURE = True
 
 CSRF_COOKIE_SAMESITE = "None"
 CSRF_COOKIE_SECURE = True
+
+CSRF_TRUSTED_ORIGINS = [
+    "https://attendance-system-ecru-xi.vercel.app",
+]
+CORS_ALLOWED_ORIGINS = [
+    "https://attendance-system-ecru-xi.vercel.app",
+]
