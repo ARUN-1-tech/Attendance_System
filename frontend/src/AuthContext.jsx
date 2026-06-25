@@ -6,9 +6,7 @@ const AuthContext = createContext(null);
 export const AuthProvider = ({ children }) => {
   const [user, setUser] = useState(null);
   const [loading, setLoading] = useState(true);
-  const [theme, setTheme] = useState(() => {
-    return localStorage.getItem('theme') || 'light';
-  });
+  const [theme, setTheme] = useState('light');
 
   // Fetch current user details on mount to persist session
   const checkAuth = async () => {
@@ -28,11 +26,11 @@ export const AuthProvider = ({ children }) => {
     checkAuth();
   }, []);
 
-  // Update theme html attribute on theme change
+  // Force light mode theme
   useEffect(() => {
-    document.documentElement.setAttribute('data-theme', theme);
-    localStorage.setItem('theme', theme);
-  }, [theme]);
+    document.documentElement.setAttribute('data-theme', 'light');
+    localStorage.setItem('theme', 'light');
+  }, []);
 
   const login = async (username, password) => {
     setLoading(true);
@@ -61,7 +59,7 @@ export const AuthProvider = ({ children }) => {
   };
 
   const toggleTheme = () => {
-    setTheme((prev) => (prev === 'light' ? 'dark' : 'light'));
+    // Light mode only
   };
 
   return (

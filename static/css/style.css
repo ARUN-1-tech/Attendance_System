@@ -2,15 +2,15 @@
 @import url('https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700&display=swap');
 
 :root {
-    --bg-main: #0a0a0f;
-    --bg-secondary: #13141c;
-    --card-bg: rgba(255, 255, 255, 0.03);
-    --border-overlay: rgba(255, 255, 255, 0.07);
-    --text-primary: #ffffff;
-    --text-secondary: #a1a1aa;
+    --bg-main: #f8fafc;
+    --bg-secondary: #ffffff;
+    --card-bg: rgba(255, 255, 255, 0.7);
+    --border-overlay: rgba(0, 0, 0, 0.08);
+    --text-primary: #0f172a;
+    --text-secondary: #475569;
     --accent: #6366f1;
     --accent-hover: #4f46e5;
-    --accent-glow: rgba(99, 102, 241, 0.4);
+    --accent-glow: rgba(99, 102, 241, 0.2);
     --success: #10b981;
     --danger: #f43f5e;
     --sidebar-w: 260px;
@@ -58,7 +58,7 @@ body {
     display: flex;
     flex-direction: column;
     z-index: 100;
-    background: rgba(19, 20, 28, 0.6);
+    background: rgba(255, 255, 255, 0.8);
     border-right: 1px solid var(--border-overlay);
 }
 
@@ -128,7 +128,7 @@ body {
     align-items: center;
     gap: 1rem;
     font-weight: 500;
-    background: rgba(255, 255, 255, 0.05);
+    background: rgba(0, 0, 0, 0.03);
     border: 1px solid var(--border-overlay);
     border-radius: 100px;
 }
@@ -146,21 +146,21 @@ body {
     display: inline-block;
     color: var(--text-primary);
     text-align: center;
-    background: rgba(255, 255, 255, 0.05); /* Matching typical glass panel pic color */
+    background: rgba(0, 0, 0, 0.03); /* Matching typical glass panel pic color */
     backdrop-filter: blur(10px);
 }
 
 .btn:hover, .btn-primary:hover, .btn-success:hover, .btn-danger:hover {
     transform: translateY(-2px);
-    border-color: rgba(255, 255, 255, 0.3);
-    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.4);
-    background: rgba(255, 255, 255, 0.1);
+    border-color: rgba(0, 0, 0, 0.15);
+    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.05);
+    background: rgba(0, 0, 0, 0.06);
 }
 
 /* Base same style for all variants to remove color */
 .btn-primary, .btn-success, .btn-danger {
     background-image: none !important;
-    background: rgba(255, 255, 255, 0.05) !important;
+    background: rgba(0, 0, 0, 0.03) !important;
     box-shadow: none !important;
     color: var(--text-primary) !important;
 }
@@ -181,7 +181,7 @@ body {
     width: 100%;
     padding: 1rem 1.25rem;
     border-radius: 12px;
-    background: rgba(0, 0, 0, 0.2);
+    background: rgba(255, 255, 255, 0.9);
     border: 1px solid var(--border-overlay);
     color: var(--text-primary);
     font-size: 1rem;
@@ -191,12 +191,12 @@ body {
 .form-control:focus {
     outline: none;
     border-color: var(--accent);
-    background: rgba(0, 0, 0, 0.4);
+    background: rgba(255, 255, 255, 1);
     box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.2);
 }
 
 .form-control::placeholder {
-    color: rgba(255, 255, 255, 0.2);
+    color: rgba(0, 0, 0, 0.4);
 }
 
 /* Dashboard Grids */
@@ -223,7 +223,7 @@ body {
 .stat-card .value {
     font-size: 3rem;
     font-weight: 700;
-    background: linear-gradient(135deg, #fff, #a1a1aa);
+    background: linear-gradient(135deg, #0f172a, #475569);
     -webkit-background-clip: text;
     -webkit-text-fill-color: transparent;
 }
@@ -232,7 +232,7 @@ body {
 .table-wrapper {
     overflow-x: auto;
     border-radius: 12px;
-    background: rgba(0, 0, 0, 0.1);
+    background: rgba(255, 255, 255, 0.5);
     border: 1px solid var(--border-overlay);
 }
 
@@ -249,7 +249,7 @@ td {
 }
 
 th {
-    background: rgba(255, 255, 255, 0.02);
+    background: rgba(0, 0, 0, 0.01);
     color: var(--text-secondary);
     font-weight: 600;
     text-transform: uppercase;
@@ -262,7 +262,7 @@ tr:last-child td {
 }
 
 tr:hover td {
-    background: rgba(255, 255, 255, 0.02);
+    background: rgba(0, 0, 0, 0.01);
 }
 
 /* Alerts */
@@ -290,13 +290,13 @@ tr:hover td {
 
 .alerts.error {
     background: rgba(244, 63, 94, 0.1);
-    color: #fda4af;
+    color: #e11d48;
     border: 1px solid rgba(244, 63, 94, 0.2);
 }
 
 .alerts.success {
     background: rgba(16, 185, 129, 0.1);
-    color: #6ee7b7;
+    color: #059669;
     border: 1px solid rgba(16, 185, 129, 0.2);
 }
 
@@ -333,7 +333,7 @@ tr:hover td {
     margin-bottom: 2.5rem;
     font-size: 2.2rem;
     font-weight: 700;
-    color: white;
+    color: var(--text-primary);
 }
 
 @media (max-width: 768px) {
@@ -349,10 +349,10 @@ tr:hover td {
         position: fixed !important;
         height: 100vh;
         width: var(--sidebar-w);
-        background: rgba(19, 20, 28, 0.95);
+        background: rgba(255, 255, 255, 0.95);
         backdrop-filter: blur(20px);
         -webkit-backdrop-filter: blur(20px);
-        box-shadow: 0 8px 32px rgba(0, 0, 0, 0.5);
+        box-shadow: 0 8px 32px rgba(0, 0, 0, 0.08);
     }
     
     .sidebar.active {

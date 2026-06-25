@@ -537,14 +537,20 @@ const StaffDashboard = ({ activeTab }) => {
 
   const handleBulkUpload = async (e) => {
     e.preventDefault();
-    if (!csvFile) {
-      alert('Please select a CSV file.');
+    const selectedFile = csvFile;
+    if (!selectedFile) {
+      alert('Please select a file.');
+      return;
+    }
+    const ext = selectedFile.name.toLowerCase().split('.').pop();
+    if (ext !== 'csv' && ext !== 'xlsx' && ext !== 'xls') {
+      setBulkErrors(['Please upload a CSV (.csv) or Excel (.xlsx, .xls) file.']);
       return;
     }
     setBulkSubmitting(true);
     setBulkErrors([]);
     const formData = new FormData();
-    formData.append('file', csvFile);
+    formData.append("file", selectedFile);
 
     try {
       const csrfToken = getCookie('csrftoken');
@@ -556,15 +562,16 @@ const StaffDashboard = ({ activeTab }) => {
       });
       const data = await response.json();
       if (!response.ok) {
-        if (data.errors) {
-          setBulkErrors(data.errors);
-        } else {
-          setBulkErrors([data.detail || 'Bulk import failed.']);
-        }
+        setBulkErrors([data.detail || 'Bulk import failed.']);
       } else {
-        alert(data.detail || 'Bulk student import successful!');
-        setBulkUploadOpen(false);
-        setCsvFile(null);
+        if (data.errors && data.errors.length > 0) {
+          setBulkErrors(data.errors);
+          alert(`Import completed with some errors. Created: ${data.created}, Failed: ${data.failed}`);
+        } else {
+          alert(data.detail || `Successfully imported all ${data.created} students!`);
+          setBulkUploadOpen(false);
+          setCsvFile(null);
+        }
         fetchStudents();
       }
     } catch (err) {
@@ -1490,10 +1497,10 @@ const StaffDashboard = ({ activeTab }) => {
 
             <form onSubmit={handleBulkUpload}>
               <div className="form-group">
-                <label className="form-label">Select CSV File</label>
+                <label className="form-label">Select CSV or Excel File</label>
                 <input 
                   type="file" 
-                  accept=".csv" 
+                  accept=".csv,.xlsx,.xls" 
                   className="input" 
                   required 
                   onChange={(e) => setCsvFile(e.target.files[0])} 

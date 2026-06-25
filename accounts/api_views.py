@@ -258,118 +258,197 @@ class StudentViewSet(viewsets.ModelViewSet):
         if not file_obj:
             return Response({'detail': 'No file uploaded.'}, status=status.HTTP_400_BAD_REQUEST)
             
+        filename = file_obj.name.lower()
+        if not (filename.endswith('.csv') or filename.endswith('.xlsx') or filename.endswith('.xls')):
+            return Response({'detail': 'Please upload a CSV (.csv) or Excel (.xlsx, .xls) file.'}, status=status.HTTP_400_BAD_REQUEST)
+            
         import csv
         import io
         from django.db import transaction
         
-        try:
-            decoded_file = file_obj.read().decode('utf-8-sig')
-            io_string = io.StringIO(decoded_file)
-            reader = csv.DictReader(io_string)
-        except Exception as e:
-            return Response({'detail': f'Error reading CSV file: {str(e)}'}, status=status.HTTP_400_BAD_REQUEST)
-            
-        if not reader.fieldnames:
-            return Response({'detail': 'CSV file is empty or invalid.'}, status=status.HTTP_400_BAD_REQUEST)
-
-        # Normalise headers to lower case and remove spaces/underscores/hyphens
-        headers = {self._normalize_header(h): h for h in reader.fieldnames}
+        fieldnames = []
+        rows_data = []
         
-        # Check basic columns
+        if filename.endswith('.csv'):
+            encodings = ['utf-8', 'utf-8-sig', 'latin-1']
+            reader = None
+            decoded = None
+            decode_error = None
+            
+            for enc in encodings:
+                try:
+                    file_obj.seek(0)
+                    decoded = io.TextIOWrapper(file_obj.file, encoding=enc)
+                    reader = csv.DictReader(decoded)
+                    fieldnames = reader.fieldnames
+                    if fieldnames is not None:
+                        break
+                except Exception as e:
+                    decode_error = e
+                    if decoded:
+                        try:
+                            decoded.detach()
+                        except Exception:
+                            pass
+                    continue
+            else:
+                return Response({'detail': f'Error reading CSV file: {str(decode_error)}'}, status=status.HTTP_400_BAD_REQUEST)
+                
+            if fieldnames is None:
+                fieldnames = []
+                
+            for row in reader:
+                # Skip completely empty rows
+                if not row or all(v is None or not str(v).strip() for v in row.values()):
+                    continue
+                row['_row_idx'] = reader.line_num
+                rows_data.append(row)
+        else:
+            try:
+                import openpyxl
+                file_obj.seek(0)
+                wb = openpyxl.load_workbook(file_obj, data_only=True)
+                sheet = wb.active
+                
+                rows_generator = sheet.iter_rows(values_only=True)
+                header_row = next(rows_generator, None)
+                if not header_row:
+                    return Response({'detail': 'Excel file is empty.'}, status=status.HTTP_400_BAD_REQUEST)
+                    
+                fieldnames = [str(h).strip() if h is not None else '' for h in header_row]
+                
+                for excel_row_idx, row_values in enumerate(rows_generator, start=2):
+                    # Skip completely empty rows
+                    if not row_values or all(v is None or not str(v).strip() for v in row_values):
+                        continue
+                        
+                    row_dict = {}
+                    for col_idx, val in enumerate(row_values):
+                        if col_idx < len(fieldnames):
+                            h = fieldnames[col_idx]
+                            if h:
+                                row_dict[h] = val if val is not None else ''
+                    row_dict['_row_idx'] = excel_row_idx
+                    rows_data.append(row_dict)
+            except Exception as e:
+                return Response({'detail': f'Error reading Excel file: {str(e)}'}, status=status.HTTP_400_BAD_REQUEST)
+                
+        if not fieldnames:
+            return Response({'detail': 'CSV file is empty or invalid.'}, status=status.HTTP_400_BAD_REQUEST)
+            
+        headers = {self._normalize_header(h): h for h in fieldnames if h}
+        
         required_normalized = ['username', 'password', 'class', 'year']
         missing = [req for req in required_normalized if req not in headers]
         if missing:
             return Response({'detail': f'Missing required CSV columns: {", ".join(missing)}'}, status=status.HTTP_400_BAD_REQUEST)
             
         created_count = 0
+        failed_count = 0
         errors = []
         classes_to_update = set()
         
-        try:
-            with transaction.atomic():
-                for row_idx, row in enumerate(reader, start=1):
-                    def get_val(norm_name, default=''):
-                        orig_name = headers.get(norm_name)
-                        return row.get(orig_name, default) if orig_name else default
-                        
-                    username = get_val('username').strip()
-                    email = get_val('collagemail').strip() or get_val('email').strip() or get_val('mail').strip()
-                    reg_no = get_val('registerno').strip() or get_val('reg_no').strip() or get_val('regno').strip()
-                    roll_no = get_val('rollno').strip() or get_val('roll_no').strip()
-                    age_val = get_val('age').strip()
-                    mobile_no = get_val('mobileno').strip() or get_val('mobile_no').strip() or get_val('phone_number').strip() or get_val('phone').strip()
-                    class_name = get_val('class').strip()
-                    year_val = get_val('year').strip()
-                    tutor_val = get_val('tutor').strip()
-                    advisor_val = get_val('advisor').strip()
-                    password = get_val('password').strip() or 'password123'
-                    
-                    if not username:
-                        errors.append(f"Row {row_idx}: Username is empty.")
-                        continue
-                    if User.objects.filter(username=username).exists():
-                        errors.append(f"Row {row_idx}: User with username '{username}' already exists.")
-                        continue
-                    if reg_no and Student.objects.filter(reg_no=reg_no).exists():
-                        errors.append(f"Row {row_idx}: Student with registration number '{reg_no}' already exists.")
-                        continue
-                    if not year_val.isdigit():
-                        errors.append(f"Row {row_idx}: Year must be a number.")
-                        continue
-                        
-                    selected_class = self._find_class(class_name, int(year_val), request.user.department)
-                    if not selected_class:
-                        errors.append(f"Row {row_idx}: Class '{class_name}' for year '{year_val}' not found in your department.")
-                        continue
-                        
-                    classes_to_update.add(selected_class)
-                    
-                    tutor_user = None
-                    if tutor_val:
-                        tutor_user = User.objects.filter(username=tutor_val, role__in=['staff', 'hod']).first()
-                    advisor_user = None
-                    if advisor_val:
-                        advisor_user = User.objects.filter(username=advisor_val, role__in=['staff', 'hod']).first()
-                        
-                    try:
-                        user = User.objects.create_user(
-                            username=username,
-                            email=email,
-                            password=password,
-                            role='student',
-                            department=request.user.department,
-                            phone_number=mobile_no,
-                            age=int(age_val) if age_val.isdigit() else None
-                        )
-                        student = Student(
-                            user=user,
-                            student_class=selected_class,
-                            roll_no=roll_no,
-                            reg_no=reg_no,
-                            tutor=tutor_user,
-                            advisor=advisor_user
-                        )
-                        student.save(skip_auto_assign=True)
-                        created_count += 1
-                    except Exception as e:
-                        errors.append(f"Row {row_idx}: Failed to create student: {str(e)}")
-                        
-                if not errors:
-                    for cls in classes_to_update:
-                        cls.auto_assign_tutors(force=True)
-                        
-                if errors:
-                    transaction.set_rollback(True)
-                    return Response({'detail': 'Validation failed.', 'errors': errors}, status=status.HTTP_400_BAD_REQUEST)
-        except Exception as e:
-            return Response({'detail': f'Database error: {str(e)}'}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+        for row in rows_data:
+            row_idx = row['_row_idx']
             
-        return Response({'detail': f'Successfully imported {created_count} students.', 'count': created_count})
+            def get_val(norm_name, default=''):
+                orig_name = headers.get(norm_name)
+                if orig_name and orig_name in row:
+                    val = row[orig_name]
+                    return str(val).strip() if val is not None else default
+                return default
+                
+            username = get_val('username')
+            email = get_val('collegemail') or get_val('email') or get_val('mail')
+            reg_no = get_val('registerno') or get_val('regno')
+            roll_no = get_val('rollno')
+            age_val = get_val('age')
+            mobile_no = get_val('mobileno') or get_val('phone')
+            class_name = get_val('class')
+            year_val = get_val('year')
+            tutor_val = get_val('tutor')
+            advisor_val = get_val('advisor')
+            password = get_val('password')
+            
+            row_errors = []
+            if not username:
+                row_errors.append("Username is empty.")
+            if not password:
+                row_errors.append("Password is empty.")
+            if not class_name or not year_val:
+                row_errors.append("Invalid class")
+            elif not year_val.isdigit():
+                row_errors.append("Invalid class")
+                
+            if username and User.objects.filter(username=username).exists():
+                row_errors.append("Username already exists")
+                
+            if reg_no and Student.objects.filter(reg_no=reg_no).exists():
+                row_errors.append(f"Student with registration number '{reg_no}' already exists.")
+                
+            selected_class = None
+            if class_name and year_val.isdigit():
+                selected_class = self._find_class(class_name, int(year_val), request.user.department)
+                if not selected_class:
+                    row_errors.append("Class not found")
+                    
+            if row_errors:
+                failed_count += 1
+                for err in row_errors:
+                    errors.append(f"Row {row_idx}: {err}")
+                continue
+                
+            classes_to_update.add(selected_class)
+            
+            tutor_user = None
+            if tutor_val:
+                tutor_user = User.objects.filter(username=tutor_val, role__in=['staff', 'hod']).first()
+            advisor_user = None
+            if advisor_val:
+                advisor_user = User.objects.filter(username=advisor_val, role__in=['staff', 'hod']).first()
+                
+            try:
+                with transaction.atomic():
+                    user = User.objects.create_user(
+                        username=username,
+                        email=email,
+                        password=password,
+                        role='student',
+                        department=request.user.department,
+                        phone_number=mobile_no,
+                        age=int(age_val) if age_val.isdigit() else None
+                    )
+                    student = Student(
+                        user=user,
+                        student_class=selected_class,
+                        roll_no=roll_no,
+                        reg_no=reg_no,
+                        tutor=tutor_user,
+                        advisor=advisor_user
+                    )
+                    student.save(skip_auto_assign=True)
+                    created_count += 1
+            except Exception as e:
+                failed_count += 1
+                errors.append(f"Row {row_idx}: Failed to create student: {str(e)}")
+                
+        for cls in classes_to_update:
+            if cls:
+                cls.auto_assign_tutors(force=True)
+                
+        return Response({
+            'success': True,
+            'created': created_count,
+            'failed': failed_count,
+            'errors': errors
+        }, status=status.HTTP_200_OK)
 
     def _normalize_header(self, h):
         return h.lower().replace(' ', '').replace('_', '').replace('-', '')
 
     def _find_class(self, class_str, year_val, dept):
+        if not class_str or year_val is None:
+            return None
         class_str_clean = class_str.strip().lower()
         classes = Class.objects.filter(department=dept, year=year_val)
         for c in classes:
@@ -384,7 +463,7 @@ class StudentViewSet(viewsets.ModelViewSet):
         for c in classes:
             if class_str_clean in c.name.lower() or c.name.lower() in class_str_clean:
                 return c
-        return classes.first()
+        return None
 
 class StaffViewSet(viewsets.ModelViewSet):
     queryset = Staff.objects.all()

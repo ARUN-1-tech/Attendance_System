@@ -35,32 +35,7 @@
   --transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
 }
 
-[data-theme='dark'] {
-  /* Dark Theme */
-  --bg-primary: #0f172a;
-  --bg-secondary: #1e293b;
-  --bg-tertiary: #334155;
-  --text-primary: #f8fafc;
-  --text-secondary: #cbd5e1;
-  --text-muted: #64748b;
-  --border-color: #334155;
-  --accent-primary: #6366f1;
-  --accent-hover: #4f46e5;
-  --accent-light: #1e1b4b;
-  
-  --success: #10b981;
-  --success-light: #064e3b;
-  --danger: #f87171;
-  --danger-light: #7f1d1d;
-  --warning: #fbbf24;
-  --warning-light: #78350f;
-  --info: #22d3ee;
-  --info-light: #083344;
-  
-  --shadow-sm: 0 1px 2px 0 rgba(0, 0, 0, 0.2);
-  --shadow-md: 0 4px 6px -1px rgba(0, 0, 0, 0.3), 0 2px 4px -2px rgba(0, 0, 0, 0.3);
-  --shadow-lg: 0 10px 15px -3px rgba(0, 0, 0, 0.4), 0 4px 6px -4px rgba(0, 0, 0, 0.4);
-}
+
 
 * {
   box-sizing: border-box;

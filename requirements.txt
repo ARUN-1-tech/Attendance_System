@@ -9,3 +9,5 @@ tzdata==2025.3
 dj-database-url
 gunicorn
 whitenoise
+openpyxl
+

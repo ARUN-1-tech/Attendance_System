@@ -212,23 +212,15 @@ const Sidebar = ({ activeTab, setActiveTab, mobileOpen, setMobileOpen }) => {
 
         {/* Action controls */}
         <div style={{ display: 'flex', gap: '8px' }}>
-          <button 
-            className="btn btn-outline" 
-            style={{ flex: 1, padding: '8px' }} 
-            onClick={toggleTheme}
-            title={`Switch to ${theme === 'light' ? 'Dark' : 'Light'} Mode`}
-          >
-            {theme === 'light' ? <Moon size={18} /> : <Sun size={18} />}
-          </button>
-          
           {!(user && user.hide_logout) && (
             <button 
               className="btn btn-danger" 
-              style={{ flex: 1, padding: '8px' }} 
+              style={{ flex: 1, padding: '8px', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px' }} 
               onClick={logout}
               title="Log Out"
             >
               <LogOut size={18} />
+              <span>Log Out</span>
             </button>
           )}
         </div>
