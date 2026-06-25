@@ -58,6 +58,14 @@ const StaffDashboard = ({ activeTab }) => {
   const [profileMessage, setProfileMessage] = useState('');
   const [profileEditMode, setProfileEditMode] = useState(false);
 
+  // Change Password states
+  const [currentPassword, setCurrentPassword] = useState('');
+  const [newPassword, setNewPassword] = useState('');
+  const [confirmPassword, setConfirmPassword] = useState('');
+  const [passwordMessage, setPasswordMessage] = useState('');
+  const [passwordError, setPasswordError] = useState('');
+  const [passwordSubmitting, setPasswordSubmitting] = useState(false);
+
   // Advisor Live states
   const [advisorLiveData, setAdvisorLiveData] = useState(null);
   const [advisorLiveLoading, setAdvisorLiveLoading] = useState(true);
@@ -73,6 +81,9 @@ const StaffDashboard = ({ activeTab }) => {
   const [subjectCode, setSubjectCode] = useState('');
 
   // Manual Attendance states
+  const [manualDeptId, setManualDeptId] = useState(user.department?.toString() || '');
+  const [manualClassId, setManualClassId] = useState('');
+  const [manualSubjectId, setManualSubjectId] = useState('');
   const [manualAttStudents, setManualAttStudents] = useState([]);
   const [selectedManualStudentId, setSelectedManualStudentId] = useState('');
   const [manualDate, setManualDate] = useState(new Date().toISOString().split('T')[0]);
@@ -326,16 +337,16 @@ const StaffDashboard = ({ activeTab }) => {
       fetchLeavesAndODs();
     } else if (activeTab === 'students') {
       fetchStudents();
-    } else if (activeTab === 'manual_attendance') {
-      fetchManualAttendanceData(selectedManualStudentId, manualDate);
     }
   }, [activeTab]);
 
   useEffect(() => {
-    if (activeTab === 'manual_attendance') {
-      fetchManualAttendanceData(selectedManualStudentId, manualDate);
+    if (activeTab === 'manual_attendance' && manualClassId && manualSubjectId && manualDate) {
+      fetchManualClassStudents(manualClassId, manualSubjectId, manualDate);
+    } else {
+      setManualAttStudents([]);
     }
-  }, [selectedManualStudentId, manualDate]);
+  }, [activeTab, manualClassId, manualSubjectId, manualDate]);
 
   // Clean up polling interval on unmount
   useEffect(() => {
@@ -594,95 +605,74 @@ const StaffDashboard = ({ activeTab }) => {
 
 
 
-  const fetchManualAttendanceData = async (studentId = '', dateVal = '', keepMessage = false) => {
+  const fetchManualClassStudents = async (classId, subjectId, dateVal) => {
+    if (!classId || !subjectId || !dateVal) return;
     setManualAttLoading(true);
-    if (!keepMessage) {
-      setManualAttMessage(null);
-      setManualAttError(null);
-    }
+    setManualAttMessage(null);
+    setManualAttError(null);
     try {
-      const qStudent = studentId ? `&student_id=${studentId}` : '';
-      const qDate = dateVal ? `&date=${dateVal}` : `&date=${manualDate}`;
-      const data = await api.get(`/api/attendances/manual-attendance-data/?${qStudent}${qDate}`);
-      
+      const data = await api.get(`/api/attendances/manual-class-students/?class_id=${classId}&subject_id=${subjectId}&date=${dateVal}`);
       setManualAttStudents(data.students || []);
-      if (data.schedules_data) {
-        setManualSchedules(data.schedules_data);
-        const initialStatuses = {};
-        data.schedules_data.forEach(s => {
-          initialStatuses[s.schedule_id] = s.status;
-        });
-        setManualStatuses(initialStatuses);
-      } else {
-        setManualSchedules([]);
-      }
-      if (data.error_message) {
-        setManualAttError(data.error_message);
-      }
+      
+      const initialStatuses = {};
+      (data.students || []).forEach(s => {
+        initialStatuses[s.id] = s.current_status || 'Absent';
+      });
+      setManualStatuses(initialStatuses);
     } catch (err) {
       console.error(err);
-      setManualAttError(err.detail || 'Failed to fetch manual attendance data.');
+      setManualAttError(err.detail || 'Failed to fetch class student list.');
+      setManualAttStudents([]);
     } finally {
       setManualAttLoading(false);
     }
   };
 
-  const handleSaveManualAttendance = async (e) => {
+  const handleSaveClassManualAttendance = async (e) => {
     if (e) e.preventDefault();
-    if (!selectedManualStudentId) return;
+    if (!manualClassId || !manualSubjectId || !manualDate) return;
     
     setManualAttLoading(true);
     setManualAttMessage(null);
     setManualAttError(null);
     try {
-      const res = await api.post('/api/attendances/save-manual-attendance/', {
-        student_id: selectedManualStudentId,
+      const res = await api.post('/api/attendances/save-class-manual-attendance/', {
+        class_id: manualClassId,
+        subject_id: manualSubjectId,
         date: manualDate,
         statuses: manualStatuses
       });
 
-      // Find selected student details
-      const studentObj = manualAttStudents.find(s => s.id.toString() === selectedManualStudentId.toString());
-      const studentName = studentObj ? studentObj.name : 'Unknown';
-      const regNo = studentObj ? studentObj.reg_no : '';
-
-      // Compile newly marked entries
-      const newEntries = [];
-      const nowStr = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' });
-      
-      manualSchedules.forEach(sched => {
-        const statusVal = manualStatuses[sched.schedule_id];
-        if (statusVal) {
-          newEntries.push({
-            studentName,
-            regNo,
-            date: manualDate,
-            period: sched.period,
-            subjectName: sched.subject_name,
-            status: statusVal,
-            timeMarked: nowStr
-          });
-        }
-      });
-
-      // Prepend to recentlyMarked array (newest first)
-      if (newEntries.length > 0) {
-        setRecentlyMarked(prev => [...newEntries, ...prev]);
-      }
-
       setManualAttMessage(res.detail || 'Attendance updated successfully.');
       
-      // Reset selected student and clear schedules to hide the "Mark Attendance for Periods" form
-      setSelectedManualStudentId('');
-      setManualSchedules([]);
+      const nowStr = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+      const newEntries = [];
+      
+      const subjObj = subjects.find(sub => sub.id.toString() === manualSubjectId.toString());
+      const subjectName = subjObj ? subjObj.name : 'Selected Subject';
 
-      // Auto-clear message after 4 seconds
+      manualAttStudents.forEach(s => {
+        const statusVal = manualStatuses[s.id];
+        newEntries.push({
+          studentName: s.name,
+          regNo: s.reg_no,
+          date: manualDate,
+          period: 1,
+          subjectName: subjectName,
+          status: statusVal,
+          timeMarked: nowStr
+        });
+      });
+
+      setRecentlyMarked(prev => [...newEntries, ...prev]);
+
       setTimeout(() => {
         setManualAttMessage(null);
       }, 4000);
+      
     } catch (err) {
       console.error(err);
-      setManualAttError(err.detail || 'Failed to save attendance.');
+      setManualAttError(err.detail || 'Error saving class attendance.');
     } finally {
       setManualAttLoading(false);
     }
@@ -936,6 +926,33 @@ const StaffDashboard = ({ activeTab }) => {
       setProfileEditMode(false);
     } catch (err) {
       setProfileMessage(`Error: ${err.message}`);
+    }
+  };
+
+  const handlePasswordChange = async (e) => {
+    e.preventDefault();
+    setPasswordMessage('');
+    setPasswordError('');
+
+    if (newPassword !== confirmPassword) {
+      setPasswordError("New passwords do not match.");
+      return;
+    }
+
+    setPasswordSubmitting(true);
+    try {
+      await api.post(`/api/users/${user.id}/change_password/`, {
+        current_password: currentPassword,
+        new_password: newPassword
+      });
+      setPasswordMessage("Password updated successfully.");
+      setCurrentPassword('');
+      setNewPassword('');
+      setConfirmPassword('');
+    } catch (err) {
+      setPasswordError(err.message || 'Error occurred while changing password.');
+    } finally {
+      setPasswordSubmitting(false);
     }
   };
 
@@ -1541,7 +1558,7 @@ const StaffDashboard = ({ activeTab }) => {
           </div>
         )}
 
-        {isAdvisor && studentFormOpen && (
+        {((isAdvisor || user.staff_details?.staff_type === 'Tutor') && studentFormOpen) && (
           <div className="card" style={{ marginBottom: '24px' }}>
             <h2>{editingStudent ? 'Edit Student Details' : 'Register New Student'}</h2>
             <form onSubmit={handleSaveStudent} style={{ marginTop: '16px' }}>
@@ -1823,38 +1840,88 @@ const StaffDashboard = ({ activeTab }) => {
         </div>
 
         <div className="card" style={{ marginBottom: '24px' }}>
-          <form onSubmit={handleSaveManualAttendance}>
-            <div className="grid grid-cols-2">
+          <form onSubmit={handleSaveClassManualAttendance}>
+            <div className="grid grid-cols-4" style={{ gap: '16px' }}>
               <div className="form-group">
-                <label className="form-label">Select Student</label>
+                <label className="form-label">1. Department</label>
                 <select 
                   className="input" 
-                  value={selectedManualStudentId} 
-                  onChange={(e) => setSelectedManualStudentId(e.target.value)}
+                  value={manualDeptId} 
+                  onChange={(e) => {
+                    setManualDeptId(e.target.value);
+                    setManualClassId('');
+                    setManualSubjectId('');
+                    setManualAttStudents([]);
+                  }}
                   required
                 >
-                  <option value="">-- Choose Student --</option>
-                  {manualAttStudents.map(s => (
-                    <option key={s.id} value={s.id}>
-                      {s.name} ({s.reg_no}) {s.class_name ? `- ${s.class_name}` : ''}
+                  <option value="">-- Choose Department --</option>
+                  {departments.map(d => (
+                    <option key={d.id} value={d.id}>{d.name}</option>
+                  ))}
+                </select>
+              </div>
+
+              <div className="form-group">
+                <label className="form-label">2. Class</label>
+                <select 
+                  className="input" 
+                  value={manualClassId} 
+                  onChange={(e) => {
+                    setManualClassId(e.target.value);
+                    setManualSubjectId('');
+                    setManualAttStudents([]);
+                  }}
+                  disabled={!manualDeptId}
+                  required
+                >
+                  <option value="">-- Choose Class --</option>
+                  {classes.filter(c => c.department?.toString() === manualDeptId).map(c => (
+                    <option key={c.id} value={c.id}>
+                      {c.name} - Yr {c.year} ({c.section})
                     </option>
                   ))}
                 </select>
               </div>
 
               <div className="form-group">
-                <label className="form-label">Select Date</label>
+                <label className="form-label">3. Subject</label>
+                <select 
+                  className="input" 
+                  value={manualSubjectId} 
+                  onChange={(e) => {
+                    setManualSubjectId(e.target.value);
+                    setManualAttStudents([]);
+                  }}
+                  disabled={!manualClassId}
+                  required
+                >
+                  <option value="">-- Choose Subject --</option>
+                  {subjects.filter(sub => sub.student_class?.toString() === manualClassId || (!sub.student_class && sub.department?.toString() === manualDeptId)).map(sub => (
+                    <option key={sub.id} value={sub.id}>
+                      {sub.name} ({sub.code})
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              <div className="form-group">
+                <label className="form-label">4. Date</label>
                 <input 
                   type="date" 
                   className="input" 
                   value={manualDate} 
-                  onChange={(e) => setManualDate(e.target.value)}
+                  onChange={(e) => {
+                    setManualDate(e.target.value);
+                    setManualAttStudents([]);
+                  }}
+                  disabled={!manualSubjectId}
                   required
                 />
               </div>
             </div>
 
-            {manualAttLoading && <div style={{ margin: '16px 0', fontWeight: '500' }}>Loading student timetable...</div>}
+            {manualAttLoading && <div style={{ margin: '16px 0', fontWeight: '500' }}>Loading students...</div>}
 
             {manualAttError && (
               <div style={{ backgroundColor: 'var(--danger-light)', color: 'var(--danger)', padding: '12px', borderRadius: 'var(--radius-sm)', margin: '16px 0', fontSize: '13px' }}>
@@ -1868,50 +1935,70 @@ const StaffDashboard = ({ activeTab }) => {
               </div>
             )}
 
-            {!manualAttLoading && selectedManualStudentId && manualSchedules.length > 0 && (
+            {!manualAttLoading && manualClassId && manualSubjectId && manualDate && manualAttStudents.length > 0 && (
               <div style={{ marginTop: '24px' }}>
-                <h3 style={{ marginBottom: '16px', fontSize: '16px' }}>Mark Attendance for Periods</h3>
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
-                  {manualSchedules.map(sched => (
-                    <div key={sched.schedule_id} className="card" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '16px', backgroundColor: 'var(--bg-primary)' }}>
-                      <div>
-                        <strong style={{ fontSize: '14px', display: 'block' }}>Period {sched.period}: {sched.subject_name}</strong>
-                        <span style={{ fontSize: '12px', color: 'var(--text-secondary)' }}>Code: {sched.subject_code}</span>
-                      </div>
-                      <div style={{ display: 'flex', gap: '16px' }}>
-                        {['Present', 'Absent', 'OD', 'Leave'].map(st => (
-                          <label key={st} style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '13px', cursor: 'pointer' }}>
-                            <input 
-                              type="radio" 
-                              name={`status_${sched.schedule_id}`} 
-                              value={st}
-                              checked={manualStatuses[sched.schedule_id] === st}
-                              onChange={(e) => {
-                                setManualStatuses({
-                                  ...manualStatuses,
-                                  [sched.schedule_id]: e.target.value
-                                });
-                              }}
-                            />
-                            {st}
-                          </label>
-                        ))}
-                      </div>
-                    </div>
-                  ))}
+                <h3 style={{ marginBottom: '16px', fontSize: '15px', fontWeight: '600' }}>Mark Attendance for Students</h3>
+                <div className="table-container">
+                  <table className="table">
+                    <thead>
+                      <tr>
+                        <th>Student Details</th>
+                        <th style={{ textAlign: 'center', width: '250px' }}>Attendance Status</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {manualAttStudents.map(student => (
+                        <tr key={student.id}>
+                          <td>
+                            <strong style={{ color: 'var(--text-primary)', display: 'block' }}>{student.name}</strong>
+                            <span style={{ fontSize: '12px', color: 'var(--text-secondary)' }}>
+                              Reg No: {student.reg_no} | Roll No: {student.roll_no}
+                            </span>
+                          </td>
+                          <td>
+                            <div style={{ display: 'flex', justifyContent: 'center', gap: '16px' }}>
+                              {['Present', 'Absent', 'OD'].map(st => (
+                                <label key={st} style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '13px', cursor: 'pointer' }}>
+                                  <input 
+                                    type="radio" 
+                                    name={`status_${student.id}`} 
+                                    value={st}
+                                    checked={manualStatuses[student.id] === st}
+                                    onChange={(e) => {
+                                      setManualStatuses({
+                                        ...manualStatuses,
+                                        [student.id]: e.target.value
+                                      });
+                                    }}
+                                  />
+                                  <span style={{
+                                    color: st === 'Present' ? 'var(--success)' :
+                                           st === 'Absent' ? 'var(--danger)' : 'var(--info)',
+                                    fontWeight: '600'
+                                  }}>
+                                    {st}
+                                  </span>
+                                </label>
+                              ))}
+                            </div>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
                 </div>
 
                 <div style={{ marginTop: '24px' }}>
                   <button type="submit" className="btn btn-primary" style={{ width: '100%' }}>
-                    Save Attendance Changes
+                    Save Attendance
                   </button>
                 </div>
               </div>
             )}
 
-            {!manualAttLoading && selectedManualStudentId && manualSchedules.length === 0 && !manualAttError && (
+            {!manualAttLoading && manualClassId && manualSubjectId && manualDate && manualAttStudents.length === 0 && !manualAttError && (
               <div style={{ padding: '24px', textAlign: 'center', color: 'var(--text-muted)', backgroundColor: 'var(--bg-primary)', borderRadius: 'var(--radius-sm)', border: '1px dashed var(--border-color)', marginTop: '16px' }}>
-                No periods timetabled for this student on this day.
+                No students found for the selected class.
               </div>
             )}
           </form>
@@ -2558,6 +2645,68 @@ const StaffDashboard = ({ activeTab }) => {
               </div>
             </form>
           )}
+        </div>
+
+        <div className="card" style={{ maxWidth: '600px', marginTop: '24px' }}>
+          <h2 style={{ fontSize: '18px', marginBottom: '16px', fontWeight: '600' }}>Change Password</h2>
+          <form onSubmit={handlePasswordChange}>
+            {passwordMessage && (
+              <div style={{
+                padding: '12px', borderRadius: 'var(--radius-sm)', marginBottom: '16px', fontSize: '14px',
+                color: 'var(--success)', backgroundColor: 'var(--success-light)'
+              }}>
+                {passwordMessage}
+              </div>
+            )}
+            {passwordError && (
+              <div style={{
+                padding: '12px', borderRadius: 'var(--radius-sm)', marginBottom: '16px', fontSize: '14px',
+                color: 'var(--danger)', backgroundColor: 'var(--danger-light)'
+              }}>
+                {passwordError}
+              </div>
+            )}
+
+            <div className="form-group">
+              <label className="form-label">Current Password</label>
+              <input 
+                type="password" 
+                className="input" 
+                value={currentPassword} 
+                onChange={(e) => setCurrentPassword(e.target.value)} 
+                required 
+                placeholder="Enter current password"
+              />
+            </div>
+
+            <div className="form-group">
+              <label className="form-label">New Password</label>
+              <input 
+                type="password" 
+                className="input" 
+                value={newPassword} 
+                onChange={(e) => setNewPassword(e.target.value)} 
+                required 
+                placeholder="Enter new password"
+              />
+            </div>
+
+            <div className="form-group" style={{ marginBottom: '24px' }}>
+              <label className="form-label">Confirm New Password</label>
+              <input 
+                type="password" 
+                className="input" 
+                value={confirmPassword} 
+                onChange={(e) => setConfirmPassword(e.target.value)} 
+                required 
+                placeholder="Confirm new password"
+              />
+            </div>
+
+            <button type="submit" className="btn btn-primary" disabled={passwordSubmitting}>
+              {passwordSubmitting ? 'Updating...' : 'Update Password'}
+            </button>
+          </form>
         </div>
       </div>
     );

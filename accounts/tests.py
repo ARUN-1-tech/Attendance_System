@@ -1,6 +1,6 @@
 from django.test import TestCase
 from django.core.files.uploadedfile import SimpleUploadedFile
-from accounts.models import User, Department, Class, Student, Staff
+from accounts.models import User, Department, Class, Student, Staff, Subject
 import csv
 import io
 import openpyxl
@@ -367,3 +367,84 @@ class StudentBulkImportTestCase(TestCase):
         # Attempt to delete tutored student (should succeed)
         response = self.client.delete(f'/api/students/{tutor_student_user.id}/')
         self.assertEqual(response.status_code, 204)
+
+class UserPasswordChangeAndManualAttendanceTestCase(TestCase):
+    def setUp(self):
+        self.dept = Department.objects.create(name='Computer Science')
+        self.clazz = Class.objects.create(name='B.Tech CS', year=3, section='A', department=self.dept)
+        
+        self.staff_user = User.objects.create_user('staff_user', 'staff@example.com', 'staffpass123')
+        self.staff_user.role = 'staff'
+        self.staff_user.department = self.dept
+        self.staff_user.save()
+        self.staff = Staff.objects.create(user=self.staff_user, staff_type='Tutor')
+
+        self.student_user = User.objects.create_user('stud_user', 'student@example.com', 'studpass123')
+        self.student_user.role = 'student'
+        self.student_user.department = self.dept
+        self.student_user.save()
+        self.student = Student.objects.create(user=self.student_user, student_class=self.clazz, reg_no='REG_123', tutor=self.staff_user)
+
+        self.subject = Subject.objects.create(name='Automata Theory', code='CS301', department=self.dept, student_class=self.clazz)
+        
+    def test_change_password_success(self):
+        self.client.login(username='staff_user', password='staffpass123')
+        response = self.client.post(f'/api/users/{self.staff_user.id}/change_password/', {
+            'current_password': 'staffpass123',
+            'new_password': 'newstaffpass123'
+        })
+        self.assertEqual(response.status_code, 200)
+        
+        # Verify password actually updated
+        self.client.logout()
+        login_success = self.client.login(username='staff_user', password='newstaffpass123')
+        self.assertTrue(login_success)
+
+    def test_change_password_invalid_current(self):
+        self.client.login(username='staff_user', password='staffpass123')
+        response = self.client.post(f'/api/users/{self.staff_user.id}/change_password/', {
+            'current_password': 'wrongpassword',
+            'new_password': 'newstaffpass123'
+        })
+        self.assertEqual(response.status_code, 400)
+        self.assertIn('Incorrect current password', response.data['detail'])
+
+    def test_change_password_unauthorized(self):
+        self.client.login(username='stud_user', password='studpass123')
+        # Attempt to change staff user's password
+        response = self.client.post(f'/api/users/{self.staff_user.id}/change_password/', {
+            'current_password': 'staffpass123',
+            'new_password': 'newstaffpass123'
+        })
+        self.assertEqual(response.status_code, 403)
+
+    def test_manual_class_students_fetch(self):
+        self.client.login(username='staff_user', password='staffpass123')
+        response = self.client.get('/api/attendances/manual-class-students/', {
+            'class_id': self.clazz.id,
+            'subject_id': self.subject.id,
+            'date': '2026-06-25' # Thursday
+        })
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(len(response.data['students']), 1)
+        self.assertEqual(response.data['students'][0]['id'], self.student_user.id)
+        self.assertEqual(response.data['students'][0]['current_status'], 'Absent')
+
+    def test_save_class_manual_attendance(self):
+        self.client.login(username='staff_user', password='staffpass123')
+        response = self.client.post('/api/attendances/save-class-manual-attendance/', {
+            'class_id': self.clazz.id,
+            'subject_id': self.subject.id,
+            'date': '2026-06-25',
+            'statuses': {
+                str(self.student_user.id): 'Present'
+            }
+        }, content_type='application/json')
+        self.assertEqual(response.status_code, 200)
+        self.assertTrue(response.data['success'])
+        
+        # Verify attendance record created
+        from attendance.models import Attendance
+        attendance_records = Attendance.objects.filter(student=self.student, date='2026-06-25')
+        self.assertEqual(attendance_records.count(), 1)
+        self.assertEqual(attendance_records.first().status, 'Present')

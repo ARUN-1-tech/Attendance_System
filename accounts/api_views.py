@@ -198,6 +198,30 @@ class UserViewSet(viewsets.ModelViewSet):
             queryset = queryset.filter(department=self.request.user.department)
         return queryset
 
+    @action(detail=True, methods=['post'], url_path='change_password')
+    def change_password(self, request, pk=None):
+        user = self.get_object()
+        # Verify the user is either requesting for themselves or is a superuser
+        if not request.user.is_superuser and request.user != user:
+            return Response({'detail': 'You do not have permission to change this user\'s password.'}, status=status.HTTP_403_FORBIDDEN)
+            
+        current_password = request.data.get('current_password')
+        new_password = request.data.get('new_password')
+        
+        if not new_password:
+            return Response({'detail': 'New password is required.'}, status=status.HTTP_400_BAD_REQUEST)
+            
+        # Check current password (only if not admin changing another user's password)
+        if request.user == user:
+            if not current_password:
+                return Response({'detail': 'Current password is required.'}, status=status.HTTP_400_BAD_REQUEST)
+            if not user.check_password(current_password):
+                return Response({'detail': 'Incorrect current password.'}, status=status.HTTP_400_BAD_REQUEST)
+                
+        user.set_password(new_password)
+        user.save()
+        return Response({'detail': 'Password updated successfully.'}, status=status.HTTP_200_OK)
+
 class StudentViewSet(viewsets.ModelViewSet):
     queryset = Student.objects.all()
     serializer_class = StudentSerializer

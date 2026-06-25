@@ -116,6 +116,14 @@ const HODDashboard = ({ activeTab, setActiveTab }) => {
   const [profileMessage, setProfileMessage] = useState('');
   const [profileEditMode, setProfileEditMode] = useState(false);
 
+  // Change Password states
+  const [currentPassword, setCurrentPassword] = useState('');
+  const [newPassword, setNewPassword] = useState('');
+  const [confirmPassword, setConfirmPassword] = useState('');
+  const [passwordMessage, setPasswordMessage] = useState('');
+  const [passwordError, setPasswordError] = useState('');
+  const [passwordSubmitting, setPasswordSubmitting] = useState(false);
+
   useEffect(() => {
     if (activeTab === 'dashboard') {
       fetchDashboardStats();
@@ -751,6 +759,33 @@ const HODDashboard = ({ activeTab, setActiveTab }) => {
       setProfileEditMode(false);
     } catch (err) {
       setProfileMessage(`Error: ${err.message}`);
+    }
+  };
+
+  const handlePasswordChange = async (e) => {
+    e.preventDefault();
+    setPasswordMessage('');
+    setPasswordError('');
+
+    if (newPassword !== confirmPassword) {
+      setPasswordError("New passwords do not match.");
+      return;
+    }
+
+    setPasswordSubmitting(true);
+    try {
+      await api.post(`/api/users/${user.id}/change_password/`, {
+        current_password: currentPassword,
+        new_password: newPassword
+      });
+      setPasswordMessage("Password updated successfully.");
+      setCurrentPassword('');
+      setNewPassword('');
+      setConfirmPassword('');
+    } catch (err) {
+      setPasswordError(err.message || 'Error occurred while changing password.');
+    } finally {
+      setPasswordSubmitting(false);
     }
   };
 
@@ -2248,6 +2283,68 @@ const HODDashboard = ({ activeTab, setActiveTab }) => {
               </div>
             </form>
           )}
+        </div>
+
+        <div className="card" style={{ maxWidth: '600px', marginTop: '24px' }}>
+          <h2 style={{ fontSize: '18px', marginBottom: '16px', fontWeight: '600' }}>Change Password</h2>
+          <form onSubmit={handlePasswordChange}>
+            {passwordMessage && (
+              <div style={{
+                padding: '12px', borderRadius: 'var(--radius-sm)', marginBottom: '16px', fontSize: '14px',
+                color: 'var(--success)', backgroundColor: 'var(--success-light)'
+              }}>
+                {passwordMessage}
+              </div>
+            )}
+            {passwordError && (
+              <div style={{
+                padding: '12px', borderRadius: 'var(--radius-sm)', marginBottom: '16px', fontSize: '14px',
+                color: 'var(--danger)', backgroundColor: 'var(--danger-light)'
+              }}>
+                {passwordError}
+              </div>
+            )}
+
+            <div className="form-group">
+              <label className="form-label">Current Password</label>
+              <input 
+                type="password" 
+                className="input" 
+                value={currentPassword} 
+                onChange={(e) => setCurrentPassword(e.target.value)} 
+                required 
+                placeholder="Enter current password"
+              />
+            </div>
+
+            <div className="form-group">
+              <label className="form-label">New Password</label>
+              <input 
+                type="password" 
+                className="input" 
+                value={newPassword} 
+                onChange={(e) => setNewPassword(e.target.value)} 
+                required 
+                placeholder="Enter new password"
+              />
+            </div>
+
+            <div className="form-group" style={{ marginBottom: '24px' }}>
+              <label className="form-label">Confirm New Password</label>
+              <input 
+                type="password" 
+                className="input" 
+                value={confirmPassword} 
+                onChange={(e) => setConfirmPassword(e.target.value)} 
+                required 
+                placeholder="Confirm new password"
+              />
+            </div>
+
+            <button type="submit" className="btn btn-primary" disabled={passwordSubmitting}>
+              {passwordSubmitting ? 'Updating...' : 'Update Password'}
+            </button>
+          </form>
         </div>
       </div>
     );

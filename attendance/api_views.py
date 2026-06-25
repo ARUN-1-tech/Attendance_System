@@ -794,3 +794,123 @@ class AttendanceViewSet(viewsets.ModelViewSet):
             return Response({'detail': 'Invalid date format.'}, status=status.HTTP_400_BAD_REQUEST)
         except Exception as e:
             return Response({'detail': f'Error saving attendance: {str(e)}'}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+    @action(detail=False, methods=['get'], url_path='manual-class-students')
+    def manual_class_students(self, request):
+        user = self.request.user
+        if user.role not in ['staff', 'hod']:
+            return Response({'detail': 'Only staff and HOD members can access manual attendance.'}, status=status.HTTP_403_FORBIDDEN)
+
+        class_id = request.query_params.get('class_id')
+        subject_id = request.query_params.get('subject_id')
+        date_str = request.query_params.get('date')
+
+        if not (class_id and subject_id and date_str):
+            return Response({'detail': 'Missing class_id, subject_id, or date.'}, status=status.HTTP_400_BAD_REQUEST)
+
+        try:
+            target_date = datetime.datetime.strptime(date_str, '%Y-%m-%d').date()
+        except ValueError:
+            return Response({'detail': 'Invalid date format. Use YYYY-MM-DD.'}, status=status.HTTP_400_BAD_REQUEST)
+
+        # Retrieve students for this class
+        students = Student.objects.filter(student_class_id=class_id).select_related('user').order_by('reg_no', 'user__username')
+
+        # Retrieve existing attendance for this class, subject, and date
+        weekday = target_date.strftime('%A')
+        schedules = Schedule.objects.filter(student_class_id=class_id, subject_id=subject_id, day=weekday)
+        
+        existing_attendance = {}
+        if schedules.exists():
+            attendances = Attendance.objects.filter(
+                student__student_class_id=class_id,
+                schedule__in=schedules,
+                date=target_date
+            )
+            for att in attendances:
+                # If there are multiple periods, just pick the status of the first one we find
+                existing_attendance[att.student_id] = att.status
+
+        # Format students list
+        students_list = [
+            {
+                'id': s.user_id,
+                'username': s.user.username,
+                'name': f"{s.user.first_name} {s.user.last_name}".strip() or s.user.username,
+                'reg_no': s.reg_no or s.roll_no or s.user.username,
+                'roll_no': s.roll_no or '',
+                'current_status': existing_attendance.get(s.user_id, 'Absent')  # Default to Absent if not marked
+            } for s in students
+        ]
+
+        # Check if weekly schedule exists for this class, subject on this weekday
+        schedule_exists = schedules.exists()
+
+        return Response({
+            'students': students_list,
+            'schedule_exists': schedule_exists,
+            'weekday': weekday
+        })
+
+    @action(detail=False, methods=['post'], url_path='save-class-manual-attendance')
+    def save_class_manual_attendance(self, request):
+        user = self.request.user
+        if user.role not in ['staff', 'hod']:
+            return Response({'detail': 'Only staff and HOD members can access manual attendance.'}, status=status.HTTP_403_FORBIDDEN)
+
+        class_id = request.data.get('class_id')
+        subject_id = request.data.get('subject_id')
+        date_str = request.data.get('date')
+        statuses = request.data.get('statuses', {})
+
+        if not (class_id and subject_id and date_str):
+            return Response({'detail': 'Missing class_id, subject_id, or date.'}, status=status.HTTP_400_BAD_REQUEST)
+
+        try:
+            target_date = datetime.datetime.strptime(date_str, '%Y-%m-%d').date()
+            weekday = target_date.strftime('%A')
+        except ValueError:
+            return Response({'detail': 'Invalid date format.'}, status=status.HTTP_400_BAD_REQUEST)
+
+        from django.db import transaction
+        try:
+            with transaction.atomic():
+                # Find/Create the schedule for this class, subject, and day of week
+                schedules = list(Schedule.objects.filter(student_class_id=class_id, subject_id=subject_id, day=weekday))
+                if not schedules:
+                    from accounts.models import Class, Subject
+                    student_class = get_object_or_404(Class, id=class_id)
+                    subject = get_object_or_404(Subject, id=subject_id)
+                    default_sched = Schedule.objects.create(
+                        student_class=student_class,
+                        subject=subject,
+                        period=1,
+                        day=weekday,
+                        start_time=datetime.time(9, 0),
+                        end_time=datetime.time(10, 0)
+                    )
+                    schedules = [default_sched]
+
+                # Update or create attendance for each student in the class
+                students = Student.objects.filter(student_class_id=class_id)
+                updated_count = 0
+                for student in students:
+                    status_val = statuses.get(str(student.user_id)) or statuses.get(student.user_id) or 'Absent'
+                    if status_val not in ['Present', 'Absent', 'OD']:
+                        status_val = 'Absent'
+
+                    for sched in schedules:
+                        Attendance.objects.update_or_create(
+                            student=student,
+                            schedule=sched,
+                            date=target_date,
+                            defaults={'status': status_val}
+                        )
+                        updated_count += 1
+
+                return Response({
+                    'success': True,
+                    'detail': f'Successfully marked attendance for {students.count()} students ({updated_count} slot records).'
+                })
+        except Exception as e:
+            return Response({'detail': f'Error saving attendance: {str(e)}'}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
