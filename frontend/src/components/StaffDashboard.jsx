@@ -630,17 +630,20 @@ const StaffDashboard = ({ activeTab }) => {
 
   const handleSaveClassManualAttendance = async (e) => {
     if (e) e.preventDefault();
-    if (!manualClassId || !manualSubjectId || !manualDate) return;
+    if (!manualClassId || !manualSubjectId || !manualDate || !selectedManualStudentId) return;
     
     setManualAttLoading(true);
     setManualAttMessage(null);
     setManualAttError(null);
     try {
+      const statusVal = manualStatuses[selectedManualStudentId];
       const res = await api.post('/api/attendances/save-class-manual-attendance/', {
         class_id: manualClassId,
         subject_id: manualSubjectId,
         date: manualDate,
-        statuses: manualStatuses
+        statuses: {
+          [selectedManualStudentId]: statusVal
+        }
       });
 
       setManualAttMessage(res.detail || 'Attendance updated successfully.');
@@ -651,8 +654,8 @@ const StaffDashboard = ({ activeTab }) => {
       const subjObj = subjects.find(sub => sub.id.toString() === manualSubjectId.toString());
       const subjectName = subjObj ? subjObj.name : 'Selected Subject';
 
-      manualAttStudents.forEach(s => {
-        const statusVal = manualStatuses[s.id];
+      const s = manualAttStudents.find(stud => stud.id.toString() === selectedManualStudentId.toString());
+      if (s) {
         newEntries.push({
           studentName: s.name,
           regNo: s.reg_no,
@@ -662,7 +665,7 @@ const StaffDashboard = ({ activeTab }) => {
           status: statusVal,
           timeMarked: nowStr
         });
-      });
+      }
 
       setRecentlyMarked(prev => [...newEntries, ...prev]);
 
@@ -909,6 +912,37 @@ const StaffDashboard = ({ activeTab }) => {
   const handleUpdateProfile = async (e) => {
     e.preventDefault();
     setProfileMessage('');
+    setPasswordMessage('');
+    setPasswordError('');
+
+    if (newPassword) {
+      if (newPassword !== confirmPassword) {
+        setPasswordError("New passwords do not match.");
+        return;
+      }
+      if (!currentPassword) {
+        setPasswordError("Current password is required to change password.");
+        return;
+      }
+      setPasswordSubmitting(true);
+      try {
+        await api.post(`/api/users/${user.id}/change_password/`, {
+          current_password: currentPassword,
+          new_password: newPassword
+        });
+        setPasswordMessage("Password updated successfully.");
+        setCurrentPassword('');
+        setNewPassword('');
+        setConfirmPassword('');
+      } catch (err) {
+        setPasswordError(err.message || 'Failed to change password.');
+        setPasswordSubmitting(false);
+        return;
+      } finally {
+        setPasswordSubmitting(false);
+      }
+    }
+
     try {
       await api.put(`/api/users/${user.id}/`, {
         first_name: firstName,
@@ -926,33 +960,6 @@ const StaffDashboard = ({ activeTab }) => {
       setProfileEditMode(false);
     } catch (err) {
       setProfileMessage(`Error: ${err.message}`);
-    }
-  };
-
-  const handlePasswordChange = async (e) => {
-    e.preventDefault();
-    setPasswordMessage('');
-    setPasswordError('');
-
-    if (newPassword !== confirmPassword) {
-      setPasswordError("New passwords do not match.");
-      return;
-    }
-
-    setPasswordSubmitting(true);
-    try {
-      await api.post(`/api/users/${user.id}/change_password/`, {
-        current_password: currentPassword,
-        new_password: newPassword
-      });
-      setPasswordMessage("Password updated successfully.");
-      setCurrentPassword('');
-      setNewPassword('');
-      setConfirmPassword('');
-    } catch (err) {
-      setPasswordError(err.message || 'Error occurred while changing password.');
-    } finally {
-      setPasswordSubmitting(false);
     }
   };
 
@@ -1841,7 +1848,7 @@ const StaffDashboard = ({ activeTab }) => {
 
         <div className="card" style={{ marginBottom: '24px' }}>
           <form onSubmit={handleSaveClassManualAttendance}>
-            <div className="grid grid-cols-4" style={{ gap: '16px' }}>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(5, 1fr)', gap: '16px' }}>
               <div className="form-group">
                 <label className="form-label">1. Department</label>
                 <select 
@@ -1852,6 +1859,7 @@ const StaffDashboard = ({ activeTab }) => {
                     setManualClassId('');
                     setManualSubjectId('');
                     setManualAttStudents([]);
+                    setSelectedManualStudentId('');
                   }}
                   required
                 >
@@ -1871,6 +1879,7 @@ const StaffDashboard = ({ activeTab }) => {
                     setManualClassId(e.target.value);
                     setManualSubjectId('');
                     setManualAttStudents([]);
+                    setSelectedManualStudentId('');
                   }}
                   disabled={!manualDeptId}
                   required
@@ -1892,6 +1901,7 @@ const StaffDashboard = ({ activeTab }) => {
                   onChange={(e) => {
                     setManualSubjectId(e.target.value);
                     setManualAttStudents([]);
+                    setSelectedManualStudentId('');
                   }}
                   disabled={!manualClassId}
                   required
@@ -1914,14 +1924,33 @@ const StaffDashboard = ({ activeTab }) => {
                   onChange={(e) => {
                     setManualDate(e.target.value);
                     setManualAttStudents([]);
+                    setSelectedManualStudentId('');
                   }}
                   disabled={!manualSubjectId}
                   required
                 />
               </div>
+
+              <div className="form-group">
+                <label className="form-label">5. Student</label>
+                <select 
+                  className="input" 
+                  value={selectedManualStudentId} 
+                  onChange={(e) => setSelectedManualStudentId(e.target.value)}
+                  disabled={!manualDate || manualAttStudents.length === 0}
+                  required
+                >
+                  <option value="">-- Choose Student --</option>
+                  {manualAttStudents.map(s => (
+                    <option key={s.id} value={s.id}>
+                      {s.name} ({s.reg_no})
+                    </option>
+                  ))}
+                </select>
+              </div>
             </div>
 
-            {manualAttLoading && <div style={{ margin: '16px 0', fontWeight: '500' }}>Loading students...</div>}
+            {manualAttLoading && <div style={{ margin: '16px 0', fontWeight: '500' }}>Loading student data...</div>}
 
             {manualAttError && (
               <div style={{ backgroundColor: 'var(--danger-light)', color: 'var(--danger)', padding: '12px', borderRadius: 'var(--radius-sm)', margin: '16px 0', fontSize: '13px' }}>
@@ -1935,58 +1964,48 @@ const StaffDashboard = ({ activeTab }) => {
               </div>
             )}
 
-            {!manualAttLoading && manualClassId && manualSubjectId && manualDate && manualAttStudents.length > 0 && (
+            {!manualAttLoading && manualClassId && manualSubjectId && manualDate && selectedManualStudentId && (
               <div style={{ marginTop: '24px' }}>
-                <h3 style={{ marginBottom: '16px', fontSize: '15px', fontWeight: '600' }}>Mark Attendance for Students</h3>
-                <div className="table-container">
-                  <table className="table">
-                    <thead>
-                      <tr>
-                        <th>Student Details</th>
-                        <th style={{ textAlign: 'center', width: '250px' }}>Attendance Status</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {manualAttStudents.map(student => (
-                        <tr key={student.id}>
-                          <td>
-                            <strong style={{ color: 'var(--text-primary)', display: 'block' }}>{student.name}</strong>
-                            <span style={{ fontSize: '12px', color: 'var(--text-secondary)' }}>
-                              Reg No: {student.reg_no} | Roll No: {student.roll_no}
+                <h3 style={{ marginBottom: '16px', fontSize: '15px', fontWeight: '600' }}>Mark Attendance for Student</h3>
+                {(() => {
+                  const student = manualAttStudents.find(s => s.id.toString() === selectedManualStudentId.toString());
+                  if (!student) return null;
+                  return (
+                    <div className="card" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '20px', backgroundColor: 'var(--bg-primary)', border: '1px solid var(--border-color)' }}>
+                      <div>
+                        <strong style={{ color: 'var(--text-primary)', fontSize: '15px', display: 'block' }}>{student.name}</strong>
+                        <span style={{ fontSize: '13px', color: 'var(--text-secondary)' }}>
+                          Reg No: {student.reg_no} | Roll No: {student.roll_no}
+                        </span>
+                      </div>
+                      <div style={{ display: 'flex', gap: '20px' }}>
+                        {['Present', 'Absent', 'OD'].map(st => (
+                          <label key={st} style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '13px', cursor: 'pointer' }}>
+                            <input 
+                              type="radio" 
+                              name={`status_${student.id}`} 
+                              value={st}
+                              checked={manualStatuses[student.id] === st}
+                              onChange={(e) => {
+                                setManualStatuses({
+                                  ...manualStatuses,
+                                  [student.id]: e.target.value
+                                });
+                              }}
+                            />
+                            <span style={{
+                              color: st === 'Present' ? 'var(--success)' :
+                                     st === 'Absent' ? 'var(--danger)' : 'var(--info)',
+                              fontWeight: '600'
+                            }}>
+                              {st}
                             </span>
-                          </td>
-                          <td>
-                            <div style={{ display: 'flex', justifyContent: 'center', gap: '16px' }}>
-                              {['Present', 'Absent', 'OD'].map(st => (
-                                <label key={st} style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '13px', cursor: 'pointer' }}>
-                                  <input 
-                                    type="radio" 
-                                    name={`status_${student.id}`} 
-                                    value={st}
-                                    checked={manualStatuses[student.id] === st}
-                                    onChange={(e) => {
-                                      setManualStatuses({
-                                        ...manualStatuses,
-                                        [student.id]: e.target.value
-                                      });
-                                    }}
-                                  />
-                                  <span style={{
-                                    color: st === 'Present' ? 'var(--success)' :
-                                           st === 'Absent' ? 'var(--danger)' : 'var(--info)',
-                                    fontWeight: '600'
-                                  }}>
-                                    {st}
-                                  </span>
-                                </label>
-                              ))}
-                            </div>
-                          </td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
+                          </label>
+                        ))}
+                      </div>
+                    </div>
+                  );
+                })()}
 
                 <div style={{ marginTop: '24px' }}>
                   <button type="submit" className="btn btn-primary" style={{ width: '100%' }}>
@@ -2634,79 +2653,82 @@ const StaffDashboard = ({ activeTab }) => {
                 <input type="text" className="input" value={phone} onChange={(e) => setPhone(e.target.value)} />
               </div>
 
-              <div className="form-group" style={{ marginBottom: '24px' }}>
+              <div className="form-group">
                 <label className="form-label">Age</label>
                 <input type="number" className="input" value={age} onChange={(e) => setAge(e.target.value)} />
               </div>
 
+              {/* Password Change inside Edit Profile */}
+              <div style={{ borderTop: '1px solid var(--border-color)', paddingTop: '16px', marginTop: '24px', marginBottom: '24px' }}>
+                <h3 style={{ fontSize: '16px', fontWeight: '600', marginBottom: '16px' }}>Change Password (Optional)</h3>
+                
+                {passwordMessage && (
+                  <div style={{
+                    padding: '12px', borderRadius: 'var(--radius-sm)', marginBottom: '16px', fontSize: '14px',
+                    color: 'var(--success)', backgroundColor: 'var(--success-light)'
+                  }}>
+                    {passwordMessage}
+                  </div>
+                )}
+                {passwordError && (
+                  <div style={{
+                    padding: '12px', borderRadius: 'var(--radius-sm)', marginBottom: '16px', fontSize: '14px',
+                    color: 'var(--danger)', backgroundColor: 'var(--danger-light)'
+                  }}>
+                    {passwordError}
+                  </div>
+                )}
+
+                <div className="form-group">
+                  <label className="form-label">Current Password</label>
+                  <input 
+                    type="password" 
+                    className="input" 
+                    value={currentPassword} 
+                    onChange={(e) => setCurrentPassword(e.target.value)} 
+                    placeholder="Enter current password to make changes"
+                    required={newPassword.length > 0}
+                  />
+                </div>
+
+                <div className="form-group">
+                  <label className="form-label">New Password</label>
+                  <input 
+                    type="password" 
+                    className="input" 
+                    value={newPassword} 
+                    onChange={(e) => setNewPassword(e.target.value)} 
+                    placeholder="Enter new password"
+                  />
+                </div>
+
+                <div className="form-group" style={{ marginBottom: '24px' }}>
+                  <label className="form-label">Confirm New Password</label>
+                  <input 
+                    type="password" 
+                    className="input" 
+                    value={confirmPassword} 
+                    onChange={(e) => setConfirmPassword(e.target.value)} 
+                    placeholder="Confirm new password"
+                  />
+                </div>
+              </div>
+
               <div style={{ display: 'flex', gap: '12px' }}>
-                <button type="submit" className="btn btn-primary">Update Profile Settings</button>
-                <button type="button" className="btn btn-secondary" onClick={() => setProfileEditMode(false)}>Cancel</button>
+                <button type="submit" className="btn btn-primary" disabled={passwordSubmitting}>
+                  {passwordSubmitting ? 'Updating...' : 'Update Profile Settings'}
+                </button>
+                <button type="button" className="btn btn-secondary" onClick={() => {
+                  setProfileEditMode(false);
+                  setCurrentPassword('');
+                  setNewPassword('');
+                  setConfirmPassword('');
+                  setPasswordMessage('');
+                  setPasswordError('');
+                }}>Cancel</button>
               </div>
             </form>
           )}
-        </div>
-
-        <div className="card" style={{ maxWidth: '600px', marginTop: '24px' }}>
-          <h2 style={{ fontSize: '18px', marginBottom: '16px', fontWeight: '600' }}>Change Password</h2>
-          <form onSubmit={handlePasswordChange}>
-            {passwordMessage && (
-              <div style={{
-                padding: '12px', borderRadius: 'var(--radius-sm)', marginBottom: '16px', fontSize: '14px',
-                color: 'var(--success)', backgroundColor: 'var(--success-light)'
-              }}>
-                {passwordMessage}
-              </div>
-            )}
-            {passwordError && (
-              <div style={{
-                padding: '12px', borderRadius: 'var(--radius-sm)', marginBottom: '16px', fontSize: '14px',
-                color: 'var(--danger)', backgroundColor: 'var(--danger-light)'
-              }}>
-                {passwordError}
-              </div>
-            )}
-
-            <div className="form-group">
-              <label className="form-label">Current Password</label>
-              <input 
-                type="password" 
-                className="input" 
-                value={currentPassword} 
-                onChange={(e) => setCurrentPassword(e.target.value)} 
-                required 
-                placeholder="Enter current password"
-              />
-            </div>
-
-            <div className="form-group">
-              <label className="form-label">New Password</label>
-              <input 
-                type="password" 
-                className="input" 
-                value={newPassword} 
-                onChange={(e) => setNewPassword(e.target.value)} 
-                required 
-                placeholder="Enter new password"
-              />
-            </div>
-
-            <div className="form-group" style={{ marginBottom: '24px' }}>
-              <label className="form-label">Confirm New Password</label>
-              <input 
-                type="password" 
-                className="input" 
-                value={confirmPassword} 
-                onChange={(e) => setConfirmPassword(e.target.value)} 
-                required 
-                placeholder="Confirm new password"
-              />
-            </div>
-
-            <button type="submit" className="btn btn-primary" disabled={passwordSubmitting}>
-              {passwordSubmitting ? 'Updating...' : 'Update Password'}
-            </button>
-          </form>
         </div>
       </div>
     );

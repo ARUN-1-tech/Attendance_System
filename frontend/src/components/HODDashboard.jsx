@@ -742,6 +742,37 @@ const HODDashboard = ({ activeTab, setActiveTab }) => {
   const handleUpdateProfile = async (e) => {
     e.preventDefault();
     setProfileMessage('');
+    setPasswordMessage('');
+    setPasswordError('');
+
+    if (newPassword) {
+      if (newPassword !== confirmPassword) {
+        setPasswordError("New passwords do not match.");
+        return;
+      }
+      if (!currentPassword) {
+        setPasswordError("Current password is required to change password.");
+        return;
+      }
+      setPasswordSubmitting(true);
+      try {
+        await api.post(`/api/users/${user.id}/change_password/`, {
+          current_password: currentPassword,
+          new_password: newPassword
+        });
+        setPasswordMessage("Password updated successfully.");
+        setCurrentPassword('');
+        setNewPassword('');
+        setConfirmPassword('');
+      } catch (err) {
+        setPasswordError(err.message || 'Failed to change password.');
+        setPasswordSubmitting(false);
+        return;
+      } finally {
+        setPasswordSubmitting(false);
+      }
+    }
+
     try {
       await api.put(`/api/users/${user.id}/`, {
         first_name: firstName,
@@ -759,33 +790,6 @@ const HODDashboard = ({ activeTab, setActiveTab }) => {
       setProfileEditMode(false);
     } catch (err) {
       setProfileMessage(`Error: ${err.message}`);
-    }
-  };
-
-  const handlePasswordChange = async (e) => {
-    e.preventDefault();
-    setPasswordMessage('');
-    setPasswordError('');
-
-    if (newPassword !== confirmPassword) {
-      setPasswordError("New passwords do not match.");
-      return;
-    }
-
-    setPasswordSubmitting(true);
-    try {
-      await api.post(`/api/users/${user.id}/change_password/`, {
-        current_password: currentPassword,
-        new_password: newPassword
-      });
-      setPasswordMessage("Password updated successfully.");
-      setCurrentPassword('');
-      setNewPassword('');
-      setConfirmPassword('');
-    } catch (err) {
-      setPasswordError(err.message || 'Error occurred while changing password.');
-    } finally {
-      setPasswordSubmitting(false);
     }
   };
 
@@ -2272,79 +2276,82 @@ const HODDashboard = ({ activeTab, setActiveTab }) => {
                 <input type="text" className="input" value={phone} onChange={(e) => setPhone(e.target.value)} />
               </div>
 
-              <div className="form-group" style={{ marginBottom: '24px' }}>
+              <div className="form-group">
                 <label className="form-label">Age</label>
                 <input type="number" className="input" value={age} onChange={(e) => setAge(e.target.value)} />
               </div>
 
+              {/* Password Change inside Edit Profile */}
+              <div style={{ borderTop: '1px solid var(--border-color)', paddingTop: '16px', marginTop: '24px', marginBottom: '24px' }}>
+                <h3 style={{ fontSize: '16px', fontWeight: '600', marginBottom: '16px' }}>Change Password (Optional)</h3>
+                
+                {passwordMessage && (
+                  <div style={{
+                    padding: '12px', borderRadius: 'var(--radius-sm)', marginBottom: '16px', fontSize: '14px',
+                    color: 'var(--success)', backgroundColor: 'var(--success-light)'
+                  }}>
+                    {passwordMessage}
+                  </div>
+                )}
+                {passwordError && (
+                  <div style={{
+                    padding: '12px', borderRadius: 'var(--radius-sm)', marginBottom: '16px', fontSize: '14px',
+                    color: 'var(--danger)', backgroundColor: 'var(--danger-light)'
+                  }}>
+                    {passwordError}
+                  </div>
+                )}
+
+                <div className="form-group">
+                  <label className="form-label">Current Password</label>
+                  <input 
+                    type="password" 
+                    className="input" 
+                    value={currentPassword} 
+                    onChange={(e) => setCurrentPassword(e.target.value)} 
+                    placeholder="Enter current password to make changes"
+                    required={newPassword.length > 0}
+                  />
+                </div>
+
+                <div className="form-group">
+                  <label className="form-label">New Password</label>
+                  <input 
+                    type="password" 
+                    className="input" 
+                    value={newPassword} 
+                    onChange={(e) => setNewPassword(e.target.value)} 
+                    placeholder="Enter new password"
+                  />
+                </div>
+
+                <div className="form-group" style={{ marginBottom: '24px' }}>
+                  <label className="form-label">Confirm New Password</label>
+                  <input 
+                    type="password" 
+                    className="input" 
+                    value={confirmPassword} 
+                    onChange={(e) => setConfirmPassword(e.target.value)} 
+                    placeholder="Confirm new password"
+                  />
+                </div>
+              </div>
+
               <div style={{ display: 'flex', gap: '12px' }}>
-                <button type="submit" className="btn btn-primary">Update Profile Settings</button>
-                <button type="button" className="btn btn-secondary" onClick={() => setProfileEditMode(false)}>Cancel</button>
+                <button type="submit" className="btn btn-primary" disabled={passwordSubmitting}>
+                  {passwordSubmitting ? 'Updating...' : 'Update Profile Settings'}
+                </button>
+                <button type="button" className="btn btn-secondary" onClick={() => {
+                  setProfileEditMode(false);
+                  setCurrentPassword('');
+                  setNewPassword('');
+                  setConfirmPassword('');
+                  setPasswordMessage('');
+                  setPasswordError('');
+                }}>Cancel</button>
               </div>
             </form>
           )}
-        </div>
-
-        <div className="card" style={{ maxWidth: '600px', marginTop: '24px' }}>
-          <h2 style={{ fontSize: '18px', marginBottom: '16px', fontWeight: '600' }}>Change Password</h2>
-          <form onSubmit={handlePasswordChange}>
-            {passwordMessage && (
-              <div style={{
-                padding: '12px', borderRadius: 'var(--radius-sm)', marginBottom: '16px', fontSize: '14px',
-                color: 'var(--success)', backgroundColor: 'var(--success-light)'
-              }}>
-                {passwordMessage}
-              </div>
-            )}
-            {passwordError && (
-              <div style={{
-                padding: '12px', borderRadius: 'var(--radius-sm)', marginBottom: '16px', fontSize: '14px',
-                color: 'var(--danger)', backgroundColor: 'var(--danger-light)'
-              }}>
-                {passwordError}
-              </div>
-            )}
-
-            <div className="form-group">
-              <label className="form-label">Current Password</label>
-              <input 
-                type="password" 
-                className="input" 
-                value={currentPassword} 
-                onChange={(e) => setCurrentPassword(e.target.value)} 
-                required 
-                placeholder="Enter current password"
-              />
-            </div>
-
-            <div className="form-group">
-              <label className="form-label">New Password</label>
-              <input 
-                type="password" 
-                className="input" 
-                value={newPassword} 
-                onChange={(e) => setNewPassword(e.target.value)} 
-                required 
-                placeholder="Enter new password"
-              />
-            </div>
-
-            <div className="form-group" style={{ marginBottom: '24px' }}>
-              <label className="form-label">Confirm New Password</label>
-              <input 
-                type="password" 
-                className="input" 
-                value={confirmPassword} 
-                onChange={(e) => setConfirmPassword(e.target.value)} 
-                required 
-                placeholder="Confirm new password"
-              />
-            </div>
-
-            <button type="submit" className="btn btn-primary" disabled={passwordSubmitting}>
-              {passwordSubmitting ? 'Updating...' : 'Update Password'}
-            </button>
-          </form>
         </div>
       </div>
     );
