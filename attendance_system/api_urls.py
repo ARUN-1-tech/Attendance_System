@@ -11,7 +11,8 @@ from accounts.api_views import (
 from timetable.api_views import ScheduleViewSet
 from attendance.api_views import (
     api_generate_otp, api_verify_otp, api_session_stats,
-    api_student_stats, api_attendance_report_data, AttendanceViewSet
+    api_student_stats, api_attendance_report_data, AttendanceViewSet,
+    api_stop_session
 )
 from leave.api_views import LeaveViewSet
 
@@ -35,6 +36,7 @@ urlpatterns = [
     # Attendance/OTP Endpoints
     path('attendance/generate-otp/', api_generate_otp, name='api_generate_otp'),
     path('attendance/verify-otp/', api_verify_otp, name='api_verify_otp'),
+    path('attendance/stop-session/', api_stop_session, name='api_stop_session'),
     path('attendance/session-stats/<int:otp_id>/', api_session_stats, name='api_session_stats'),
     path('attendance/student-stats/<str:username>/', api_student_stats, name='api_student_stats'),
     path('attendance/reports/', api_attendance_report_data, name='api_attendance_report_data'),
