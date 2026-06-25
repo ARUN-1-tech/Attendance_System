@@ -1650,8 +1650,8 @@ const StaffDashboard = ({ activeTab }) => {
               <tbody>
                 {assignedStudents.map(s => (
                   <tr key={s.user.id}>
-                    <td style={{ fontWeight: '600' }}>{s.user.username}</td>
-                    <td>{s.user.first_name} {s.user.last_name}</td>
+                    <td style={{ fontWeight: '600' }}>{s.roll_no && s.reg_no ? `${s.roll_no} / ${s.reg_no}` : (s.roll_no || s.reg_no || '-')}</td>
+                    <td>{s.user.first_name || s.user.last_name ? `${s.user.first_name} ${s.user.last_name}` : s.user.username}</td>
                     <td>{s.class_name} - Year {s.class_year} (Sec {s.class_section})</td>
                     <td>
                       <span className="badge badge-present" style={{ fontSize: '11px' }}>
@@ -1666,7 +1666,7 @@ const StaffDashboard = ({ activeTab }) => {
                           <Eye size={14} />
                           <span>View Attendance %</span>
                         </button>
-                        {isAdvisor && (
+                        {(isAdvisor || s.tutor === user.id) && (
                           <>
                             <button className="btn btn-primary" style={{ padding: '6px 12px', fontSize: '12px', display: 'flex', alignItems: 'center', gap: '6px' }} onClick={() => handleEditStudentClick(s)}>
                               <Edit size={14} />

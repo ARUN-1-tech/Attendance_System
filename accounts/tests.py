@@ -290,3 +290,80 @@ class StudentBulkImportTestCase(TestCase):
         student = Student.objects.get(user__username='float_student')
         self.assertEqual(student.reg_no, '241040001')
         self.assertEqual(student.roll_no, '241040000')
+
+    def test_tutor_edit_delete_permissions(self):
+        import json
+        
+        # Assign department to tutors so authorization passes
+        self.tutor1_user.department = self.dept
+        self.tutor1_user.save()
+        self.tutor2_user.department = self.dept
+        self.tutor2_user.save()
+        self.tutor3_user.department = self.dept
+        self.tutor3_user.save()
+        
+        # Create tutor student
+        tutor_student_user = User.objects.create_user('tutored_stud', 'tutored@example.com', 'pass123')
+        tutor_student_user.role = 'student'
+        tutor_student_user.department = self.dept
+        tutor_student_user.save()
+        tutor_student = Student.objects.create(user=tutor_student_user, student_class=self.clazz, reg_no='REG_TUTORED')
+        
+        # Create other student
+        other_student_user = User.objects.create_user('other_stud', 'other@example.com', 'pass123')
+        other_student_user.role = 'student'
+        other_student_user.department = self.dept
+        other_student_user.save()
+        other_student = Student.objects.create(user=other_student_user, student_class=self.clazz, reg_no='REG_OTHER')
+        
+        # Refresh from DB to see actual tutors assigned by auto_assign_tutors
+        tutor_student.refresh_from_db()
+        other_student.refresh_from_db()
+        
+        assigned_tutor_user = tutor_student.tutor
+        other_tutor_user = self.tutor1_user if assigned_tutor_user != self.tutor1_user else self.tutor2_user
+        
+        # Log in as the assigned tutor
+        self.client.login(username=assigned_tutor_user.username, password='pass123')
+        
+        # Attempt to edit tutored student (should succeed)
+        response = self.client.put(f'/api/students/{tutor_student_user.id}/', data=json.dumps({
+            'user': {
+                'username': 'tutored_stud',
+                'email': 'tutored_new@example.com',
+                'first_name': 'tutored_stud',
+                'role': 'student',
+                'password': 'pass123'
+            },
+            'student_class': self.clazz.id,
+            'reg_no': 'REG_TUTORED_NEW'
+        }), content_type='application/json')
+        self.assertEqual(response.status_code, 200)
+        
+        # Log in as the other tutor
+        self.client.login(username=other_tutor_user.username, password='pass123')
+        
+        # Attempt to edit tutored student as other tutor (should fail with 403)
+        response = self.client.put(f'/api/students/{tutor_student_user.id}/', data=json.dumps({
+            'user': {
+                'username': 'tutored_stud',
+                'email': 'tutored_new@example.com',
+                'first_name': 'tutored_stud',
+                'role': 'student',
+                'password': 'pass123'
+            },
+            'student_class': self.clazz.id,
+            'reg_no': 'REG_TUTORED_NEW'
+        }), content_type='application/json')
+        self.assertEqual(response.status_code, 403)
+        
+        # Attempt to delete tutored student as other tutor (should fail with 403)
+        response = self.client.delete(f'/api/students/{tutor_student_user.id}/')
+        self.assertEqual(response.status_code, 403)
+        
+        # Log in as the assigned tutor again
+        self.client.login(username=assigned_tutor_user.username, password='pass123')
+        
+        # Attempt to delete tutored student (should succeed)
+        response = self.client.delete(f'/api/students/{tutor_student_user.id}/')
+        self.assertEqual(response.status_code, 204)

@@ -1564,8 +1564,8 @@ const HODDashboard = ({ activeTab, setActiveTab }) => {
                     ) : (
                       classStudents.map(s => (
                         <tr key={s.user.id}>
-                          <td style={{ fontWeight: '600' }}>{s.user.username}</td>
-                          <td>{s.user.first_name} {s.user.last_name}</td>
+                          <td style={{ fontWeight: '600' }}>{s.roll_no && s.reg_no ? `${s.roll_no} / ${s.reg_no}` : (s.roll_no || s.reg_no || '-')}</td>
+                          <td>{s.user.first_name || s.user.last_name ? `${s.user.first_name} ${s.user.last_name}` : s.user.username}</td>
                           <td>{s.roll_no}</td>
                           <td>{s.reg_no}</td>
                           <td style={{ fontWeight: '600', color: (s.attendance_percentage || 0) >= 75 ? 'var(--success)' : 'var(--danger)' }}>

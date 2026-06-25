@@ -230,21 +230,37 @@ class StudentViewSet(viewsets.ModelViewSet):
     def destroy(self, request, *args, **kwargs):
         user = request.user
         is_advisor = (user.role == 'staff' and hasattr(user, 'staff') and user.staff.staff_type == 'Advisor')
-        if user.role != 'hod' and not is_advisor:
-            return Response({'detail': 'Only Advisors and HODs can delete students.'}, status=status.HTTP_403_FORBIDDEN)
+        is_tutor = (user.role == 'staff' and hasattr(user, 'staff') and user.staff.staff_type == 'Tutor')
+        
         student = self.get_object()
+        
+        if is_tutor:
+            if student.tutor != user:
+                return Response({'detail': 'Tutors can only delete their own tutored students.'}, status=status.HTTP_403_FORBIDDEN)
+        elif user.role != 'hod' and not is_advisor:
+            return Response({'detail': 'Only Advisors, Tutors (for their own students), and HODs can delete students.'}, status=status.HTTP_403_FORBIDDEN)
+            
         if student.user.department != user.department:
             return Response({'detail': 'Not authorized to delete this student.'}, status=status.HTTP_403_FORBIDDEN)
+            
         return super().destroy(request, *args, **kwargs)
 
     def update(self, request, *args, **kwargs):
         user = request.user
         is_advisor = (user.role == 'staff' and hasattr(user, 'staff') and user.staff.staff_type == 'Advisor')
-        if user.role != 'hod' and not is_advisor:
-            return Response({'detail': 'Only Advisors and HODs can edit students.'}, status=status.HTTP_403_FORBIDDEN)
+        is_tutor = (user.role == 'staff' and hasattr(user, 'staff') and user.staff.staff_type == 'Tutor')
+        
         student = self.get_object()
+        
+        if is_tutor:
+            if student.tutor != user:
+                return Response({'detail': 'Tutors can only edit their own tutored students.'}, status=status.HTTP_403_FORBIDDEN)
+        elif user.role != 'hod' and not is_advisor:
+            return Response({'detail': 'Only Advisors, Tutors (for their own students), and HODs can edit students.'}, status=status.HTTP_403_FORBIDDEN)
+            
         if student.user.department != user.department:
             return Response({'detail': 'Not authorized to edit this student.'}, status=status.HTTP_403_FORBIDDEN)
+            
         return super().update(request, *args, **kwargs)
 
     @action(detail=False, methods=['POST'], url_path='bulk_create')
@@ -502,6 +518,7 @@ class StudentViewSet(viewsets.ModelViewSet):
                     email=email,
                     password=hashed_pw,
                     role='student',
+                    first_name=stud['username'],
                     department=request.user.department,
                     phone_number=stud['mobile_no'],
                     age=int(stud['age_val']) if stud['age_val'].isdigit() else None,
