@@ -1480,14 +1480,27 @@ const StaffDashboard = ({ activeTab }) => {
             <div style={{ backgroundColor: 'rgba(79, 70, 229, 0.05)', border: '1px solid var(--accent-light)', borderRadius: 'var(--radius-sm)', padding: '16px', margin: '16px 0 24px 0' }}>
               <h4 style={{ margin: '0 0 8px 0', color: 'var(--accent-primary)', fontSize: '14px' }}>CSV Requirements:</h4>
               <ul style={{ fontSize: '13px', color: 'var(--text-secondary)', paddingLeft: '20px', lineHeight: '1.6' }}>
-                <li>Required: <strong>username, password, class, year</strong></li>
-                <li>Optional: <strong>collage mail, register no, roll no, age, mobile no, tutor, advisor</strong></li>
+                <li>Required:</li>
+                <ul style={{ paddingLeft: '15px', listStyleType: 'circle' }}>
+                  <li>username</li>
+                  <li>password</li>
+                  <li>class</li>
+                  <li>year</li>
+                </ul>
+                <li>Optional:</li>
+                <ul style={{ paddingLeft: '15px', listStyleType: 'circle' }}>
+                  <li>email</li>
+                  <li>register_no</li>
+                  <li>roll_no</li>
+                  <li>age</li>
+                  <li>mobile_no</li>
+                </ul>
+                <li>Tutor and Advisor are assigned automatically based on the selected class.</li>
                 <li>The student's department will match your department automatically.</li>
                 <li><code>class</code> matches class name; <code>year</code> matches year number (e.g. 1, 2, 3).</li>
-                <li><code>tutor</code> and <code>advisor</code> match staff member usernames.</li>
               </ul>
               <div style={{ marginTop: '12px' }}>
-                <a href="data:text/csv;charset=utf-8,username,collage mail,register no,roll no,age,mobile no,class,tutor,advisor,year,password%0Astudent1,student1@college.edu,REG1001,ROLL01,20,9876543210,B.Tech CS,staff1,staff2,3,password123" 
+                <a href="data:text/csv;charset=utf-8,username,email,register_no,roll_no,age,mobile_no,class,year,password%0Astudent1,student1@college.edu,REG1001,ROLL01,20,9876543210,B.Tech CS,3,password123" 
                    download="student_bulk_sample.csv" 
                    style={{ fontSize: '13px', color: 'var(--accent-primary)', fontWeight: '600', textDecoration: 'none', display: 'inline-flex', alignItems: 'center', gap: '4px' }}>
                   <Plus size={14} /> Download Sample CSV

@@ -348,6 +348,11 @@ class StudentViewSet(viewsets.ModelViewSet):
         errors = []
         classes_to_update = set()
         
+        # Group valid students by class for equal tutor distribution
+        valid_students_by_class = {}
+        seen_usernames = set()
+        seen_reg_nos = set()
+        
         for row in rows_data:
             row_idx = row['_row_idx']
             
@@ -359,15 +364,13 @@ class StudentViewSet(viewsets.ModelViewSet):
                 return default
                 
             username = get_val('username')
-            email = get_val('collegemail') or get_val('email') or get_val('mail')
-            reg_no = get_val('registerno') or get_val('regno')
-            roll_no = get_val('rollno')
+            email = get_val('email') or get_val('collegemail') or get_val('mail')
+            reg_no = get_val('regno') or get_val('registerno') or get_val('register_no') or get_val('reg_no')
+            roll_no = get_val('rollno') or get_val('roll_no')
             age_val = get_val('age')
-            mobile_no = get_val('mobileno') or get_val('phone')
+            mobile_no = get_val('mobileno') or get_val('mobile_no') or get_val('phone') or get_val('phonenumber')
             class_name = get_val('class')
             year_val = get_val('year')
-            tutor_val = get_val('tutor')
-            advisor_val = get_val('advisor')
             password = get_val('password')
             
             row_errors = []
@@ -380,11 +383,17 @@ class StudentViewSet(viewsets.ModelViewSet):
             elif not year_val.isdigit():
                 row_errors.append("Invalid class")
                 
-            if username and User.objects.filter(username=username).exists():
-                row_errors.append("Username already exists")
+            if username:
+                if username in seen_usernames:
+                    row_errors.append("Username already exists")
+                elif User.objects.filter(username=username).exists():
+                    row_errors.append("Username already exists")
                 
-            if reg_no and Student.objects.filter(reg_no=reg_no).exists():
-                row_errors.append(f"Student with registration number '{reg_no}' already exists.")
+            if reg_no:
+                if reg_no in seen_reg_nos:
+                    row_errors.append(f"Student with registration number '{reg_no}' already exists.")
+                elif Student.objects.filter(reg_no=reg_no).exists():
+                    row_errors.append(f"Student with registration number '{reg_no}' already exists.")
                 
             selected_class = None
             if class_name and year_val.isdigit():
@@ -398,49 +407,108 @@ class StudentViewSet(viewsets.ModelViewSet):
                     errors.append(f"Row {row_idx}: {err}")
                 continue
                 
+            seen_usernames.add(username)
+            if reg_no:
+                seen_reg_nos.add(reg_no)
+                
             classes_to_update.add(selected_class)
             
-            tutor_user = None
-            if tutor_val:
-                tutor_user = User.objects.filter(username=tutor_val, role__in=['staff', 'hod']).first()
-            advisor_user = None
-            if advisor_val:
-                advisor_user = User.objects.filter(username=advisor_val, role__in=['staff', 'hod']).first()
+            if selected_class not in valid_students_by_class:
+                valid_students_by_class[selected_class] = []
                 
-            try:
-                with transaction.atomic():
-                    user = User.objects.create_user(
-                        username=username,
-                        email=email,
-                        password=password,
-                        role='student',
-                        department=request.user.department,
-                        phone_number=mobile_no,
-                        age=int(age_val) if age_val.isdigit() else None
-                    )
-                    student = Student(
-                        user=user,
-                        student_class=selected_class,
-                        roll_no=roll_no,
-                        reg_no=reg_no,
-                        tutor=tutor_user,
-                        advisor=advisor_user
-                    )
-                    student.save(skip_auto_assign=True)
-                    created_count += 1
-            except Exception as e:
-                failed_count += 1
-                errors.append(f"Row {row_idx}: Failed to create student: {str(e)}")
+            valid_students_by_class[selected_class].append({
+                'row_idx': row_idx,
+                'username': username,
+                'email': email,
+                'reg_no': reg_no,
+                'roll_no': roll_no,
+                'age_val': age_val,
+                'mobile_no': mobile_no,
+                'password': password
+            })
+            
+        tutor1_count = 0
+        tutor2_count = 0
+        tutor3_count = 0
+        
+        for selected_class, students_list in valid_students_by_class.items():
+            N = len(students_list)
+            if N == 0:
+                continue
                 
-        for cls in classes_to_update:
-            if cls:
-                cls.auto_assign_tutors(force=True)
-                
+            # Assign tutors based on class tutors and automatic fallback
+            t1 = selected_class.tutor1 or selected_class.tutor2 or selected_class.tutor3
+            t2 = selected_class.tutor2 or selected_class.tutor1 or selected_class.tutor3
+            t3 = selected_class.tutor3 or selected_class.tutor1 or selected_class.tutor2
+            
+            advisor_user = selected_class.advisor or selected_class.tutor3
+            
+            # Equal distribution
+            g1_size = N // 3 + (1 if N % 3 >= 1 else 0)
+            g2_size = N // 3 + (1 if N % 3 >= 2 else 0)
+            limit1 = g1_size
+            limit2 = g1_size + g2_size
+            
+            for idx, stud in enumerate(students_list):
+                if idx < limit1:
+                    assigned_tutor = t1
+                    group_num = 1
+                elif idx < limit2:
+                    assigned_tutor = t2
+                    group_num = 2
+                else:
+                    assigned_tutor = t3
+                    group_num = 3
+                    
+                try:
+                    with transaction.atomic():
+                        user = User.objects.create_user(
+                            username=stud['username'],
+                            email=stud['email'],
+                            password=stud['password'],
+                            role='student',
+                            department=request.user.department,
+                            phone_number=stud['mobile_no'],
+                            age=int(stud['age_val']) if stud['age_val'].isdigit() else None
+                        )
+                        student = Student(
+                            user=user,
+                            student_class=selected_class,
+                            roll_no=stud['roll_no'],
+                            reg_no=stud['reg_no'],
+                            tutor=assigned_tutor,
+                            advisor=advisor_user
+                        )
+                        student.save(skip_auto_assign=True)
+                        created_count += 1
+                        
+                        if group_num == 1:
+                            tutor1_count += 1
+                        elif group_num == 2:
+                            tutor2_count += 1
+                        else:
+                            tutor3_count += 1
+                except Exception as e:
+                    failed_count += 1
+                    errors.append(f"Row {stud['row_idx']}: Failed to create student: {str(e)}")
+                    
+
         return Response({
             'success': True,
             'created': created_count,
             'failed': failed_count,
-            'errors': errors
+            'errors': errors,
+            'imported': created_count,
+            'tutor1_count': tutor1_count,
+            'tutor2_count': tutor2_count,
+            'tutor3_count': tutor3_count,
+            'summary': {
+                'imported': created_count,
+                'tutor1': tutor1_count,
+                'tutor2': tutor2_count,
+                'tutor3': tutor3_count
+            },
+            'detail': f"Successfully imported {created_count} students.\nTutor 1: {tutor1_count} students\nTutor 2: {tutor2_count} students\nTutor 3: {tutor3_count} students"
         }, status=status.HTTP_200_OK)
 
     def _normalize_header(self, h):
