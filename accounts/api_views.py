@@ -349,7 +349,14 @@ class StudentViewSet(viewsets.ModelViewSet):
         created_count = 0
         failed_count = 0
         errors = []
-        classes_to_update = set()
+        
+        # Preload usernames, registration numbers, and roll numbers from DB
+        existing_usernames = set(User.objects.values_list('username', flat=True))
+        existing_reg_nos = set(Student.objects.exclude(reg_no__isnull=True).exclude(reg_no='').values_list('reg_no', flat=True))
+        existing_roll_nos = set(Student.objects.exclude(roll_no__isnull=True).exclude(roll_no='').values_list('roll_no', flat=True))
+        
+        # Preload classes in department with related tutors
+        classes_in_dept = list(Class.objects.filter(department=user.department).select_related('tutor1', 'tutor2', 'tutor3', 'advisor'))
         
         # Group valid students by class for equal tutor distribution
         valid_students_by_class = {}
@@ -397,26 +404,20 @@ class StudentViewSet(viewsets.ModelViewSet):
                 row_errors.append("Invalid class")
                 
             if username:
-                if username in seen_usernames:
-                    row_errors.append("Username already exists")
-                elif User.objects.filter(username=username).exists():
+                if username in seen_usernames or username in existing_usernames:
                     row_errors.append("Username already exists")
                 
             if reg_no:
-                if reg_no in seen_reg_nos:
-                    row_errors.append("Registration number already exists")
-                elif Student.objects.filter(reg_no=reg_no).exists():
+                if reg_no in seen_reg_nos or reg_no in existing_reg_nos:
                     row_errors.append("Registration number already exists")
                     
             if roll_no:
-                if roll_no in seen_roll_nos:
-                    row_errors.append("Roll number already exists")
-                elif Student.objects.filter(roll_no=roll_no).exists():
+                if roll_no in seen_roll_nos or roll_no in existing_roll_nos:
                     row_errors.append("Roll number already exists")
                 
             selected_class = None
             if class_name and year_val.isdigit():
-                selected_class = self._find_class(class_name, int(year_val), request.user.department)
+                selected_class = self._find_class(class_name, int(year_val), request.user.department, classes=classes_in_dept)
                 if not selected_class:
                     row_errors.append("Class not found")
                     
@@ -432,8 +433,6 @@ class StudentViewSet(viewsets.ModelViewSet):
             if roll_no:
                 seen_roll_nos.add(roll_no)
                 
-            classes_to_update.add(selected_class)
-            
             if selected_class not in valid_students_by_class:
                 valid_students_by_class[selected_class] = []
                 
@@ -452,20 +451,17 @@ class StudentViewSet(viewsets.ModelViewSet):
         tutor2_count = 0
         tutor3_count = 0
         
+        valid_students_to_create = []
         for selected_class, students_list in valid_students_by_class.items():
             N = len(students_list)
             if N == 0:
                 continue
                 
-            # Assign tutors: Tutor 1, Tutor 2, Tutor 3 directly
             t1 = selected_class.tutor1
             t2 = selected_class.tutor2
             t3 = selected_class.tutor3
-            
-            # Advisor is Tutor 3
             advisor_user = selected_class.tutor3
             
-            # Equal distribution
             g1_size = N // 3 + (1 if N % 3 >= 1 else 0)
             g2_size = N // 3 + (1 if N % 3 >= 2 else 0)
             limit1 = g1_size
@@ -474,46 +470,86 @@ class StudentViewSet(viewsets.ModelViewSet):
             for idx, stud in enumerate(students_list):
                 if idx < limit1:
                     assigned_tutor = t1
-                    group_num = 1
                 elif idx < limit2:
                     assigned_tutor = t2
-                    group_num = 2
                 else:
                     assigned_tutor = t3
-                    group_num = 3
                     
-                try:
-                    with transaction.atomic():
-                        user = User.objects.create_user(
-                            username=stud['username'],
-                            email=stud['email'],
-                            password=stud['password'],
-                            role='student',
-                            department=request.user.department,
-                            phone_number=stud['mobile_no'],
-                            age=int(stud['age_val']) if stud['age_val'].isdigit() else None
-                        )
-                        student = Student(
-                            user=user,
-                            student_class=selected_class,
+                stud['assigned_tutor'] = assigned_tutor
+                stud['advisor_user'] = advisor_user
+                stud['selected_class'] = selected_class
+                valid_students_to_create.append(stud)
+                
+        if valid_students_to_create:
+            from django.contrib.auth.hashers import make_password
+            from django.utils import timezone
+            
+            password_hash_cache = {}
+            users_to_create = []
+            
+            for stud in valid_students_to_create:
+                pw = stud['password']
+                if pw not in password_hash_cache:
+                    password_hash_cache[pw] = make_password(pw)
+                hashed_pw = password_hash_cache[pw]
+                
+                email = stud['email']
+                if email:
+                    email = User.objects.normalize_email(email)
+                    
+                user_obj = User(
+                    username=stud['username'],
+                    email=email,
+                    password=hashed_pw,
+                    role='student',
+                    department=request.user.department,
+                    phone_number=stud['mobile_no'],
+                    age=int(stud['age_val']) if stud['age_val'].isdigit() else None,
+                    is_staff=False,
+                    is_superuser=False,
+                    is_active=True,
+                    date_joined=timezone.now()
+                )
+                users_to_create.append(user_obj)
+                
+            try:
+                with transaction.atomic():
+                    # Bulk create all Users
+                    created_users = User.objects.bulk_create(users_to_create)
+                    
+                    students_to_create = []
+                    for idx, user_obj in enumerate(created_users):
+                        stud = valid_students_to_create[idx]
+                        
+                        student_obj = Student(
+                            user=user_obj,
+                            student_class=stud['selected_class'],
                             roll_no=stud['roll_no'],
                             reg_no=stud['reg_no'],
-                            tutor=assigned_tutor,
-                            advisor=advisor_user
+                            tutor=stud['assigned_tutor'],
+                            advisor=stud['advisor_user']
                         )
-                        student.save(skip_auto_assign=True)
-                        created_count += 1
+                        students_to_create.append(student_obj)
                         
-                        if group_num == 1:
+                    # Bulk create all Students
+                    Student.objects.bulk_create(students_to_create)
+                    
+                    created_count = len(students_to_create)
+                    for stud in valid_students_to_create:
+                        selected_class = stud['selected_class']
+                        assigned_tutor = stud['assigned_tutor']
+                        if assigned_tutor == selected_class.tutor1:
                             tutor1_count += 1
-                        elif group_num == 2:
+                        elif assigned_tutor == selected_class.tutor2:
                             tutor2_count += 1
                         else:
                             tutor3_count += 1
-                except Exception as e:
-                    import traceback
-                    traceback.print_exc()
-                    failed_count += 1
+                    
+            except Exception as e:
+                import traceback
+                traceback.print_exc()
+                failed_count += len(valid_students_to_create)
+                for stud in valid_students_to_create:
                     errors.append(f"Row {stud['row_idx']} : {type(e).__name__}: {str(e)}")
                     
         return Response({
@@ -542,13 +578,16 @@ class StudentViewSet(viewsets.ModelViewSet):
             return ""
         return str(s).lower().replace(' ', '').replace('_', '').replace('.', '').replace('-', '')
 
-    def _find_class(self, class_str, year_val, dept):
+    def _find_class(self, class_str, year_val, dept, classes=None):
         if not class_str or year_val is None:
             return None
             
         target = self._normalize_string(class_str)
-        classes = Class.objects.filter(department=dept, year=year_val)
-        
+        if classes is None:
+            classes = Class.objects.filter(department=dept, year=year_val)
+        else:
+            classes = [c for c in classes if c.year == year_val]
+            
         # Try direct name + section match
         for c in classes:
             combined = self._normalize_string(c.name + c.section)
