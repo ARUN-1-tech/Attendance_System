@@ -20,15 +20,19 @@ def enrich_user_data(user, data):
         from django.utils import timezone
         from datetime import timedelta
         three_minutes_ago = timezone.now() - timedelta(minutes=3)
-        active_otp = OTP.objects.filter(
+        active_otps = OTP.objects.filter(
             creator=user,
             is_active=True,
             created_at__gte=three_minutes_ago
-        ).order_by('-created_at').first()
-        if active_otp:
+        ).order_by('-created_at')
+        if active_otps.exists():
+            first_otp = active_otps.first()
+            related_otps = active_otps.filter(code=first_otp.code)
             data['active_otp_session'] = {
-                'otp_id': active_otp.id,
-                'code': active_otp.code
+                'otp_id': first_otp.id,
+                'otp_ids': [o.id for o in related_otps],
+                'code': first_otp.code,
+                'periods': [o.schedule.period for o in related_otps]
             }
         else:
             data['active_otp_session'] = None
@@ -206,7 +210,7 @@ class StudentViewSet(viewsets.ModelViewSet):
             queryset = queryset.filter(user__department=self.request.user.department)
         elif self.request.user.role == 'staff' and self.request.user.department:
             queryset = queryset.filter(user__department=self.request.user.department)
-        return queryset
+        return queryset.order_by('reg_no', 'user__username')
 
     def create(self, request, *args, **kwargs):
         user = request.user

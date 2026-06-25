@@ -3,11 +3,11 @@ import { api } from '../api';
 import { useAuth } from '../AuthContext';
 import { 
   CheckCircle, XCircle, Award, Percent, 
-  MapPin, Send, Plus, Upload, Calendar, User
+  MapPin, Send, Plus, Upload, Calendar, User, LogOut
 } from 'lucide-react';
 
 const StudentDashboard = ({ activeTab }) => {
-  const { user, checkAuth } = useAuth();
+  const { user, checkAuth, logout } = useAuth();
   const [stats, setStats] = useState(null);
   const [statsLoading, setStatsLoading] = useState(true);
   const [analysisStats, setAnalysisStats] = useState(null);
@@ -201,8 +201,26 @@ const StudentDashboard = ({ activeTab }) => {
   if (activeTab === 'dashboard') {
     return (
       <div>
-        <div className="header">
+        <div className="header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
           <h1>Mark Daily Attendance</h1>
+          {user && !user.hide_logout && (
+            <button 
+              className="btn btn-danger" 
+              onClick={logout} 
+              style={{ 
+                padding: '8px 16px', 
+                fontSize: '13px', 
+                display: 'flex', 
+                alignItems: 'center', 
+                gap: '8px',
+                height: '38px',
+                fontWeight: '600'
+              }}
+            >
+              <LogOut size={16} />
+              <span>Logout</span>
+            </button>
+          )}
         </div>
 
         {/* Stats Grid */}

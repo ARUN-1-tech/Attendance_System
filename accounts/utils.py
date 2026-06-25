@@ -33,7 +33,7 @@ def get_live_class_attendance_matrix(student_class):
     schedules = Schedule.objects.filter(student_class=student_class, day=day_name).order_by('period')
     
     # 2. Get all students of this class
-    students = Student.objects.filter(student_class=student_class).select_related('user').order_by('roll_no', 'user__username')
+    students = Student.objects.filter(student_class=student_class).select_related('user').order_by('reg_no', 'user__username')
     
     # 3. Get all attendance records for today for these students and schedules
     attendances = Attendance.objects.filter(

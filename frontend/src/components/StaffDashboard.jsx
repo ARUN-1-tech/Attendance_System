@@ -18,7 +18,7 @@ const StaffDashboard = ({ activeTab }) => {
   const [selectedDepartment, setSelectedDepartment] = useState(user.department || '');
   const [selectedClassName, setSelectedClassName] = useState('');
   const [selectedSubjectName, setSelectedSubjectName] = useState('');
-  const [selectedPeriod, setSelectedPeriod] = useState('1');
+  const [selectedPeriods, setSelectedPeriods] = useState(['1']);
   const [isGenerating, setIsGenerating] = useState(false);
   const [activeSession, setActiveSession] = useState(null);
   const [sessionStats, setSessionStats] = useState(null);
@@ -699,7 +699,7 @@ const StaffDashboard = ({ activeTab }) => {
             department_name: selectedDepartment,
             class_name: selectedClassName,
             subject_name: selectedSubjectName,
-            period: selectedPeriod,
+            period: selectedPeriods,
             latitude: position.coords.latitude,
             longitude: position.coords.longitude
           });
@@ -747,8 +747,16 @@ const StaffDashboard = ({ activeTab }) => {
     }
   };
 
-  const handleStopSession = () => {
+  const handleStopSession = async () => {
     if (statsInterval.current) clearInterval(statsInterval.current);
+    try {
+      await api.post('/api/attendance/stop-session/', {
+        otp_id: activeSession?.otp_id,
+        otp_ids: activeSession?.otp_ids
+      });
+    } catch (err) {
+      console.error('Failed to stop session in backend', err);
+    }
     setActiveSession(null);
     setSessionStats(null);
   };
@@ -955,6 +963,14 @@ const StaffDashboard = ({ activeTab }) => {
                 {activeSession.code}
               </div>
 
+              {sessionStats && (
+                <div style={{ fontSize: '13px', color: 'var(--text-secondary)', marginBottom: '20px', lineHeight: '1.6', width: '100%', borderBottom: '1px solid var(--border-color)', pb: '12px' }}>
+                  <div style={{ marginBottom: '4px' }}>Class: <strong style={{ color: 'var(--text-primary)' }}>{sessionStats.class_name}</strong></div>
+                  <div style={{ marginBottom: '4px' }}>Subject: <strong style={{ color: 'var(--text-primary)' }}>{sessionStats.subject_name}</strong></div>
+                  <div>Period(s): <strong style={{ color: 'var(--text-primary)' }}>{activeSession.periods ? activeSession.periods.join(', ') : sessionStats.period}</strong></div>
+                </div>
+              )}
+
               {/* Timer Progress Bar */}
               {sessionStats && (
                 <div style={{ width: '100%', marginBottom: '24px' }}>
@@ -1128,10 +1144,51 @@ const StaffDashboard = ({ activeTab }) => {
                 </div>
 
                 <div className="form-group" style={{ marginBottom: '32px' }}>
-                  <label className="form-label">Select Period</label>
-                  <select className="input" value={selectedPeriod} onChange={(e) => setSelectedPeriod(e.target.value)}>
-                    {[1, 2, 3, 4, 5, 6, 7].map(p => <option key={p} value={p}>Period {p}</option>)}
-                  </select>
+                  <label className="form-label" style={{ marginBottom: '8px', display: 'block' }}>Select Period(s) (Check all that apply for continuous classes)</label>
+                  <div style={{ display: 'flex', flexWrap: 'wrap', gap: '10px' }}>
+                    {[1, 2, 3, 4, 5, 6, 7].map(p => {
+                      const isChecked = selectedPeriods.includes(p.toString());
+                      return (
+                        <label 
+                          key={p} 
+                          style={{
+                            display: 'flex',
+                            alignItems: 'center',
+                            gap: '8px',
+                            padding: '10px 16px',
+                            border: isChecked ? '1px solid var(--accent-primary)' : '1px solid var(--border-color)',
+                            backgroundColor: isChecked ? 'var(--accent-light)' : 'var(--bg-secondary)',
+                            borderRadius: 'var(--radius-sm)',
+                            cursor: 'pointer',
+                            fontSize: '14px',
+                            fontWeight: '500',
+                            userSelect: 'none',
+                            transition: 'all 0.2s ease',
+                            color: isChecked ? 'var(--accent-primary)' : 'var(--text-primary)'
+                          }}
+                        >
+                          <input 
+                            type="checkbox" 
+                            checked={isChecked}
+                            style={{ cursor: 'pointer' }}
+                            onChange={(e) => {
+                              const pStr = p.toString();
+                              if (e.target.checked) {
+                                setSelectedPeriods([...selectedPeriods, pStr]);
+                              } else {
+                                if (selectedPeriods.length > 1) {
+                                  setSelectedPeriods(selectedPeriods.filter(x => x !== pStr));
+                                } else {
+                                  alert('At least one period must be selected.');
+                                }
+                              }
+                            }}
+                          />
+                          Period {p}
+                        </label>
+                      );
+                    })}
+                  </div>
                 </div>
 
                 <button type="submit" className="btn btn-primary" style={{ width: '100%', height: '46px' }} disabled={isGenerating}>

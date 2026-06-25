@@ -122,12 +122,6 @@ const Login = () => {
           </button>
         </form>
 
-        <div style={{ marginTop: '24px', borderTop: '1px solid var(--border-color)', paddingTop: '20px', textAlign: 'center' }}>
-          <span style={{ fontSize: '12px', color: 'var(--text-muted)' }}>
-            Default Explorer Users:<br/>
-            <strong>student / student123</strong> | <strong>staff / staff123</strong> | <strong>hod / hod123</strong>
-          </span>
-        </div>
       </div>
     </div>
   );

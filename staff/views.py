@@ -644,7 +644,7 @@ def manual_attendance(request):
     import datetime
     
     department = request.user.department
-    students = Student.objects.filter(user__department=department).select_related('user', 'student_class').order_by('user__first_name', 'user__username')
+    students = Student.objects.filter(user__department=department).select_related('user', 'student_class').order_by('reg_no', 'user__username')
     
     selected_student_id = request.GET.get('student_id')
     selected_date_str = request.GET.get('date')

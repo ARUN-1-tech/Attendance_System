@@ -36,11 +36,25 @@ def api_generate_otp(request):
     department_name = request.data.get('department_name')
     class_name = request.data.get('class_name')
     subject_name = request.data.get('subject_name')
-    period = request.data.get('period')
+    period_data = request.data.get('period')
     
-    if not (class_name and subject_name and period):
+    if not (class_name and subject_name and period_data):
         return Response({'detail': 'Missing required fields: class_name, subject_name, period'}, status=status.HTTP_400_BAD_REQUEST)
         
+    # Resolve period_data into a list of periods
+    if isinstance(period_data, list):
+        periods = period_data
+    elif isinstance(period_data, str):
+        if ',' in period_data:
+            periods = [p.strip() for p in period_data.split(',') if p.strip()]
+        else:
+            periods = [period_data]
+    else:
+        periods = [period_data]
+
+    if not periods:
+        return Response({'detail': 'No valid periods selected.'}, status=status.HTTP_400_BAD_REQUEST)
+
     from accounts.models import Department, Class, Subject
     import random, string
 
@@ -77,47 +91,58 @@ def api_generate_otp(request):
     today = timezone.now().date()
     day_str = today.strftime('%A')
     
-    schedule, created = Schedule.objects.get_or_create(
-        student_class=student_class,
-        subject=subject,
-        period=period,
-        day=day_str,
-        defaults={
-            'start_time': datetime.time(9, 0),
-            'end_time': datetime.time(10, 0)
-        }
-    )
+    # Generate a single 6-digit code shared among all selected periods
+    code = ''.join(random.choices(string.digits, k=6))
     
-    # Deactivate old OTPs for this schedule today
-    OTP.objects.filter(schedule=schedule, is_active=True).update(is_active=False)
-
     lat = request.data.get('latitude')
     lng = request.data.get('longitude')
     lat = float(lat) if lat else None
     lng = float(lng) if lng else None
 
-    code = ''.join(random.choices(string.digits, k=6))
-    otp = OTP.objects.create(code=code, schedule=schedule, staff_latitude=lat, staff_longitude=lng, creator=request.user)
-    
-    # Pre-mark all students
-    students = Student.objects.filter(student_class=schedule.student_class)
-    for student in students:
-        # Check for approved leave/od
-        approved_leave = Leave.objects.filter(student=student, date=today, final_status='Approved').first()
-        default_status = approved_leave.leave_type if approved_leave else 'Absent'
-        
-        Attendance.objects.get_or_create(
-            student=student, 
-            schedule=schedule, 
-            date=today,
-            defaults={'status': default_status}
+    otps_created = []
+
+    for p in periods:
+        p_val = int(p) if str(p).isdigit() else p
+        schedule, created = Schedule.objects.get_or_create(
+            student_class=student_class,
+            subject=subject,
+            period=p_val,
+            day=day_str,
+            defaults={
+                'start_time': datetime.time(9, 0),
+                'end_time': datetime.time(10, 0)
+            }
         )
-    
-    # Save active OTP ID in session if wanted, or just return it to React
+        
+        # Deactivate old OTPs for this schedule today
+        OTP.objects.filter(schedule=schedule, is_active=True).update(is_active=False)
+        
+        otp = OTP.objects.create(code=code, schedule=schedule, staff_latitude=lat, staff_longitude=lng, creator=request.user)
+        otps_created.append(otp)
+        
+        # Pre-mark all students
+        students = Student.objects.filter(student_class=schedule.student_class)
+        for student in students:
+            # Check for approved leave/od
+            approved_leave = Leave.objects.filter(student=student, date=today, final_status='Approved').first()
+            default_status = approved_leave.leave_type if approved_leave else 'Absent'
+            
+            Attendance.objects.get_or_create(
+                student=student, 
+                schedule=schedule, 
+                date=today,
+                defaults={'status': default_status}
+            )
+            
+    if not otps_created:
+        return Response({'detail': 'No periods could be resolved.'}, status=status.HTTP_400_BAD_REQUEST)
+        
     return Response({
         'detail': 'OTP generated successfully',
-        'otp_id': otp.id,
-        'code': code
+        'otp_id': otps_created[0].id,
+        'otp_ids': [o.id for o in otps_created],
+        'code': code,
+        'periods': periods
     })
 
 @api_view(['POST'])
@@ -136,15 +161,14 @@ def api_verify_otp(request):
     student_lat = float(student_lat)
     student_lng = float(student_lng)
     
-    # Find active OTP
+    # Find active OTPs
     otp_qs = OTP.objects.filter(code=code, is_active=True).order_by('-created_at')
     if otp_qs.exists():
         otp = otp_qs.first()
         now = timezone.now()
         
-        # Check 3 minute validity
+        # Check 3 minute validity (on the most recent one)
         if now <= otp.created_at + timedelta(minutes=3):
-            
             # Geofence check if staff provided location
             if otp.staff_latitude and otp.staff_longitude:
                 distance = haversine(student_lng, student_lat, otp.staff_longitude, otp.staff_latitude)
@@ -155,7 +179,7 @@ def api_verify_otp(request):
             
             try:
                 student = request.user.student
-                today = date.today()
+                today = timezone.localdate()
                 
                 # Check if student has approved Leave/OD today
                 from leave.models import Leave
@@ -164,34 +188,67 @@ def api_verify_otp(request):
                     return Response({
                         'detail': f'You cannot mark Present because you are approved for {approved_leave.leave_type} today.'
                     }, status=status.HTTP_400_BAD_REQUEST)
+                
+                marked_periods = []
+                for active_otp in otp_qs:
+                    # Double check validity of each active otp in the queryset
+                    if now > active_otp.created_at + timedelta(minutes=3):
+                        active_otp.is_active = False
+                        active_otp.save()
+                        continue
+                        
+                    # Check existing attendance record for this schedule
+                    existing_att = Attendance.objects.filter(student=student, schedule=active_otp.schedule, date=today).first()
+                    if existing_att and existing_att.status in ['Leave', 'OD']:
+                        continue
                     
-                # Also check existing attendance record
-                existing_att = Attendance.objects.filter(student=student, schedule=otp.schedule, date=today).first()
-                if existing_att and existing_att.status in ['Leave', 'OD']:
+                    # Update attendance to Present
+                    attendance, created = Attendance.objects.get_or_create(
+                        student=student, 
+                        schedule=active_otp.schedule, 
+                        date=today,
+                        defaults={'status': 'Present'}
+                    )
+                    if not created:
+                        attendance.status = 'Present'
+                        attendance.save()
+                    marked_periods.append(str(active_otp.schedule.period))
+                
+                if not marked_periods:
                     return Response({
-                        'detail': f'You cannot mark Present because you are marked as {existing_att.status} today.'
+                        'detail': 'No attendance marked. You might have Leave/OD for the selected period(s).'
                     }, status=status.HTTP_400_BAD_REQUEST)
                 
-                # Update attendance to Present
-                attendance, created = Attendance.objects.get_or_create(
-                    student=student, 
-                    schedule=otp.schedule, 
-                    date=today,
-                    defaults={'status': 'Present'}
-                )
-                if not created:
-                    attendance.status = 'Present'
-                    attendance.save()
-                    
-                return Response({'detail': 'Attendance marked as Present successfully'})
+                return Response({'detail': f"Attendance marked as Present successfully for Period(s) {', '.join(marked_periods)}"})
             except Student.DoesNotExist:
                 return Response({'detail': 'Student profile not found'}, status=status.HTTP_404_NOT_FOUND)
         else:
-            otp.is_active = False
-            otp.save()
+            # Mark all as inactive since time is up
+            otp_qs.update(is_active=False)
             return Response({'detail': 'OTP has expired'}, status=status.HTTP_400_BAD_REQUEST)
     else:
         return Response({'detail': 'Invalid OTP'}, status=status.HTTP_400_BAD_REQUEST)
+
+@api_view(['POST'])
+@permission_classes([IsAuthenticated])
+def api_stop_session(request):
+    if request.user.role not in ['staff', 'hod']:
+        return Response({'detail': 'Unauthorized'}, status=status.HTTP_403_FORBIDDEN)
+        
+    otp_id = request.data.get('otp_id')
+    otp_ids = request.data.get('otp_ids', [])
+    
+    if otp_id:
+        OTP.objects.filter(id=otp_id).update(is_active=False)
+        
+    if otp_ids:
+        OTP.objects.filter(id__in=otp_ids).update(is_active=False)
+        
+    if not otp_id and not otp_ids:
+        today = timezone.now().date()
+        OTP.objects.filter(creator=request.user, created_at__date=today, is_active=True).update(is_active=False)
+        
+    return Response({'detail': 'Session stopped successfully'})
 
 @api_view(['GET'])
 @permission_classes([IsAuthenticated])
@@ -638,7 +695,7 @@ class AttendanceViewSet(viewsets.ModelViewSet):
         date_str = self.request.query_params.get('date')
         
         department = user.department
-        students = Student.objects.filter(user__department=department).select_related('user', 'student_class').order_by('user__first_name', 'user__username')
+        students = Student.objects.filter(user__department=department).select_related('user', 'student_class').order_by('reg_no', 'user__username')
         
         students_list = [
             {

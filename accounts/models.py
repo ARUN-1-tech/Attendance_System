@@ -34,7 +34,7 @@ class Class(models.Model):
         return f"{self.name} - {self.year} - {self.section}"
 
     def auto_assign_tutors(self, force=False):
-        students = list(self.student_set.all().order_by('roll_no', 'user__username'))
+        students = list(self.student_set.all().order_by('reg_no', 'user__username'))
         N = len(students)
         if N == 0:
             return
@@ -96,6 +96,9 @@ class Student(models.Model):
 
     def __str__(self):
         return self.user.username
+
+    class Meta:
+        ordering = ['reg_no', 'user__username']
 
     def save(self, *args, **kwargs):
         skip_auto_assign = kwargs.pop('skip_auto_assign', False)
