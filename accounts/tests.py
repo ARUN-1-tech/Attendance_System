@@ -196,5 +196,97 @@ class StudentBulkImportTestCase(TestCase):
         
         errors = response.data['errors']
         self.assertEqual(len(errors), 2)
-        self.assertIn("Row 3: Username already exists", errors)
-        self.assertIn("Row 5: Class not found", errors)
+        self.assertIn("Row 3 : Username already exists", errors)
+        self.assertIn("Row 5 : Class not found", errors)
+
+    def test_tolerant_class_lookup(self):
+        # Create classes with different formats to test tolerant class lookup
+        Class.objects.create(name='B.E CSE', year=3, section='A', department=self.dept, tutor3=self.advisor_user)
+        
+        # Test class matching for: B.E. CSE A, B.E CSE_A, BE CSE A, b.e cse a
+        csv_buffer = io.StringIO()
+        writer = csv.writer(csv_buffer)
+        writer.writerow(['username', 'password', 'class', 'year', 'register_no'])
+        writer.writerow(['student_class_test1', 'pass123', 'B.E. CSE A', '3', 'REG_CLASS1'])
+        writer.writerow(['student_class_test2', 'pass123', 'B.E CSE_A', '3', 'REG_CLASS2'])
+        writer.writerow(['student_class_test3', 'pass123', 'BE CSE A', '3', 'REG_CLASS3'])
+        
+        uploaded_file = SimpleUploadedFile("students.csv", csv_buffer.getvalue().encode('utf-8'), content_type="text/csv")
+        response = self.client.post('/api/students/bulk_create/', {'file': uploaded_file})
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.data['created'], 3)
+        self.assertEqual(response.data['failed'], 0)
+
+    def test_department_missing_error(self):
+        # Log in as a user with no department assigned
+        advisor_no_dept = User.objects.create_user('advisor_no_dept', 'no_dept@example.com', 'pass123')
+        advisor_no_dept.role = 'staff'
+        advisor_no_dept.save()
+        Staff.objects.create(user=advisor_no_dept, staff_type='Advisor')
+        
+        self.client.login(username='advisor_no_dept', password='pass123')
+        
+        csv_buffer = io.StringIO()
+        writer = csv.writer(csv_buffer)
+        writer.writerow(['username', 'password', 'class', 'year'])
+        writer.writerow(['student_no_dept', 'pass123', 'B.Tech CS', '3'])
+        
+        uploaded_file = SimpleUploadedFile("students.csv", csv_buffer.getvalue().encode('utf-8'), content_type="text/csv")
+        response = self.client.post('/api/students/bulk_create/', {'file': uploaded_file})
+        self.assertEqual(response.status_code, 400)
+        self.assertEqual(response.data['detail'], "HOD/Advisor has no department assigned.")
+
+    def test_duplicate_checks_reg_no_and_roll_no(self):
+        # Register an existing student with a roll number to test DB duplicates
+        self.existing_student.roll_no = 'ROLL_EXISTING'
+        self.existing_student.save()
+        
+        csv_buffer = io.StringIO()
+        writer = csv.writer(csv_buffer)
+        writer.writerow(['username', 'password', 'class', 'year', 'register_no', 'roll_no'])
+        
+        # Row 2: Duplicate registration number in DB
+        writer.writerow(['student_dup1', 'pass123', 'B.Tech CS', '3', 'REG_EXISTING', 'ROLL_NEW1'])
+        # Row 3: Duplicate roll number in DB
+        writer.writerow(['student_dup2', 'pass123', 'B.Tech CS', '3', 'REG_NEW1', 'ROLL_EXISTING'])
+        # Row 4: Duplicate registration number in the same file (first one succeeded)
+        writer.writerow(['student_dup3', 'pass123', 'B.Tech CS', '3', 'REG_FILE_DUP', 'ROLL_NEW2'])
+        # Row 5: Duplicate registration number in the same file (this one fails)
+        writer.writerow(['student_dup4', 'pass123', 'B.Tech CS', '3', 'REG_FILE_DUP', 'ROLL_NEW3'])
+        # Row 6: Duplicate roll number in the same file (first one succeeded)
+        writer.writerow(['student_dup5', 'pass123', 'B.Tech CS', '3', 'REG_NEW4', 'ROLL_FILE_DUP'])
+        # Row 7: Duplicate roll number in the same file (this one fails)
+        writer.writerow(['student_dup6', 'pass123', 'B.Tech CS', '3', 'REG_NEW5', 'ROLL_FILE_DUP'])
+        
+        uploaded_file = SimpleUploadedFile("students.csv", csv_buffer.getvalue().encode('utf-8'), content_type="text/csv")
+        response = self.client.post('/api/students/bulk_create/', {'file': uploaded_file})
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.data['created'], 2)
+        self.assertEqual(response.data['failed'], 4)
+        
+        errors = response.data['errors']
+        self.assertIn("Row 2 : Registration number already exists", errors)
+        self.assertIn("Row 3 : Roll number already exists", errors)
+        self.assertIn("Row 5 : Registration number already exists", errors)
+        self.assertIn("Row 7 : Roll number already exists", errors)
+
+    def test_excel_parsing_float_to_int_and_scientific(self):
+        wb = openpyxl.Workbook()
+        ws = wb.active
+        ws.append(['username', 'password', 'class', 'year', 'register_no', 'roll_no'])
+        
+        # Add year as float, register_no and roll_no with float/scientific representations
+        ws.append(['float_student', 'pass123', 'B.Tech CS', 3.0, 241040001.0, 2.4104e+08])
+        
+        excel_buffer = io.BytesIO()
+        wb.save(excel_buffer)
+        excel_buffer.seek(0)
+        
+        uploaded_file = SimpleUploadedFile("students.xlsx", excel_buffer.getvalue(), content_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
+        response = self.client.post('/api/students/bulk_create/', {'file': uploaded_file})
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.data['created'], 1)
+        
+        student = Student.objects.get(user__username='float_student')
+        self.assertEqual(student.reg_no, '241040001')
+        self.assertEqual(student.roll_no, '241040000')

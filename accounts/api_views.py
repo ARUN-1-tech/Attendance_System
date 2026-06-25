@@ -254,6 +254,9 @@ class StudentViewSet(viewsets.ModelViewSet):
         if user.role != 'hod' and not is_advisor:
             return Response({'detail': 'Only Advisors and HODs can perform bulk addition of students.'}, status=status.HTTP_403_FORBIDDEN)
             
+        if not user.department:
+            return Response({'detail': 'HOD/Advisor has no department assigned.'}, status=status.HTTP_400_BAD_REQUEST)
+            
         file_obj = request.FILES.get('file')
         if not file_obj:
             return Response({'detail': 'No file uploaded.'}, status=status.HTTP_400_BAD_REQUEST)
@@ -352,6 +355,7 @@ class StudentViewSet(viewsets.ModelViewSet):
         valid_students_by_class = {}
         seen_usernames = set()
         seen_reg_nos = set()
+        seen_roll_nos = set()
         
         for row in rows_data:
             row_idx = row['_row_idx']
@@ -360,11 +364,20 @@ class StudentViewSet(viewsets.ModelViewSet):
                 orig_name = headers.get(norm_name)
                 if orig_name and orig_name in row:
                     val = row[orig_name]
-                    return str(val).strip() if val is not None else default
+                    if val is None:
+                        return default
+                    val_str = str(val).strip()
+                    try:
+                        f_val = float(val_str)
+                        if f_val.is_integer():
+                            return str(int(f_val))
+                    except (ValueError, TypeError):
+                        pass
+                    return val_str
                 return default
                 
             username = get_val('username')
-            email = get_val('email') or get_val('collegemail') or get_val('mail')
+            email = get_val('email') or get_val('collegemail') or get_val('mail') or get_val('college_mail') or get_val('email_id') or get_val('emailid')
             reg_no = get_val('regno') or get_val('registerno') or get_val('register_no') or get_val('reg_no')
             roll_no = get_val('rollno') or get_val('roll_no')
             age_val = get_val('age')
@@ -391,9 +404,15 @@ class StudentViewSet(viewsets.ModelViewSet):
                 
             if reg_no:
                 if reg_no in seen_reg_nos:
-                    row_errors.append(f"Student with registration number '{reg_no}' already exists.")
+                    row_errors.append("Registration number already exists")
                 elif Student.objects.filter(reg_no=reg_no).exists():
-                    row_errors.append(f"Student with registration number '{reg_no}' already exists.")
+                    row_errors.append("Registration number already exists")
+                    
+            if roll_no:
+                if roll_no in seen_roll_nos:
+                    row_errors.append("Roll number already exists")
+                elif Student.objects.filter(roll_no=roll_no).exists():
+                    row_errors.append("Roll number already exists")
                 
             selected_class = None
             if class_name and year_val.isdigit():
@@ -404,12 +423,14 @@ class StudentViewSet(viewsets.ModelViewSet):
             if row_errors:
                 failed_count += 1
                 for err in row_errors:
-                    errors.append(f"Row {row_idx}: {err}")
+                    errors.append(f"Row {row_idx} : {err}")
                 continue
                 
             seen_usernames.add(username)
             if reg_no:
                 seen_reg_nos.add(reg_no)
+            if roll_no:
+                seen_roll_nos.add(roll_no)
                 
             classes_to_update.add(selected_class)
             
@@ -436,12 +457,13 @@ class StudentViewSet(viewsets.ModelViewSet):
             if N == 0:
                 continue
                 
-            # Assign tutors based on class tutors and automatic fallback
-            t1 = selected_class.tutor1 or selected_class.tutor2 or selected_class.tutor3
-            t2 = selected_class.tutor2 or selected_class.tutor1 or selected_class.tutor3
-            t3 = selected_class.tutor3 or selected_class.tutor1 or selected_class.tutor2
+            # Assign tutors: Tutor 1, Tutor 2, Tutor 3 directly
+            t1 = selected_class.tutor1
+            t2 = selected_class.tutor2
+            t3 = selected_class.tutor3
             
-            advisor_user = selected_class.advisor or selected_class.tutor3
+            # Advisor is Tutor 3
+            advisor_user = selected_class.tutor3
             
             # Equal distribution
             g1_size = N // 3 + (1 if N % 3 >= 1 else 0)
@@ -489,10 +511,11 @@ class StudentViewSet(viewsets.ModelViewSet):
                         else:
                             tutor3_count += 1
                 except Exception as e:
+                    import traceback
+                    traceback.print_exc()
                     failed_count += 1
-                    errors.append(f"Row {stud['row_idx']}: Failed to create student: {str(e)}")
+                    errors.append(f"Row {stud['row_idx']} : {type(e).__name__}: {str(e)}")
                     
-
         return Response({
             'success': True,
             'created': created_count,
@@ -514,23 +537,44 @@ class StudentViewSet(viewsets.ModelViewSet):
     def _normalize_header(self, h):
         return h.lower().replace(' ', '').replace('_', '').replace('-', '')
 
+    def _normalize_string(self, s):
+        if not s:
+            return ""
+        return str(s).lower().replace(' ', '').replace('_', '').replace('.', '').replace('-', '')
+
     def _find_class(self, class_str, year_val, dept):
         if not class_str or year_val is None:
             return None
-        class_str_clean = class_str.strip().lower()
+            
+        target = self._normalize_string(class_str)
         classes = Class.objects.filter(department=dept, year=year_val)
+        
+        # Try direct name + section match
         for c in classes:
-            if class_str_clean == str(c).lower():
+            combined = self._normalize_string(c.name + c.section)
+            if target == combined:
                 return c
+                
+        # Try name match
         for c in classes:
-            if c.name.lower() in class_str_clean and c.section.lower() in class_str_clean:
+            name_norm = self._normalize_string(c.name)
+            if target == name_norm:
                 return c
+                
+        # Try finding name and section as sub-parts of target
         for c in classes:
-            if c.name.lower() == class_str_clean:
-                return c
+            name_norm = self._normalize_string(c.name)
+            sec_norm = self._normalize_string(c.section)
+            if name_norm and name_norm in target:
+                if not sec_norm or sec_norm in target:
+                    return c
+                    
+        # Try matching string representation
         for c in classes:
-            if class_str_clean in c.name.lower() or c.name.lower() in class_str_clean:
+            str_norm = self._normalize_string(str(c))
+            if target == str_norm:
                 return c
+                
         return None
 
 class StaffViewSet(viewsets.ModelViewSet):
