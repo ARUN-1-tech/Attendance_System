@@ -565,3 +565,24 @@ class UserPasswordChangeAndManualAttendanceTestCase(TestCase):
         self.assertEqual(response.status_code, 200)
         self.assertEqual(len(response.data), 1)
         self.assertEqual(response.data[0]['status'], 'Half Day')
+
+    def test_student_stats_includes_all_class_subjects(self):
+        from accounts.models import Subject
+        new_sub = Subject.objects.create(
+            name="New Created Subject",
+            code="NCS101",
+            department=self.dept,
+            student_class=self.clazz
+        )
+        
+        self.client.login(username='stud_user', password='studpass123')
+        response = self.client.get(f'/api/attendance/student-stats/{self.student_user.username}/')
+        self.assertEqual(response.status_code, 200)
+        
+        breakdown = response.data['subjects_breakdown']
+        sub_names = [sub['name'] for sub in breakdown]
+        self.assertIn("New Created Subject", sub_names)
+        
+        new_sub_breakdown = next(sub for sub in breakdown if sub['name'] == "New Created Subject")
+        self.assertEqual(new_sub_breakdown['total_periods'], 0)
+        self.assertEqual(new_sub_breakdown['percentage'], 100.0)

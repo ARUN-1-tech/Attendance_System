@@ -104,6 +104,7 @@ const StaffDashboard = ({ activeTab }) => {
   const [advisorLoading, setAdvisorLoading] = useState(false);
   const [advisorError, setAdvisorError] = useState(null);
   const [advisorSuccess, setAdvisorSuccess] = useState(null);
+  const [manualAttView, setManualAttView] = useState('whole_day');
 
   const fetchAdvisedSubjects = async (classId) => {
     if (!classId) return;
@@ -348,6 +349,8 @@ const StaffDashboard = ({ activeTab }) => {
       fetchLeavesAndODs();
     } else if (activeTab === 'students') {
       fetchStudents();
+    } else if (activeTab === 'manual_attendance') {
+      setManualAttView('whole_day');
     }
   }, [activeTab]);
 
@@ -1963,6 +1966,25 @@ const StaffDashboard = ({ activeTab }) => {
         </div>
 
         {user.staff_details?.staff_type === 'Advisor' && (
+          <div style={{ display: 'flex', gap: '12px', marginBottom: '24px' }}>
+            <button 
+              type="button"
+              className={`btn ${manualAttView === 'whole_day' ? 'btn-primary' : 'btn-outline'}`}
+              onClick={() => setManualAttView('whole_day')}
+            >
+              Whole Day Attendance (Advisor Class)
+            </button>
+            <button 
+              type="button"
+              className={`btn ${manualAttView === 'subject_wise' ? 'btn-primary' : 'btn-outline'}`}
+              onClick={() => setManualAttView('subject_wise')}
+            >
+              Subject-wise Attendance
+            </button>
+          </div>
+        )}
+
+        {user.staff_details?.staff_type === 'Advisor' && manualAttView === 'whole_day' && (
           <div className="card" style={{ marginBottom: '32px', border: '1px solid rgba(79, 70, 229, 0.25)', boxShadow: '0 4px 20px -2px rgba(79, 70, 229, 0.08)' }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '12px', borderBottom: '1px solid var(--border-color)', paddingBottom: '16px', marginBottom: '20px' }}>
               <div>
@@ -2118,235 +2140,239 @@ const StaffDashboard = ({ activeTab }) => {
           </div>
         )}
 
-        <div className="card" style={{ marginBottom: '24px' }}>
-          <form onSubmit={handleSaveClassManualAttendance}>
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(5, 1fr)', gap: '16px' }}>
-              <div className="form-group">
-                <label className="form-label">1. Department</label>
-                <select 
-                  className="input" 
-                  value={manualDeptId} 
-                  onChange={(e) => {
-                    setManualDeptId(e.target.value);
-                    setManualClassId('');
-                    setManualSubjectId('');
-                    setManualAttStudents([]);
-                    setSelectedManualStudentId('');
-                  }}
-                  required
-                >
-                  <option value="">-- Choose Department --</option>
-                  {departments.map(d => (
-                    <option key={d.id} value={d.id}>{d.name}</option>
-                  ))}
-                </select>
-              </div>
+        {(user.staff_details?.staff_type !== 'Advisor' || manualAttView === 'subject_wise') && (
+          <>
+            <div className="card" style={{ marginBottom: '24px' }}>
+              <form onSubmit={handleSaveClassManualAttendance}>
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(5, 1fr)', gap: '16px' }}>
+                  <div className="form-group">
+                    <label className="form-label">1. Department</label>
+                    <select 
+                      className="input" 
+                      value={manualDeptId} 
+                      onChange={(e) => {
+                        setManualDeptId(e.target.value);
+                        setManualClassId('');
+                        setManualSubjectId('');
+                        setManualAttStudents([]);
+                        setSelectedManualStudentId('');
+                      }}
+                      required
+                    >
+                      <option value="">-- Choose Department --</option>
+                      {departments.map(d => (
+                        <option key={d.id} value={d.id}>{d.name}</option>
+                      ))}
+                    </select>
+                  </div>
 
-              <div className="form-group">
-                <label className="form-label">2. Class</label>
-                <select 
-                  className="input" 
-                  value={manualClassId} 
-                  onChange={(e) => {
-                    setManualClassId(e.target.value);
-                    setManualSubjectId('');
-                    setManualAttStudents([]);
-                    setSelectedManualStudentId('');
-                  }}
-                  disabled={!manualDeptId}
-                  required
-                >
-                  <option value="">-- Choose Class --</option>
-                  {classes.filter(c => c.department?.toString() === manualDeptId).map(c => (
-                    <option key={c.id} value={c.id}>
-                      {c.name} - Yr {c.year} ({c.section})
-                    </option>
-                  ))}
-                </select>
-              </div>
+                  <div className="form-group">
+                    <label className="form-label">2. Class</label>
+                    <select 
+                      className="input" 
+                      value={manualClassId} 
+                      onChange={(e) => {
+                        setManualClassId(e.target.value);
+                        setManualSubjectId('');
+                        setManualAttStudents([]);
+                        setSelectedManualStudentId('');
+                      }}
+                      disabled={!manualDeptId}
+                      required
+                    >
+                      <option value="">-- Choose Class --</option>
+                      {classes.filter(c => c.department?.toString() === manualDeptId).map(c => (
+                        <option key={c.id} value={c.id}>
+                          {c.name} - Yr {c.year} ({c.section})
+                        </option>
+                      ))}
+                    </select>
+                  </div>
 
-              <div className="form-group">
-                <label className="form-label">3. Subject</label>
-                <select 
-                  className="input" 
-                  value={manualSubjectId} 
-                  onChange={(e) => {
-                    setManualSubjectId(e.target.value);
-                    setManualAttStudents([]);
-                    setSelectedManualStudentId('');
-                  }}
-                  disabled={!manualClassId}
-                  required
-                >
-                  <option value="">-- Choose Subject --</option>
-                  {subjects.filter(sub => sub.student_class?.toString() === manualClassId || (!sub.student_class && sub.department?.toString() === manualDeptId)).map(sub => (
-                    <option key={sub.id} value={sub.id}>
-                      {sub.name} ({sub.code})
-                    </option>
-                  ))}
-                </select>
-              </div>
+                  <div className="form-group">
+                    <label className="form-label">3. Subject</label>
+                    <select 
+                      className="input" 
+                      value={manualSubjectId} 
+                      onChange={(e) => {
+                        setManualSubjectId(e.target.value);
+                        setManualAttStudents([]);
+                        setSelectedManualStudentId('');
+                      }}
+                      disabled={!manualClassId}
+                      required
+                    >
+                      <option value="">-- Choose Subject --</option>
+                      {subjects.filter(sub => sub.student_class?.toString() === manualClassId || (!sub.student_class && sub.department?.toString() === manualDeptId)).map(sub => (
+                        <option key={sub.id} value={sub.id}>
+                          {sub.name} ({sub.code})
+                        </option>
+                      ))}
+                    </select>
+                  </div>
 
-              <div className="form-group">
-                <label className="form-label">4. Date</label>
-                <input 
-                  type="date" 
-                  className="input" 
-                  value={manualDate} 
-                  onChange={(e) => {
-                    setManualDate(e.target.value);
-                    setManualAttStudents([]);
-                    setSelectedManualStudentId('');
-                  }}
-                  disabled={!manualSubjectId}
-                  required
-                />
-              </div>
+                  <div className="form-group">
+                    <label className="form-label">4. Date</label>
+                    <input 
+                      type="date" 
+                      className="input" 
+                      value={manualDate} 
+                      onChange={(e) => {
+                        setManualDate(e.target.value);
+                        setManualAttStudents([]);
+                        setSelectedManualStudentId('');
+                      }}
+                      disabled={!manualSubjectId}
+                      required
+                    />
+                  </div>
 
-              <div className="form-group">
-                <label className="form-label">5. Student</label>
-                <select 
-                  className="input" 
-                  value={selectedManualStudentId} 
-                  onChange={(e) => setSelectedManualStudentId(e.target.value)}
-                  disabled={!manualDate || manualAttStudents.length === 0}
-                  required
-                >
-                  <option value="">-- Choose Student --</option>
-                  {manualAttStudents.map(s => (
-                    <option key={s.id} value={s.id}>
-                      {s.name} ({s.reg_no})
-                    </option>
-                  ))}
-                </select>
-              </div>
+                  <div className="form-group">
+                    <label className="form-label">5. Student</label>
+                    <select 
+                      className="input" 
+                      value={selectedManualStudentId} 
+                      onChange={(e) => setSelectedManualStudentId(e.target.value)}
+                      disabled={!manualDate || manualAttStudents.length === 0}
+                      required
+                    >
+                      <option value="">-- Choose Student --</option>
+                      {manualAttStudents.map(s => (
+                        <option key={s.id} value={s.id}>
+                          {s.name} ({s.reg_no})
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                </div>
+
+                {manualAttLoading && <div style={{ margin: '16px 0', fontWeight: '500' }}>Loading student data...</div>}
+
+                {manualAttError && (
+                  <div style={{ backgroundColor: 'var(--danger-light)', color: 'var(--danger)', padding: '12px', borderRadius: 'var(--radius-sm)', margin: '16px 0', fontSize: '13px' }}>
+                    {manualAttError}
+                  </div>
+                )}
+
+                {manualAttMessage && (
+                  <div style={{ backgroundColor: 'var(--success-light)', color: 'var(--success)', padding: '12px', borderRadius: 'var(--radius-sm)', margin: '16px 0', fontSize: '13px' }}>
+                    {manualAttMessage}
+                  </div>
+                )}
+
+                {!manualAttLoading && manualClassId && manualSubjectId && manualDate && selectedManualStudentId && (
+                  <div style={{ marginTop: '24px' }}>
+                    <h3 style={{ marginBottom: '16px', fontSize: '15px', fontWeight: '600' }}>Mark Attendance for Student</h3>
+                    {(() => {
+                      const student = manualAttStudents.find(s => s.id.toString() === selectedManualStudentId.toString());
+                      if (!student) return null;
+                      return (
+                        <div className="card" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '20px', backgroundColor: 'var(--bg-primary)', border: '1px solid var(--border-color)' }}>
+                          <div>
+                            <strong style={{ color: 'var(--text-primary)', fontSize: '15px', display: 'block' }}>{student.name}</strong>
+                            <span style={{ fontSize: '13px', color: 'var(--text-secondary)' }}>
+                              Reg No: {student.reg_no} | Roll No: {student.roll_no}
+                            </span>
+                          </div>
+                          <div style={{ display: 'flex', gap: '20px' }}>
+                            {['Present', 'Absent', 'OD'].map(st => (
+                              <label key={st} style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '13px', cursor: 'pointer' }}>
+                                <input 
+                                  type="radio" 
+                                  name={`status_${student.id}`} 
+                                  value={st}
+                                  checked={manualStatuses[student.id] === st}
+                                  onChange={(e) => {
+                                    setManualStatuses({
+                                      ...manualStatuses,
+                                      [student.id]: e.target.value
+                                    });
+                                  }}
+                                />
+                                <span style={{
+                                  color: st === 'Present' ? 'var(--success)' :
+                                         st === 'Absent' ? 'var(--danger)' : 'var(--info)',
+                                  fontWeight: '600'
+                                }}>
+                                  {st}
+                                </span>
+                              </label>
+                            ))}
+                          </div>
+                        </div>
+                      );
+                    })()}
+
+                    <div style={{ marginTop: '24px' }}>
+                      <button type="submit" className="btn btn-primary" style={{ width: '100%' }}>
+                        Save Attendance
+                      </button>
+                    </div>
+                  </div>
+                )}
+
+                {!manualAttLoading && manualClassId && manualSubjectId && manualDate && manualAttStudents.length === 0 && !manualAttError && (
+                  <div style={{ padding: '24px', textAlign: 'center', color: 'var(--text-muted)', backgroundColor: 'var(--bg-primary)', borderRadius: 'var(--radius-sm)', border: '1px dashed var(--border-color)', marginTop: '16px' }}>
+                    No students found for the selected class.
+                  </div>
+                )}
+              </form>
             </div>
 
-            {manualAttLoading && <div style={{ margin: '16px 0', fontWeight: '500' }}>Loading student data...</div>}
-
-            {manualAttError && (
-              <div style={{ backgroundColor: 'var(--danger-light)', color: 'var(--danger)', padding: '12px', borderRadius: 'var(--radius-sm)', margin: '16px 0', fontSize: '13px' }}>
-                {manualAttError}
-              </div>
-            )}
-
-            {manualAttMessage && (
-              <div style={{ backgroundColor: 'var(--success-light)', color: 'var(--success)', padding: '12px', borderRadius: 'var(--radius-sm)', margin: '16px 0', fontSize: '13px' }}>
-                {manualAttMessage}
-              </div>
-            )}
-
-            {!manualAttLoading && manualClassId && manualSubjectId && manualDate && selectedManualStudentId && (
-              <div style={{ marginTop: '24px' }}>
-                <h3 style={{ marginBottom: '16px', fontSize: '15px', fontWeight: '600' }}>Mark Attendance for Student</h3>
-                {(() => {
-                  const student = manualAttStudents.find(s => s.id.toString() === selectedManualStudentId.toString());
-                  if (!student) return null;
-                  return (
-                    <div className="card" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '20px', backgroundColor: 'var(--bg-primary)', border: '1px solid var(--border-color)' }}>
-                      <div>
-                        <strong style={{ color: 'var(--text-primary)', fontSize: '15px', display: 'block' }}>{student.name}</strong>
-                        <span style={{ fontSize: '13px', color: 'var(--text-secondary)' }}>
-                          Reg No: {student.reg_no} | Roll No: {student.roll_no}
-                        </span>
-                      </div>
-                      <div style={{ display: 'flex', gap: '20px' }}>
-                        {['Present', 'Absent', 'OD'].map(st => (
-                          <label key={st} style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '13px', cursor: 'pointer' }}>
-                            <input 
-                              type="radio" 
-                              name={`status_${student.id}`} 
-                              value={st}
-                              checked={manualStatuses[student.id] === st}
-                              onChange={(e) => {
-                                setManualStatuses({
-                                  ...manualStatuses,
-                                  [student.id]: e.target.value
-                                });
-                              }}
-                            />
-                            <span style={{
-                              color: st === 'Present' ? 'var(--success)' :
-                                     st === 'Absent' ? 'var(--danger)' : 'var(--info)',
-                              fontWeight: '600'
+            {recentlyMarked && recentlyMarked.length > 0 && (
+              <div className="card" style={{ marginTop: '24px' }}>
+                <h3 style={{ marginBottom: '16px', fontSize: '16px', fontWeight: '600', color: 'var(--text-primary)' }}>
+                  Recently Marked Attendance
+                </h3>
+                <div className="table-container">
+                  <table className="table">
+                    <thead>
+                      <tr>
+                        <th>Student</th>
+                        <th>Date</th>
+                        <th>Period / Subject</th>
+                        <th>Status</th>
+                        <th>Time Marked</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {recentlyMarked.map((item, idx) => (
+                        <tr key={idx}>
+                          <td>
+                            <strong style={{ color: 'var(--text-primary)' }}>{item.studentName}</strong>
+                            <div style={{ fontSize: '12px', color: 'var(--text-secondary)' }}>{item.regNo}</div>
+                          </td>
+                          <td>{item.date}</td>
+                          <td>
+                            <strong>Period {item.period}</strong>
+                            <div style={{ fontSize: '12px', color: 'var(--text-secondary)' }}>{item.subjectName}</div>
+                          </td>
+                          <td>
+                            <span className="badge" style={{
+                              backgroundColor: item.status === 'Present' ? 'rgba(16, 185, 129, 0.15)' :
+                                               item.status === 'Absent' ? 'rgba(239, 68, 68, 0.15)' :
+                                               item.status === 'OD' ? 'rgba(59, 130, 246, 0.15)' : 'rgba(234, 179, 8, 0.15)',
+                              color: item.status === 'Present' ? 'var(--success)' :
+                                     item.status === 'Absent' ? 'var(--danger)' :
+                                     item.status === 'OD' ? 'var(--info)' : 'var(--warning)',
+                              border: `1px solid ${
+                                item.status === 'Present' ? 'rgba(16, 185, 129, 0.3)' :
+                                item.status === 'Absent' ? 'rgba(239, 68, 68, 0.3)' :
+                                item.status === 'OD' ? 'rgba(59, 130, 246, 0.3)' : 'rgba(234, 179, 8, 0.3)'
+                              }`
                             }}>
-                              {st}
+                              {item.status}
                             </span>
-                          </label>
-                        ))}
-                      </div>
-                    </div>
-                  );
-                })()}
-
-                <div style={{ marginTop: '24px' }}>
-                  <button type="submit" className="btn btn-primary" style={{ width: '100%' }}>
-                    Save Attendance
-                  </button>
+                          </td>
+                          <td style={{ fontSize: '12px', color: 'var(--text-secondary)' }}>{item.timeMarked}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
                 </div>
               </div>
             )}
-
-            {!manualAttLoading && manualClassId && manualSubjectId && manualDate && manualAttStudents.length === 0 && !manualAttError && (
-              <div style={{ padding: '24px', textAlign: 'center', color: 'var(--text-muted)', backgroundColor: 'var(--bg-primary)', borderRadius: 'var(--radius-sm)', border: '1px dashed var(--border-color)', marginTop: '16px' }}>
-                No students found for the selected class.
-              </div>
-            )}
-          </form>
-        </div>
-
-        {recentlyMarked && recentlyMarked.length > 0 && (
-          <div className="card" style={{ marginTop: '24px' }}>
-            <h3 style={{ marginBottom: '16px', fontSize: '16px', fontWeight: '600', color: 'var(--text-primary)' }}>
-              Recently Marked Attendance
-            </h3>
-            <div className="table-container">
-              <table className="table">
-                <thead>
-                  <tr>
-                    <th>Student</th>
-                    <th>Date</th>
-                    <th>Period / Subject</th>
-                    <th>Status</th>
-                    <th>Time Marked</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {recentlyMarked.map((item, idx) => (
-                    <tr key={idx}>
-                      <td>
-                        <strong style={{ color: 'var(--text-primary)' }}>{item.studentName}</strong>
-                        <div style={{ fontSize: '12px', color: 'var(--text-secondary)' }}>{item.regNo}</div>
-                      </td>
-                      <td>{item.date}</td>
-                      <td>
-                        <strong>Period {item.period}</strong>
-                        <div style={{ fontSize: '12px', color: 'var(--text-secondary)' }}>{item.subjectName}</div>
-                      </td>
-                      <td>
-                        <span className="badge" style={{
-                          backgroundColor: item.status === 'Present' ? 'rgba(16, 185, 129, 0.15)' :
-                                           item.status === 'Absent' ? 'rgba(239, 68, 68, 0.15)' :
-                                           item.status === 'OD' ? 'rgba(59, 130, 246, 0.15)' : 'rgba(234, 179, 8, 0.15)',
-                          color: item.status === 'Present' ? 'var(--success)' :
-                                 item.status === 'Absent' ? 'var(--danger)' :
-                                 item.status === 'OD' ? 'var(--info)' : 'var(--warning)',
-                          border: `1px solid ${
-                            item.status === 'Present' ? 'rgba(16, 185, 129, 0.3)' :
-                            item.status === 'Absent' ? 'rgba(239, 68, 68, 0.3)' :
-                            item.status === 'OD' ? 'rgba(59, 130, 246, 0.3)' : 'rgba(234, 179, 8, 0.3)'
-                          }`
-                        }}>
-                          {item.status}
-                        </span>
-                      </td>
-                      <td style={{ fontSize: '12px', color: 'var(--text-secondary)' }}>{item.timeMarked}</td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          </div>
+          </>
         )}
       </div>
     );
