@@ -489,8 +489,16 @@ const StaffDashboard = ({ activeTab }) => {
     setStudentRollNo('');
     setStudentAge('');
     setStudentPhone('');
-    setStudentClassId('');
-    setStudentYear('');
+    
+    const advised = user.staff_details?.advised_class_details;
+    if (advised) {
+      setStudentClassId(advised.id.toString());
+      setStudentYear(advised.year.toString());
+    } else {
+      setStudentClassId('');
+      setStudentYear('');
+    }
+    
     setStudentTutorId('');
     setStudentAdvisorId('');
   };
@@ -1723,13 +1731,19 @@ const StaffDashboard = ({ activeTab }) => {
 
               <div className="form-group">
                 <label className="form-label">Department (Auto-filled)</label>
-                <input type="text" className="input" value={user.department_name || 'My Department'} disabled style={{ backgroundColor: 'var(--bg-tertiary)' }} />
+                <input type="text" className="input" value={user.staff_details?.advised_class_details?.department_name || user.department_name || 'My Department'} disabled style={{ backgroundColor: 'var(--bg-tertiary)' }} />
               </div>
 
               <div className="grid grid-cols-2">
                 <div className="form-group">
                   <label className="form-label">Year</label>
-                  <select className="input" value={studentYear} onChange={(e) => { setStudentYear(e.target.value); setStudentClassId(''); }} required>
+                  <select 
+                    className="input" 
+                    value={studentYear} 
+                    onChange={(e) => { setStudentYear(e.target.value); setStudentClassId(''); }} 
+                    disabled={!!user.staff_details?.advised_class_details}
+                    required
+                  >
                     <option value="">-- Select Year --</option>
                     <option value="1">1st Year</option>
                     <option value="2">2nd Year</option>
@@ -1739,7 +1753,13 @@ const StaffDashboard = ({ activeTab }) => {
                 </div>
                 <div className="form-group">
                   <label className="form-label">Class</label>
-                  <select className="input" value={studentClassId} onChange={(e) => setStudentClassId(e.target.value)} required>
+                  <select 
+                    className="input" 
+                    value={studentClassId} 
+                    onChange={(e) => setStudentClassId(e.target.value)} 
+                    disabled={!!user.staff_details?.advised_class_details}
+                    required
+                  >
                     <option value="">-- Select Class --</option>
                     {classes.filter(c => !studentYear || c.year.toString() === studentYear).map(c => (
                       <option key={c.id} value={c.id}>{c.name} - Yr {c.year} (Sec {c.section})</option>

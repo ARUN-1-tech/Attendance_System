@@ -500,7 +500,7 @@ class StudentViewSet(viewsets.ModelViewSet):
             t1 = selected_class.tutor1
             t2 = selected_class.tutor2
             t3 = selected_class.tutor3
-            advisor_user = selected_class.tutor3
+            advisor_user = selected_class.advisor or selected_class.tutor1
             
             g1_size = N // 3 + (1 if N % 3 >= 1 else 0)
             g2_size = N // 3 + (1 if N % 3 >= 2 else 0)
