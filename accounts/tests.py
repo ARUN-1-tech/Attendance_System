@@ -565,3 +565,49 @@ class UserPasswordChangeAndManualAttendanceTestCase(TestCase):
         self.assertEqual(response.status_code, 200)
         self.assertEqual(len(response.data), 1)
         self.assertEqual(response.data[0]['status'], 'Half Day')
+
+    def test_student_stats_returns_all_subjects_even_with_no_attendance(self):
+        from accounts.models import Subject
+        # Create a subject assigned to class but with no schedules or attendance
+        new_sub = Subject.objects.create(
+            name='Physics',
+            code='PHY101',
+            student_class=self.clazz,
+            department=self.dept
+        )
+        
+        self.client.login(username='stud_user', password='studpass123')
+        response = self.client.get('/api/attendance/student-stats/stud_user/')
+        self.assertEqual(response.status_code, 200)
+        
+        subjects = response.data['subjects_breakdown']
+        physics_sub = next((s for s in subjects if s['code'] == 'PHY101'), None)
+        self.assertIsNotNone(physics_sub)
+        self.assertEqual(physics_sub['percentage'], 100.0)
+        self.assertEqual(physics_sub['total_periods'], 0)
+
+    def test_bulk_import_subjects_success(self):
+        from django.core.files.uploadedfile import SimpleUploadedFile
+        from accounts.models import Subject
+        
+        self.staff.staff_type = 'Advisor'
+        self.staff.save()
+        self.clazz.advisor = self.staff_user
+        self.clazz.save()
+        
+        self.client.login(username='staff_user', password='staffpass123')
+        
+        csv_content = b"code,name\nPHY101,Physics\nCHM101,Chemistry"
+        uploaded_file = SimpleUploadedFile("subjects.csv", csv_content, content_type="text/csv")
+        
+        response = self.client.post('/api/subjects/bulk-import/', {
+            'file': uploaded_file
+        })
+        
+        self.assertEqual(response.status_code, 200)
+        self.assertTrue(response.data['success'])
+        self.assertEqual(response.data['created'], 2)
+        
+        # Verify database
+        self.assertTrue(Subject.objects.filter(code='PHY101', student_class=self.clazz).exists())
+        self.assertTrue(Subject.objects.filter(code='CHM101', student_class=self.clazz).exists())

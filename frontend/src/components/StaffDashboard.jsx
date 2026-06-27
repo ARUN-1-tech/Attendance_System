@@ -104,6 +104,7 @@ const StaffDashboard = ({ activeTab }) => {
   const [advisorLoading, setAdvisorLoading] = useState(false);
   const [advisorError, setAdvisorError] = useState(null);
   const [advisorSuccess, setAdvisorSuccess] = useState(null);
+  const [manualMode, setManualMode] = useState('subject');
 
   const fetchAdvisedSubjects = async (classId) => {
     if (!classId) return;
@@ -463,6 +464,10 @@ const StaffDashboard = ({ activeTab }) => {
   const [bulkSubmitting, setBulkSubmitting] = useState(false);
   const [bulkErrors, setBulkErrors] = useState([]);
   const [csvFile, setCsvFile] = useState(null);
+  const [subjectBulkUploadOpen, setSubjectBulkUploadOpen] = useState(false);
+  const [subjectBulkSubmitting, setSubjectBulkSubmitting] = useState(false);
+  const [subjectBulkErrors, setSubjectBulkErrors] = useState([]);
+  const [subjectCsvFile, setSubjectCsvFile] = useState(null);
   const [staffList, setStaffList] = useState([]);
   const [editingStudent, setEditingStudent] = useState(null);
   
@@ -606,6 +611,51 @@ const StaffDashboard = ({ activeTab }) => {
       setBulkErrors([err.message || 'Connection error.']);
     } finally {
       setBulkSubmitting(false);
+    }
+  };
+
+  const handleSubjectBulkUpload = async (e) => {
+    if (e) e.preventDefault();
+    if (!subjectCsvFile) {
+      alert('Please select a file.');
+      return;
+    }
+    const ext = subjectCsvFile.name.toLowerCase().split('.').pop();
+    if (ext !== 'csv' && ext !== 'xlsx' && ext !== 'xls') {
+      setSubjectBulkErrors(['Please upload a CSV (.csv) or Excel (.xlsx, .xls) file.']);
+      return;
+    }
+    setSubjectBulkSubmitting(true);
+    setSubjectBulkErrors([]);
+    const formData = new FormData();
+    formData.append("file", subjectCsvFile);
+
+    try {
+      const csrfToken = getCookie('csrftoken');
+      const response = await fetch(`${api.baseUrl}/api/subjects/bulk-import/`, {
+        method: 'POST',
+        headers: csrfToken ? { 'X-CSRFToken': csrfToken } : {},
+        body: formData,
+        credentials: 'include'
+      });
+      const data = await response.json();
+      if (!response.ok) {
+        setSubjectBulkErrors([data.detail || 'Bulk import failed.']);
+      } else {
+        if (data.errors && data.errors.length > 0) {
+          setSubjectBulkErrors(data.errors);
+          alert(`Import completed with some errors. Created: ${data.created}, Updated: ${data.updated}`);
+        } else {
+          alert(data.detail || `Successfully imported all ${data.created} subjects!`);
+          setSubjectBulkUploadOpen(false);
+          setSubjectCsvFile(null);
+        }
+        fetchAdvisedSubjects(advisedClass.id);
+      }
+    } catch (err) {
+      setSubjectBulkErrors([err.message || 'Connection error.']);
+    } finally {
+      setSubjectBulkSubmitting(false);
     }
   };
 
@@ -1963,6 +2013,49 @@ const StaffDashboard = ({ activeTab }) => {
         </div>
 
         {user.staff_details?.staff_type === 'Advisor' && (
+          <div style={{ display: 'flex', gap: '8px', marginBottom: '24px', backgroundColor: 'var(--bg-secondary)', padding: '6px', borderRadius: 'var(--radius-md)', width: 'fit-content', border: '1px solid var(--border-color)' }}>
+            <button 
+              type="button"
+              className="btn"
+              onClick={() => setManualMode('subject')}
+              style={{
+                padding: '8px 16px',
+                fontSize: '14px',
+                fontWeight: '600',
+                borderRadius: 'var(--radius-sm)',
+                backgroundColor: manualMode === 'subject' ? 'var(--accent-primary)' : 'transparent',
+                color: manualMode === 'subject' ? 'white' : 'var(--text-secondary)',
+                border: 'none',
+                boxShadow: manualMode === 'subject' ? '0 2px 8px rgba(79, 70, 229, 0.25)' : 'none',
+                cursor: 'pointer',
+                transition: 'all 0.2s ease'
+              }}
+            >
+              Subject-wise Manual Attendance
+            </button>
+            <button 
+              type="button"
+              className="btn"
+              onClick={() => setManualMode('wholeday')}
+              style={{
+                padding: '8px 16px',
+                fontSize: '14px',
+                fontWeight: '600',
+                borderRadius: 'var(--radius-sm)',
+                backgroundColor: manualMode === 'wholeday' ? 'var(--accent-primary)' : 'transparent',
+                color: manualMode === 'wholeday' ? 'white' : 'var(--text-secondary)',
+                border: 'none',
+                boxShadow: manualMode === 'wholeday' ? '0 2px 8px rgba(79, 70, 229, 0.25)' : 'none',
+                cursor: 'pointer',
+                transition: 'all 0.2s ease'
+              }}
+            >
+              Full Day Manual Attendance
+            </button>
+          </div>
+        )}
+
+        {user.staff_details?.staff_type === 'Advisor' && manualMode === 'wholeday' && (
           <div className="card" style={{ marginBottom: '32px', border: '1px solid rgba(79, 70, 229, 0.25)', boxShadow: '0 4px 20px -2px rgba(79, 70, 229, 0.08)' }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '12px', borderBottom: '1px solid var(--border-color)', paddingBottom: '16px', marginBottom: '20px' }}>
               <div>
@@ -2118,8 +2211,9 @@ const StaffDashboard = ({ activeTab }) => {
           </div>
         )}
 
-        <div className="card" style={{ marginBottom: '24px' }}>
-          <form onSubmit={handleSaveClassManualAttendance}>
+        {(!user.staff_details || user.staff_details.staff_type !== 'Advisor' || manualMode === 'subject') && (
+          <div className="card" style={{ marginBottom: '24px' }}>
+            <form onSubmit={handleSaveClassManualAttendance}>
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(5, 1fr)', gap: '16px' }}>
               <div className="form-group">
                 <label className="form-label">1. Department</label>
@@ -2294,6 +2388,7 @@ const StaffDashboard = ({ activeTab }) => {
             )}
           </form>
         </div>
+        )}
 
         {recentlyMarked && recentlyMarked.length > 0 && (
           <div className="card" style={{ marginTop: '24px' }}>
@@ -2523,21 +2618,98 @@ const StaffDashboard = ({ activeTab }) => {
             )}
           </div>
           {advisedClass && (
-            <button 
-              className="btn btn-primary" 
-              style={{ display: 'flex', alignItems: 'center', gap: '6px' }}
-              onClick={() => {
-                setEditingSubject(null);
-                setSubjectName('');
-                setSubjectCode('');
-                setSubjectFormOpen(!subjectFormOpen);
-              }}
-            >
-              <Plus size={16} />
-              <span>{subjectFormOpen ? 'Close Form' : 'Add Subject'}</span>
-            </button>
+            <div style={{ display: 'flex', gap: '8px' }}>
+              <button 
+                className="btn btn-secondary" 
+                style={{ display: 'flex', alignItems: 'center', gap: '6px' }}
+                onClick={() => {
+                  setSubjectBulkUploadOpen(!subjectBulkUploadOpen);
+                  setSubjectFormOpen(false);
+                  setSubjectBulkErrors([]);
+                  setSubjectCsvFile(null);
+                }}
+              >
+                <FileSpreadsheet size={16} />
+                <span>Bulk Import</span>
+              </button>
+              <button 
+                className="btn btn-primary" 
+                style={{ display: 'flex', alignItems: 'center', gap: '6px' }}
+                onClick={() => {
+                  setEditingSubject(null);
+                  setSubjectName('');
+                  setSubjectCode('');
+                  setSubjectFormOpen(!subjectFormOpen);
+                  setSubjectBulkUploadOpen(false);
+                }}
+              >
+                <Plus size={16} />
+                <span>{subjectFormOpen ? 'Close Form' : 'Add Subject'}</span>
+              </button>
+            </div>
           )}
         </div>
+
+        {advisedClass && subjectBulkUploadOpen && (
+          <div className="card" style={{ marginBottom: '24px', border: '1px solid rgba(79, 70, 229, 0.25)' }}>
+            <h2>Bulk Import Subjects</h2>
+            <p style={{ color: 'var(--text-secondary)', fontSize: '13px', marginTop: '4px', marginBottom: '16px' }}>
+              Upload a CSV or Excel file containing the subjects to add.
+            </p>
+
+            <div style={{ backgroundColor: 'var(--bg-secondary)', padding: '16px', borderRadius: 'var(--radius-sm)', marginBottom: '20px', borderLeft: '4px solid var(--accent-primary)' }}>
+              <h4 style={{ margin: '0 0 8px 0', fontSize: '14px', fontWeight: '600' }}>Requirements:</h4>
+              <ul style={{ margin: 0, paddingLeft: '20px', fontSize: '13px', color: 'var(--text-secondary)', lineHeight: '1.6' }}>
+                <li>File format: <strong>CSV (.csv)</strong> or <strong>Excel (.xlsx, .xls)</strong></li>
+                <li><strong>Column 1:</strong> Subject Code (e.g. 24UGCSE002)</li>
+                <li><strong>Column 2:</strong> Subject Name (e.g. Computer Networks)</li>
+                <li>The first row will be automatically treated as a header if it contains terms like "code" or "name".</li>
+              </ul>
+            </div>
+
+            <form onSubmit={handleSubjectBulkUpload}>
+              <div className="form-group" style={{ marginBottom: '20px' }}>
+                <label className="form-label">Select File</label>
+                <input 
+                  type="file" 
+                  className="input" 
+                  accept=".csv, .xlsx, .xls"
+                  onChange={(e) => setSubjectCsvFile(e.target.files[0])}
+                  required 
+                />
+              </div>
+
+              {subjectBulkErrors.length > 0 && (
+                <div style={{ backgroundColor: 'var(--danger-light)', color: 'var(--danger)', padding: '12px 16px', borderRadius: 'var(--radius-sm)', marginBottom: '20px', fontSize: '13px', borderLeft: '4px solid var(--danger)' }}>
+                  <h4 style={{ margin: '0 0 6px 0', fontWeight: '600' }}>Errors encountered:</h4>
+                  <ul style={{ margin: 0, paddingLeft: '16px' }}>
+                    {subjectBulkErrors.map((err, idx) => (
+                      <li key={idx}>{err}</li>
+                    ))}
+                  </ul>
+                </div>
+              )}
+
+              <div style={{ display: 'flex', gap: '8px' }}>
+                <button type="submit" className="btn btn-primary" disabled={subjectBulkSubmitting}>
+                  {subjectBulkSubmitting ? 'Uploading & Processing...' : 'Upload & Import'}
+                </button>
+                <button 
+                  type="button" 
+                  className="btn btn-secondary" 
+                  onClick={() => {
+                    setSubjectBulkUploadOpen(false);
+                    setSubjectCsvFile(null);
+                    setSubjectBulkErrors([]);
+                  }}
+                  disabled={subjectBulkSubmitting}
+                >
+                  Cancel
+                </button>
+              </div>
+            </form>
+          </div>
+        )}
 
         {!advisedClass ? (
           <div className="card" style={{ textAlign: 'center', padding: '40px' }}>

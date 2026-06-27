@@ -183,6 +183,105 @@ class SubjectViewSet(viewsets.ModelViewSet):
         else:
             serializer.save()
 
+    @action(detail=False, methods=['POST'], url_path='bulk-import')
+    def bulk_import(self, request):
+        user = request.user
+        is_advisor = user.role == 'staff' and hasattr(user, 'staff') and user.staff.staff_type == 'Advisor'
+        if not is_advisor:
+            return Response({'detail': 'Only Advisors can perform bulk addition of subjects.'}, status=status.HTTP_403_FORBIDDEN)
+            
+        from accounts.models import Class
+        advised_class = Class.objects.filter(advisor=user).first()
+        if not advised_class:
+            return Response({'detail': 'You are not assigned as an advisor to any class.'}, status=status.HTTP_400_BAD_REQUEST)
+            
+        file_obj = request.FILES.get('file')
+        if not file_obj:
+            return Response({'detail': 'No file uploaded.'}, status=status.HTTP_400_BAD_REQUEST)
+            
+        filename = file_obj.name.lower()
+        if not (filename.endswith('.csv') or filename.endswith('.xlsx') or filename.endswith('.xls')):
+            return Response({'detail': 'Please upload a CSV (.csv) or Excel (.xlsx, .xls) file.'}, status=status.HTTP_400_BAD_REQUEST)
+            
+        import csv
+        import io
+        from django.db import transaction
+        
+        rows_data = []
+        if filename.endswith('.csv'):
+            encodings = ['utf-8', 'utf-8-sig', 'latin-1']
+            decode_error = None
+            for enc in encodings:
+                try:
+                    file_obj.seek(0)
+                    decoded = io.TextIOWrapper(file_obj.file, encoding=enc)
+                    reader = csv.reader(decoded)
+                    rows_data = list(reader)
+                    break
+                except Exception as e:
+                    decode_error = e
+                    continue
+            else:
+                return Response({'detail': f'Error reading CSV file: {str(decode_error)}'}, status=status.HTTP_400_BAD_REQUEST)
+        else:
+            try:
+                import openpyxl
+                file_obj.seek(0)
+                wb = openpyxl.load_workbook(file_obj, data_only=True)
+                sheet = wb.active
+                rows_data = [list(row) for row in sheet.iter_rows(values_only=True)]
+            except Exception as e:
+                return Response({'detail': f'Error reading Excel file: {str(e)}'}, status=status.HTTP_400_BAD_REQUEST)
+                
+        if not rows_data:
+            return Response({'detail': 'File is empty.'}, status=status.HTTP_400_BAD_REQUEST)
+            
+        first_row = [str(x).strip().lower() for x in rows_data[0] if x is not None]
+        start_idx = 0
+        if first_row and ('code' in first_row[0] or 'subject' in first_row[0] or 'name' in first_row[0] or (len(first_row) > 1 and 'name' in first_row[1])):
+            start_idx = 1
+            
+        created_count = 0
+        updated_count = 0
+        errors = []
+        
+        try:
+            with transaction.atomic():
+                for idx in range(start_idx, len(rows_data)):
+                    row = rows_data[idx]
+                    if not row or all(val is None or str(val).strip() == '' for val in row):
+                        continue
+                    
+                    code = str(row[0]).strip() if len(row) > 0 and row[0] is not None else ''
+                    name = str(row[1]).strip() if len(row) > 1 and row[1] is not None else ''
+                    
+                    if not code or not name:
+                        errors.append(f"Row {idx + 1}: Missing code or name.")
+                        continue
+                        
+                    obj, created = Subject.objects.update_or_create(
+                        code=code,
+                        student_class=advised_class,
+                        defaults={
+                            'name': name,
+                            'department': advised_class.department
+                        }
+                    )
+                    if created:
+                        created_count += 1
+                    else:
+                        updated_count += 1
+                        
+            return Response({
+                'success': True,
+                'created': created_count,
+                'updated': updated_count,
+                'errors': errors,
+                'detail': f'Successfully imported {created_count} subjects (updated {updated_count}).'
+            })
+        except Exception as e:
+            return Response({'detail': f'Error during import: {str(e)}'}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
 class UserViewSet(viewsets.ModelViewSet):
     queryset = User.objects.all()
     serializer_class = UserSerializer

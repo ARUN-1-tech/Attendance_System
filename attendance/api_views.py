@@ -317,8 +317,9 @@ def api_student_stats(request, username):
     from timetable.models import Schedule
     from accounts.models import Subject
     if student.student_class:
-        class_subject_ids = Schedule.objects.filter(student_class=student.student_class).values_list('subject_id', flat=True).distinct()
-        class_subjects = Subject.objects.filter(id__in=class_subject_ids)
+        class_subjects = Subject.objects.filter(student_class=student.student_class)
+        sched_subject_ids = Schedule.objects.filter(student_class=student.student_class).values_list('subject_id', flat=True).distinct()
+        class_subjects = (class_subjects | Subject.objects.filter(id__in=sched_subject_ids)).distinct()
     else:
         class_subjects = Subject.objects.none()
 
@@ -404,7 +405,7 @@ def api_student_stats(request, username):
             
             sub_verified_od = sub_att.filter(status='OD', date__in=verified_ods).count()
             sub_effective_present = sub_present + sub_verified_od
-            sub_percentage = (sub_effective_present / sub_total * 100) if sub_total > 0 else 0
+            sub_percentage = (sub_effective_present / sub_total * 100) if sub_total > 0 else 100.0
             
             subjects_breakdown.append({
                 'id': sub.id,
@@ -929,15 +930,15 @@ class AttendanceViewSet(viewsets.ModelViewSet):
     @action(detail=False, methods=['get'], url_path='advisor-class-students')
     def advisor_class_students(self, request):
         user = self.request.user
-        if user.role != 'staff':
-            return Response({'detail': 'Only staff members can access advisor manual attendance.'}, status=status.HTTP_403_FORBIDDEN)
+        if user.role not in ['staff', 'hod']:
+            return Response({'detail': 'Only staff and HOD members can access advisor manual attendance.'}, status=status.HTTP_403_FORBIDDEN)
         
-        is_advisor = hasattr(user, 'staff') and user.staff.staff_type == 'Advisor'
+        from accounts.models import Class
+        advised_class = Class.objects.filter(advisor=user).first()
+        is_advisor = (hasattr(user, 'staff') and user.staff.staff_type == 'Advisor') or advised_class is not None
         if not is_advisor:
             return Response({'detail': 'Only Advisors can access advisor manual attendance.'}, status=status.HTTP_403_FORBIDDEN)
             
-        from accounts.models import Class
-        advised_class = Class.objects.filter(advisor=user).first()
         if not advised_class:
             return Response({'detail': 'You are not assigned as an advisor to any class.'}, status=status.HTTP_400_BAD_REQUEST)
             
@@ -1010,15 +1011,15 @@ class AttendanceViewSet(viewsets.ModelViewSet):
     @action(detail=False, methods=['post'], url_path='save-advisor-manual-attendance')
     def save_advisor_manual_attendance(self, request):
         user = self.request.user
-        if user.role != 'staff':
-            return Response({'detail': 'Only staff members can mark manual attendance.'}, status=status.HTTP_403_FORBIDDEN)
-            
-        is_advisor = hasattr(user, 'staff') and user.staff.staff_type == 'Advisor'
-        if not is_advisor:
-            return Response({'detail': 'Only Advisors can mark advisor manual attendance.'}, status=status.HTTP_403_FORBIDDEN)
+        if user.role not in ['staff', 'hod']:
+            return Response({'detail': 'Only staff and HOD members can mark manual attendance.'}, status=status.HTTP_403_FORBIDDEN)
             
         from accounts.models import Class
         advised_class = Class.objects.filter(advisor=user).first()
+        is_advisor = (hasattr(user, 'staff') and user.staff.staff_type == 'Advisor') or advised_class is not None
+        if not is_advisor:
+            return Response({'detail': 'Only Advisors can mark advisor manual attendance.'}, status=status.HTTP_403_FORBIDDEN)
+            
         if not advised_class:
             return Response({'detail': 'You are not assigned as an advisor to any class.'}, status=status.HTTP_400_BAD_REQUEST)
             
