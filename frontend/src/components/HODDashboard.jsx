@@ -349,6 +349,7 @@ const HODDashboard = ({ activeTab, setActiveTab }) => {
         if (r.status === 'Present') present++;
         else if (r.status === 'Absent') absent++;
         else if (r.status === 'OD') od++;
+        else if (r.status === 'Half Day') { present += 0.5; absent += 0.5; }
       } else {
         row = [
           regNo,
@@ -2177,7 +2178,8 @@ const HODDashboard = ({ activeTab, setActiveTab }) => {
                               <span className={`badge ${
                                 r.status === 'Present' ? 'badge-present' : 
                                 r.status === 'Absent' ? 'badge-absent' : 
-                                r.status === 'OD' ? 'badge-od' : 'badge-leave'
+                                r.status === 'OD' ? 'badge-od' : 
+                                r.status === 'Half Day' ? 'badge-halfday' : 'badge-leave'
                               }`}>
                                 {r.status}
                               </span>

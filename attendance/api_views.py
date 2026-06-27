@@ -594,14 +594,25 @@ def api_attendance_report_data(request):
             date__in=target_dates
         ).select_related('student__user', 'student__student_class')
         
-        attendance_map = {}
+        from collections import defaultdict
+        student_date_statuses = defaultdict(list)
         for r in records_in_range:
-            key = (r.student_id, r.date)
-            curr_status = attendance_map.get(key, 'Absent')
-            new_status = r.status
-            precedence = {'Absent': 0, 'Present': 1, 'Leave': 2, 'OD': 3}
-            if precedence.get(new_status, 0) > precedence.get(curr_status, 0):
-                attendance_map[key] = new_status
+            student_date_statuses[(r.student_id, r.date)].append(r.status)
+            
+        attendance_map = {}
+        for key, statuses in student_date_statuses.items():
+            has_present = 'Present' in statuses or 'OD' in statuses
+            has_absent_or_leave = 'Absent' in statuses or 'Leave' in statuses
+            if has_present and has_absent_or_leave:
+                attendance_map[key] = 'Half Day'
+            elif 'OD' in statuses and not has_absent_or_leave:
+                attendance_map[key] = 'OD'
+            elif 'Leave' in statuses and not has_present:
+                attendance_map[key] = 'Leave'
+            elif 'Absent' in statuses and not has_present:
+                attendance_map[key] = 'Absent'
+            else:
+                attendance_map[key] = 'Present' if 'Present' in statuses else 'OD'
                 
         for d in target_dates:
             date_str = d.strftime('%Y-%m-%d')
@@ -914,3 +925,197 @@ class AttendanceViewSet(viewsets.ModelViewSet):
                 })
         except Exception as e:
             return Response({'detail': f'Error saving attendance: {str(e)}'}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+    @action(detail=False, methods=['get'], url_path='advisor-class-students')
+    def advisor_class_students(self, request):
+        user = self.request.user
+        if user.role != 'staff':
+            return Response({'detail': 'Only staff members can access advisor manual attendance.'}, status=status.HTTP_403_FORBIDDEN)
+        
+        is_advisor = hasattr(user, 'staff') and user.staff.staff_type == 'Advisor'
+        if not is_advisor:
+            return Response({'detail': 'Only Advisors can access advisor manual attendance.'}, status=status.HTTP_403_FORBIDDEN)
+            
+        from accounts.models import Class
+        advised_class = Class.objects.filter(advisor=user).first()
+        if not advised_class:
+            return Response({'detail': 'You are not assigned as an advisor to any class.'}, status=status.HTTP_400_BAD_REQUEST)
+            
+        date_str = request.query_params.get('date')
+        if not date_str:
+            date_str = timezone.localdate().strftime('%Y-%m-%d')
+            
+        try:
+            target_date = datetime.datetime.strptime(date_str, '%Y-%m-%d').date()
+            weekday = target_date.strftime('%A')
+        except ValueError:
+            return Response({'detail': 'Invalid date format. Use YYYY-MM-DD.'}, status=status.HTTP_400_BAD_REQUEST)
+            
+        students = Student.objects.filter(student_class=advised_class).select_related('user').order_by('reg_no', 'user__username')
+        
+        # Get schedules for this class on this weekday
+        schedules = Schedule.objects.filter(student_class=advised_class, day=weekday).order_by('period')
+        
+        # We want to represent 7 periods (1 to 7)
+        periods_list = []
+        for period in range(1, 8):
+            sched = schedules.filter(period=period).first()
+            periods_list.append({
+                'period': period,
+                'subject_name': sched.subject.name if sched else 'No Schedule',
+                'subject_code': sched.subject.code if sched else '',
+                'schedule_id': sched.id if sched else None
+            })
+            
+        # Get existing attendance for this class and date
+        existing_attendances = Attendance.objects.filter(
+            student__student_class=advised_class,
+            date=target_date
+        ).select_related('schedule')
+        
+        # Map student_id -> period -> status
+        att_map = {}
+        for att in existing_attendances:
+            s_id = att.student_id
+            p_num = att.schedule.period
+            if s_id not in att_map:
+                att_map[s_id] = {}
+            att_map[s_id][p_num] = att.status
+            
+        students_data = []
+        for s in students:
+            # By default, all periods are 'Present' unless already marked in DB
+            statuses = {}
+            for p in range(1, 8):
+                statuses[str(p)] = att_map.get(s.user_id, {}).get(p, 'Present')
+                
+            students_data.append({
+                'id': s.user_id,
+                'username': s.user.username,
+                'name': f"{s.user.first_name} {s.user.last_name}".strip() or s.user.username,
+                'reg_no': s.reg_no or s.roll_no or s.user.username,
+                'roll_no': s.roll_no or '',
+                'statuses': statuses
+            })
+            
+        return Response({
+            'class_id': advised_class.id,
+            'class_name': str(advised_class),
+            'date': date_str,
+            'weekday': weekday,
+            'periods': periods_list,
+            'students': students_data
+        })
+
+    @action(detail=False, methods=['post'], url_path='save-advisor-manual-attendance')
+    def save_advisor_manual_attendance(self, request):
+        user = self.request.user
+        if user.role != 'staff':
+            return Response({'detail': 'Only staff members can mark manual attendance.'}, status=status.HTTP_403_FORBIDDEN)
+            
+        is_advisor = hasattr(user, 'staff') and user.staff.staff_type == 'Advisor'
+        if not is_advisor:
+            return Response({'detail': 'Only Advisors can mark advisor manual attendance.'}, status=status.HTTP_403_FORBIDDEN)
+            
+        from accounts.models import Class
+        advised_class = Class.objects.filter(advisor=user).first()
+        if not advised_class:
+            return Response({'detail': 'You are not assigned as an advisor to any class.'}, status=status.HTTP_400_BAD_REQUEST)
+            
+        date_str = request.data.get('date')
+        attendance_data = request.data.get('attendance_data', {})
+        
+        if not date_str:
+            return Response({'detail': 'Missing date.'}, status=status.HTTP_400_BAD_REQUEST)
+            
+        try:
+            target_date = datetime.datetime.strptime(date_str, '%Y-%m-%d').date()
+            weekday = target_date.strftime('%A')
+        except ValueError:
+            return Response({'detail': 'Invalid date format.'}, status=status.HTTP_400_BAD_REQUEST)
+            
+        from django.db import transaction
+        try:
+            with transaction.atomic():
+                # We need to make sure Schedule objects exist for periods 1 to 7 on this weekday.
+                # If they do not, we create default schedules for the class.
+                schedules_by_period = {}
+                for p in range(1, 8):
+                    sched = Schedule.objects.filter(student_class=advised_class, day=weekday, period=p).first()
+                    if not sched:
+                        # Find a subject for this class, or create/use a default subject
+                        from accounts.models import Subject
+                        subject = Subject.objects.filter(student_class=advised_class).first()
+                        if not subject:
+                            subject = Subject.objects.filter(department=advised_class.department).first()
+                        if not subject:
+                            subject, _ = Subject.objects.get_or_create(
+                                name="General",
+                                code="GEN",
+                                department=advised_class.department
+                            )
+                        # Standard hour calculation
+                        start_hour = 9 + (p - 1)
+                        if p >= 5:
+                            start_hour += 1 # lunch break
+                        start_time = datetime.time(start_hour, 0)
+                        end_time = datetime.time(start_hour + 1, 0)
+                        sched = Schedule.objects.create(
+                            student_class=advised_class,
+                            subject=subject,
+                            period=p,
+                            day=weekday,
+                            start_time=start_time,
+                            end_time=end_time
+                        )
+                    schedules_by_period[p] = sched
+
+                # Update or create attendance records for each student in the class
+                students = Student.objects.filter(student_class=advised_class)
+                updated_records_count = 0
+                
+                for student in students:
+                    student_payload = attendance_data.get(str(student.user_id)) or attendance_data.get(student.user_id)
+                    # If student is not in payload, they default to all present
+                    if not student_payload:
+                        student_payload = {
+                            'overall_status': 'Present',
+                            'periods': {}
+                        }
+                    
+                    overall_status = student_payload.get('overall_status', 'Present')
+                    period_statuses = student_payload.get('periods', {})
+                    
+                    for p in range(1, 8):
+                        # Determine status for this period
+                        if overall_status == 'Present':
+                            p_status = 'Present'
+                        elif overall_status == 'Absent':
+                            p_status = 'Absent'
+                        elif overall_status == 'OD':
+                            p_status = 'OD'
+                        elif overall_status == 'Half Day (FN Present / AN Absent)':
+                            p_status = 'Present' if p <= 4 else 'Absent'
+                        elif overall_status == 'Half Day (FN Absent / AN Present)':
+                            p_status = 'Absent' if p <= 4 else 'Present'
+                        else: # Custom
+                            p_status = period_statuses.get(str(p)) or period_statuses.get(p) or 'Present'
+                            
+                        if p_status not in ['Present', 'Absent', 'OD', 'Leave']:
+                            p_status = 'Present'
+                            
+                        # Save/Update
+                        Attendance.objects.update_or_create(
+                            student=student,
+                            schedule=schedules_by_period[p],
+                            date=target_date,
+                            defaults={'status': p_status}
+                        )
+                        updated_records_count += 1
+                        
+                return Response({
+                    'success': True,
+                    'detail': f'Successfully updated daily attendance for {students.count()} students ({updated_records_count} period records).'
+                })
+        except Exception as e:
+            return Response({'detail': f'Error saving manual attendance: {str(e)}'}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)

@@ -749,6 +749,14 @@ const StudentDashboard = ({ activeTab }) => {
                   <div>{user.email}</div>
                 </div>
                 <div style={{ display: 'flex', borderBottom: '1px solid var(--border-color)', paddingBottom: '10px' }}>
+                  <div style={{ width: '150px', color: 'var(--text-muted)' }}>Roll Number</div>
+                  <div>{student?.roll_no || '-'}</div>
+                </div>
+                <div style={{ display: 'flex', borderBottom: '1px solid var(--border-color)', paddingBottom: '10px' }}>
+                  <div style={{ width: '150px', color: 'var(--text-muted)' }}>Registration Number</div>
+                  <div>{student?.reg_no || '-'}</div>
+                </div>
+                <div style={{ display: 'flex', borderBottom: '1px solid var(--border-color)', paddingBottom: '10px' }}>
                   <div style={{ width: '150px', color: 'var(--text-muted)' }}>Phone Number</div>
                   <div>{user.phone_number || '-'}</div>
                 </div>

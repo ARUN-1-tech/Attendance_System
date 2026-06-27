@@ -321,6 +321,7 @@ h1, h2, h3, h4, h5, h6 {
 .badge-absent { background-color: var(--danger-light); color: var(--danger); }
 .badge-od { background-color: var(--info-light); color: var(--info); }
 .badge-leave { background-color: var(--warning-light); color: var(--warning); }
+.badge-halfday { background-color: #fef3c7; color: #d97706; }
 
 /* Custom Timetable Grid */
 .timetable-grid {

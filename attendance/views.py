@@ -409,14 +409,25 @@ def download_report(request):
                     date__in=target_dates
                 ).select_related('student__user', 'student__student_class')
                 
-                attendance_map = {}
+                from collections import defaultdict
+                student_date_statuses = defaultdict(list)
                 for r in records_in_range:
-                    key = (r.student_id, r.date)
-                    curr_status = attendance_map.get(key, 'Absent')
-                    new_status = r.status
-                    precedence = {'Absent': 0, 'Present': 1, 'Leave': 2, 'OD': 3}
-                    if precedence.get(new_status, 0) > precedence.get(curr_status, 0):
-                        attendance_map[key] = new_status
+                    student_date_statuses[(r.student_id, r.date)].append(r.status)
+                    
+                attendance_map = {}
+                for key, statuses in student_date_statuses.items():
+                    has_present = 'Present' in statuses or 'OD' in statuses
+                    has_absent_or_leave = 'Absent' in statuses or 'Leave' in statuses
+                    if has_present and has_absent_or_leave:
+                        attendance_map[key] = 'Half Day'
+                    elif 'OD' in statuses and not has_absent_or_leave:
+                        attendance_map[key] = 'OD'
+                    elif 'Leave' in statuses and not has_present:
+                        attendance_map[key] = 'Leave'
+                    elif 'Absent' in statuses and not has_present:
+                        attendance_map[key] = 'Absent'
+                    else:
+                        attendance_map[key] = 'Present' if 'Present' in statuses else 'OD'
                         
                 for d in target_dates:
                     date_str = d.strftime('%Y-%m-%d')

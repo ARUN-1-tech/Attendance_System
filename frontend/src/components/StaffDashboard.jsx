@@ -94,6 +94,17 @@ const StaffDashboard = ({ activeTab }) => {
   const [manualAttError, setManualAttError] = useState(null);
   const [recentlyMarked, setRecentlyMarked] = useState([]);
 
+  // Advisor Manual Attendance states
+  const [advisorDate, setAdvisorDate] = useState(new Date().toISOString().split('T')[0]);
+  const [advisorStudents, setAdvisorStudents] = useState([]);
+  const [advisorPeriods, setAdvisorPeriods] = useState([]);
+  const [advisorClassName, setAdvisorClassName] = useState('');
+  const [advisorClassId, setAdvisorClassId] = useState(null);
+  const [advisorStatuses, setAdvisorStatuses] = useState({});
+  const [advisorLoading, setAdvisorLoading] = useState(false);
+  const [advisorError, setAdvisorError] = useState(null);
+  const [advisorSuccess, setAdvisorSuccess] = useState(null);
+
   const fetchAdvisedSubjects = async (classId) => {
     if (!classId) return;
     setAdvisedSubjectsLoading(true);
@@ -347,6 +358,12 @@ const StaffDashboard = ({ activeTab }) => {
       setManualAttStudents([]);
     }
   }, [activeTab, manualClassId, manualSubjectId, manualDate]);
+
+  useEffect(() => {
+    if (activeTab === 'manual_attendance' && user.staff_details?.staff_type === 'Advisor') {
+      fetchAdvisorClassStudents(advisorDate);
+    }
+  }, [activeTab, advisorDate, user]);
 
   // Clean up polling interval on unmount
   useEffect(() => {
@@ -681,6 +698,104 @@ const StaffDashboard = ({ activeTab }) => {
     }
   };
 
+  const fetchAdvisorClassStudents = async (dateVal) => {
+    setAdvisorLoading(true);
+    setAdvisorError(null);
+    setAdvisorSuccess(null);
+    try {
+      const data = await api.get(`/api/attendances/advisor-class-students/?date=${dateVal}`);
+      setAdvisorClassName(data.class_name);
+      setAdvisorClassId(data.class_id);
+      setAdvisorPeriods(data.periods);
+      setAdvisorStudents(data.students || []);
+      
+      const initialStatuses = {};
+      (data.students || []).forEach(s => {
+        let presentCount = 0;
+        let absentCount = 0;
+        let odCount = 0;
+        let leaveCount = 0;
+        for (let p = 1; p <= 7; p++) {
+          const st = s.statuses[p.toString()] || 'Present';
+          if (st === 'Present') presentCount++;
+          else if (st === 'Absent') absentCount++;
+          else if (st === 'OD') odCount++;
+          else if (st === 'Leave') leaveCount++;
+        }
+        
+        let overall = 'Present';
+        if (presentCount === 7) overall = 'Present';
+        else if (absentCount === 7) overall = 'Absent';
+        else if (odCount === 7) overall = 'OD';
+        else if (s.statuses['1'] === 'Present' && s.statuses['2'] === 'Present' && s.statuses['3'] === 'Present' && s.statuses['4'] === 'Present' &&
+                 s.statuses['5'] === 'Absent' && s.statuses['6'] === 'Absent' && s.statuses['7'] === 'Absent') {
+          overall = 'Half Day (FN Present / AN Absent)';
+        } else if (s.statuses['1'] === 'Absent' && s.statuses['2'] === 'Absent' && s.statuses['3'] === 'Absent' && s.statuses['4'] === 'Absent' &&
+                   s.statuses['5'] === 'Present' && s.statuses['6'] === 'Present' && s.statuses['7'] === 'Present') {
+          overall = 'Half Day (FN Absent / AN Present)';
+        } else {
+          overall = 'Custom';
+        }
+
+        initialStatuses[s.id] = {
+          overall_status: overall,
+          periods: { ...s.statuses }
+        };
+      });
+      setAdvisorStatuses(initialStatuses);
+    } catch (err) {
+      console.error(err);
+      setAdvisorError(err.detail || 'Failed to fetch advisor class student list.');
+      setAdvisorStudents([]);
+    } finally {
+      setAdvisorLoading(false);
+    }
+  };
+
+  const handleSaveAdvisorManualAttendance = async (e) => {
+    if (e) e.preventDefault();
+    setAdvisorLoading(true);
+    setAdvisorError(null);
+    setAdvisorSuccess(null);
+    try {
+      const payload = {
+        date: advisorDate,
+        attendance_data: advisorStatuses
+      };
+      const res = await api.post('/api/attendances/save-advisor-manual-attendance/', payload);
+      setAdvisorSuccess(res.detail || 'Daily attendance saved successfully.');
+      fetchAdvisorClassStudents(advisorDate);
+    } catch (err) {
+      console.error(err);
+      setAdvisorError(err.detail || 'Failed to save advisor manual attendance.');
+    } finally {
+      setAdvisorLoading(false);
+    }
+  };
+
+  const cyclePeriodStatus = (studentId, periodNum) => {
+    const studentStatus = advisorStatuses[studentId] || { overall_status: 'Present', periods: {} };
+    const currentPStatus = studentStatus.periods[periodNum] || 'Present';
+    const nextStatuses = {
+      'Present': 'Absent',
+      'Absent': 'OD',
+      'OD': 'Leave',
+      'Leave': 'Present'
+    };
+    const nextPStatus = nextStatuses[currentPStatus] || 'Present';
+    
+    setAdvisorStatuses({
+      ...advisorStatuses,
+      [studentId]: {
+        overall_status: 'Custom',
+        periods: {
+          ...studentStatus.periods,
+          [periodNum]: nextPStatus
+        }
+      }
+    });
+  };
+
   // 1. Generate OTP (dashboard tab)
   const handleGenerateOTP = (e) => {
     e.preventDefault();
@@ -874,6 +989,7 @@ const StaffDashboard = ({ activeTab }) => {
         if (r.status === 'Present') present++;
         else if (r.status === 'Absent') absent++;
         else if (r.status === 'OD') od++;
+        else if (r.status === 'Half Day') { present += 0.5; absent += 0.5; }
       } else {
         row = [
           regNo,
@@ -1664,7 +1780,7 @@ const StaffDashboard = ({ activeTab }) => {
             <table className="table">
               <thead>
                 <tr>
-                  <th>Roll / Reg No</th>
+                  <th>Reg No</th>
                   <th>Name</th>
                   <th>Class Details</th>
                   <th>Assigned Role</th>
@@ -1674,7 +1790,7 @@ const StaffDashboard = ({ activeTab }) => {
               <tbody>
                 {assignedStudents.map(s => (
                   <tr key={s.user.id}>
-                    <td style={{ fontWeight: '600' }}>{s.roll_no && s.reg_no ? `${s.roll_no} / ${s.reg_no}` : (s.roll_no || s.reg_no || '-')}</td>
+                    <td style={{ fontWeight: '600' }}>{s.reg_no || '-'}</td>
                     <td>{s.user.first_name || s.user.last_name ? `${s.user.first_name} ${s.user.last_name}` : s.user.username}</td>
                     <td>{s.class_name} - Year {s.class_year} (Sec {s.class_section})</td>
                     <td>
@@ -1845,6 +1961,162 @@ const StaffDashboard = ({ activeTab }) => {
         <div className="header">
           <h1>Manual Attendance</h1>
         </div>
+
+        {user.staff_details?.staff_type === 'Advisor' && (
+          <div className="card" style={{ marginBottom: '32px', border: '1px solid rgba(79, 70, 229, 0.25)', boxShadow: '0 4px 20px -2px rgba(79, 70, 229, 0.08)' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '12px', borderBottom: '1px solid var(--border-color)', paddingBottom: '16px', marginBottom: '20px' }}>
+              <div>
+                <h2 style={{ fontSize: '18px', fontWeight: '700', color: 'var(--accent-primary)', margin: 0 }}>Advisor: Whole Day Manual Attendance</h2>
+                <p style={{ color: 'var(--text-secondary)', fontSize: '13px', margin: '4px 0 0 0' }}>
+                  Manage daily attendance for your advised class: <strong style={{ color: 'var(--text-primary)' }}>{advisorClassName || 'Retrieving class...'}</strong>
+                </p>
+              </div>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                <span style={{ fontSize: '13px', color: 'var(--text-secondary)', fontWeight: '500' }}>Target Date:</span>
+                <input 
+                  type="date" 
+                  className="input" 
+                  style={{ width: '150px', padding: '6px 12px', height: '36px' }}
+                  value={advisorDate} 
+                  onChange={(e) => setAdvisorDate(e.target.value)} 
+                  required 
+                />
+              </div>
+            </div>
+
+            {advisorLoading && <div style={{ padding: '16px 0', fontWeight: '500', color: 'var(--accent-primary)' }}>Loading student and schedule list...</div>}
+
+            {advisorError && (
+              <div style={{ backgroundColor: 'var(--danger-light)', color: 'var(--danger)', padding: '12px 16px', borderRadius: 'var(--radius-sm)', marginBottom: '16px', fontSize: '13px', borderLeft: '4px solid var(--danger)' }}>
+                {advisorError}
+              </div>
+            )}
+
+            {advisorSuccess && (
+              <div style={{ backgroundColor: 'var(--success-light)', color: 'var(--success)', padding: '12px 16px', borderRadius: 'var(--radius-sm)', marginBottom: '16px', fontSize: '13px', borderLeft: '4px solid var(--success)' }}>
+                {advisorSuccess}
+              </div>
+            )}
+
+            {!advisorLoading && advisorStudents.length > 0 && (
+              <form onSubmit={handleSaveAdvisorManualAttendance}>
+                <div className="table-container" style={{ overflowX: 'auto', marginBottom: '20px' }}>
+                  <table className="table" style={{ width: '100%' }}>
+                    <thead>
+                      <tr>
+                        <th>Student</th>
+                        <th style={{ width: '220px' }}>Overall Status</th>
+                        <th style={{ textAlign: 'center' }}>Daily Periods (1-7) <span style={{ fontSize: '11px', color: 'var(--text-secondary)', fontWeight: 'normal' }}>(Hover for subject, click custom to edit)</span></th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {advisorStudents.map(s => {
+                        const sStatus = advisorStatuses[s.id] || { overall_status: 'Present', periods: {} };
+                        return (
+                          <tr key={s.id} style={{ borderBottom: '1px solid var(--border-color)' }}>
+                            <td style={{ padding: '12px 8px' }}>
+                              <strong style={{ color: 'var(--text-primary)', display: 'block', fontSize: '14px' }}>{s.name}</strong>
+                              <span style={{ fontSize: '12px', color: 'var(--text-secondary)' }}>Reg No: {s.reg_no}</span>
+                            </td>
+                            <td style={{ padding: '12px 8px' }}>
+                              <select 
+                                className="input" 
+                                style={{ padding: '6px 10px', fontSize: '13px', height: '36px' }}
+                                value={sStatus.overall_status} 
+                                onChange={(e) => {
+                                  const val = e.target.value;
+                                  const updatedPeriods = { ...sStatus.periods };
+                                  if (val === 'Present' || val === 'Absent' || val === 'OD') {
+                                    for (let p = 1; p <= 7; p++) updatedPeriods[p.toString()] = val;
+                                  } else if (val === 'Half Day (FN Present / AN Absent)') {
+                                    for (let p = 1; p <= 4; p++) updatedPeriods[p.toString()] = 'Present';
+                                    for (let p = 5; p <= 7; p++) updatedPeriods[p.toString()] = 'Absent';
+                                  } else if (val === 'Half Day (FN Absent / AN Present)') {
+                                    for (let p = 1; p <= 4; p++) updatedPeriods[p.toString()] = 'Absent';
+                                    for (let p = 5; p <= 7; p++) updatedPeriods[p.toString()] = 'Present';
+                                  }
+                                  setAdvisorStatuses({
+                                    ...advisorStatuses,
+                                    [s.id]: {
+                                      overall_status: val,
+                                      periods: updatedPeriods
+                                    }
+                                  });
+                                }}
+                              >
+                                <option value="Present">Present (Full Day)</option>
+                                <option value="Absent">Absent (Full Day)</option>
+                                <option value="OD">OD (Full Day)</option>
+                                <option value="Half Day (FN Present / AN Absent)">Half Day (FN Present / AN Absent)</option>
+                                <option value="Half Day (FN Absent / AN Present)">Half Day (FN Absent / AN Present)</option>
+                                <option value="Custom">Custom (Period-wise)</option>
+                              </select>
+                            </td>
+                            <td style={{ padding: '12px 8px' }}>
+                              <div style={{ display: 'flex', gap: '8px', justifyContent: 'center', alignItems: 'center' }}>
+                                {[1, 2, 3, 4, 5, 6, 7].map(num => {
+                                  const pStatus = sStatus.periods[num.toString()] || 'Present';
+                                  const pInfo = advisorPeriods.find(p => p.period === num);
+                                  const tooltipText = pInfo ? `Period ${num}: ${pInfo.subject_name} (${pInfo.subject_code || 'N/A'})` : `Period ${num}`;
+                                  const isCustom = sStatus.overall_status === 'Custom';
+                                  
+                                  let bg = 'var(--success)';
+                                  if (pStatus === 'Absent') bg = 'var(--danger)';
+                                  else if (pStatus === 'OD') bg = 'var(--info)';
+                                  else if (pStatus === 'Leave') bg = 'var(--warning)';
+                                  
+                                  return (
+                                    <div 
+                                      key={num}
+                                      title={tooltipText}
+                                      onClick={() => isCustom && cyclePeriodStatus(s.id, num.toString())}
+                                      style={{
+                                        width: '32px',
+                                        height: '32px',
+                                        borderRadius: '50%',
+                                        backgroundColor: bg,
+                                        color: 'white',
+                                        display: 'flex',
+                                        alignItems: 'center',
+                                        justifyContent: 'center',
+                                        fontSize: '11px',
+                                        fontWeight: '700',
+                                        cursor: isCustom ? 'pointer' : 'default',
+                                        opacity: isCustom ? 1.0 : 0.75,
+                                        border: isCustom ? '2px solid white' : 'none',
+                                        boxShadow: isCustom ? '0 2px 4px rgba(0,0,0,0.15)' : 'none',
+                                        transition: 'all 0.2s ease',
+                                        userSelect: 'none'
+                                      }}
+                                    >
+                                      {pStatus === 'Present' ? 'P' : pStatus === 'Absent' ? 'A' : pStatus === 'OD' ? 'O' : 'L'}{num}
+                                    </div>
+                                  );
+                                })}
+                              </div>
+                            </td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+                </div>
+
+                <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: '16px' }}>
+                  <button type="submit" className="btn btn-primary" style={{ minWidth: '220px', height: '44px', fontWeight: '600' }}>
+                    Save Advisor Whole Day Attendance
+                  </button>
+                </div>
+              </form>
+            )}
+
+            {!advisorLoading && advisorStudents.length === 0 && (
+              <div style={{ padding: '24px', textAlign: 'center', color: 'var(--text-muted)', backgroundColor: 'var(--bg-primary)', borderRadius: 'var(--radius-sm)', border: '1px dashed var(--border-color)' }}>
+                No advisor class assigned or class contains no students.
+              </div>
+            )}
+          </div>
+        )}
 
         <div className="card" style={{ marginBottom: '24px' }}>
           <form onSubmit={handleSaveClassManualAttendance}>
@@ -2543,7 +2815,7 @@ const StaffDashboard = ({ activeTab }) => {
                           <>
                             <td>{r.date}</td>
                             <td>
-                              <span className={`badge ${r.status === 'Present' ? 'badge-present' : (r.status === 'Absent' ? 'badge-absent' : (r.status === 'OD' ? 'badge-od' : 'badge-leave'))}`}>
+                              <span className={`badge ${r.status === 'Present' ? 'badge-present' : (r.status === 'Absent' ? 'badge-absent' : (r.status === 'OD' ? 'badge-od' : (r.status === 'Half Day' ? 'badge-halfday' : 'badge-leave')))}`}>
                                 {r.status}
                               </span>
                             </td>

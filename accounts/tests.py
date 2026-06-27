@@ -448,3 +448,120 @@ class UserPasswordChangeAndManualAttendanceTestCase(TestCase):
         attendance_records = Attendance.objects.filter(student=self.student, date='2026-06-25')
         self.assertEqual(attendance_records.count(), 1)
         self.assertEqual(attendance_records.first().status, 'Present')
+
+    def test_advisor_class_students_fetch(self):
+        # Set staff_type to Advisor and make them advisor of the class
+        self.staff.staff_type = 'Advisor'
+        self.staff.save()
+        self.clazz.advisor = self.staff_user
+        self.clazz.save()
+        
+        self.client.login(username='staff_user', password='staffpass123')
+        response = self.client.get('/api/attendances/advisor-class-students/', {
+            'date': '2026-06-25' # Thursday
+        })
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.data['class_name'], 'B.Tech CS - 3 - A')
+        self.assertEqual(len(response.data['students']), 1)
+        self.assertEqual(response.data['students'][0]['id'], self.student_user.id)
+        # Default all periods to Present in fetched statuses if not created in DB
+        self.assertEqual(response.data['students'][0]['statuses']['1'], 'Present')
+        self.assertEqual(len(response.data['periods']), 7)
+
+    def test_save_advisor_manual_attendance(self):
+        self.staff.staff_type = 'Advisor'
+        self.staff.save()
+        self.clazz.advisor = self.staff_user
+        self.clazz.save()
+        
+        self.client.login(username='staff_user', password='staffpass123')
+        
+        # Test 1: Present (Full Day)
+        response = self.client.post('/api/attendances/save-advisor-manual-attendance/', {
+            'date': '2026-06-25',
+            'attendance_data': {
+                str(self.student_user.id): {
+                    'overall_status': 'Present',
+                    'periods': {}
+                }
+            }
+        }, content_type='application/json')
+        self.assertEqual(response.status_code, 200)
+        self.assertTrue(response.data['success'])
+        
+        from attendance.models import Attendance
+        self.assertEqual(Attendance.objects.filter(student=self.student, date='2026-06-25').count(), 7)
+        self.assertTrue(all(att.status == 'Present' for att in Attendance.objects.filter(student=self.student, date='2026-06-25')))
+
+        # Test 2: Half Day (FN Present / AN Absent)
+        response = self.client.post('/api/attendances/save-advisor-manual-attendance/', {
+            'date': '2026-06-26',
+            'attendance_data': {
+                str(self.student_user.id): {
+                    'overall_status': 'Half Day (FN Present / AN Absent)',
+                    'periods': {}
+                }
+            }
+        }, content_type='application/json')
+        self.assertEqual(response.status_code, 200)
+        
+        atts_fn = Attendance.objects.filter(student=self.student, date='2026-06-26', schedule__period__lte=4)
+        atts_an = Attendance.objects.filter(student=self.student, date='2026-06-26', schedule__period__gt=4)
+        self.assertEqual(atts_fn.count(), 4)
+        self.assertEqual(atts_an.count(), 3)
+        self.assertTrue(all(att.status == 'Present' for att in atts_fn))
+        self.assertTrue(all(att.status == 'Absent' for att in atts_an))
+
+        # Test 3: Custom
+        response = self.client.post('/api/attendances/save-advisor-manual-attendance/', {
+            'date': '2026-06-27',
+            'attendance_data': {
+                str(self.student_user.id): {
+                    'overall_status': 'Custom',
+                    'periods': {
+                        '1': 'Present',
+                        '2': 'Absent',
+                        '3': 'OD',
+                        '4': 'Leave',
+                        '5': 'Present',
+                        '6': 'Absent',
+                        '7': 'Present'
+                    }
+                }
+            }
+        }, content_type='application/json')
+        self.assertEqual(response.status_code, 200)
+        
+        self.assertEqual(Attendance.objects.get(student=self.student, date='2026-06-27', schedule__period=1).status, 'Present')
+        self.assertEqual(Attendance.objects.get(student=self.student, date='2026-06-27', schedule__period=2).status, 'Absent')
+        self.assertEqual(Attendance.objects.get(student=self.student, date='2026-06-27', schedule__period=3).status, 'OD')
+        self.assertEqual(Attendance.objects.get(student=self.student, date='2026-06-27', schedule__period=4).status, 'Leave')
+
+    def test_daily_report_half_day_aggregation(self):
+        self.staff.staff_type = 'Advisor'
+        self.staff.save()
+        self.clazz.advisor = self.staff_user
+        self.clazz.save()
+        
+        # Save a mix of Present/Absent for June 26
+        self.client.login(username='staff_user', password='staffpass123')
+        self.client.post('/api/attendances/save-advisor-manual-attendance/', {
+            'date': '2026-06-26',
+            'attendance_data': {
+                str(self.student_user.id): {
+                    'overall_status': 'Half Day (FN Present / AN Absent)',
+                    'periods': {}
+                }
+            }
+        }, content_type='application/json')
+
+        # Query reports API
+        response = self.client.get('/api/attendance/reports/', {
+            'report_type': 'class',
+            'class_id': self.clazz.id,
+            'report_mode': 'day',
+            'date': '2026-06-26'
+        })
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(len(response.data), 1)
+        self.assertEqual(response.data[0]['status'], 'Half Day')
