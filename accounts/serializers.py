@@ -82,9 +82,8 @@ class StudentSerializer(serializers.ModelSerializer):
         if not obj.student_class:
             return 100.0
             
-        class_subjects = Subject.objects.filter(student_class=obj.student_class)
-        schedule_subject_ids = Schedule.objects.filter(student_class=obj.student_class).values_list('subject_id', flat=True).distinct()
-        class_subjects = (class_subjects | Subject.objects.filter(id__in=schedule_subject_ids)).distinct()
+        class_subject_ids = Schedule.objects.filter(student_class=obj.student_class).values_list('subject_id', flat=True).distinct()
+        class_subjects = Subject.objects.filter(id__in=class_subject_ids)
         
         attendances = Attendance.objects.filter(student=obj, schedule__subject__in=class_subjects)
         total_periods = attendances.count()

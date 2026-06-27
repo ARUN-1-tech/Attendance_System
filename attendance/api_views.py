@@ -317,9 +317,8 @@ def api_student_stats(request, username):
     from timetable.models import Schedule
     from accounts.models import Subject
     if student.student_class:
-        class_subjects = Subject.objects.filter(student_class=student.student_class)
-        schedule_subject_ids = Schedule.objects.filter(student_class=student.student_class).values_list('subject_id', flat=True).distinct()
-        class_subjects = (class_subjects | Subject.objects.filter(id__in=schedule_subject_ids)).distinct()
+        class_subject_ids = Schedule.objects.filter(student_class=student.student_class).values_list('subject_id', flat=True).distinct()
+        class_subjects = Subject.objects.filter(id__in=class_subject_ids)
     else:
         class_subjects = Subject.objects.none()
 
@@ -405,7 +404,7 @@ def api_student_stats(request, username):
             
             sub_verified_od = sub_att.filter(status='OD', date__in=verified_ods).count()
             sub_effective_present = sub_present + sub_verified_od
-            sub_percentage = (sub_effective_present / sub_total * 100) if sub_total > 0 else 100.0
+            sub_percentage = (sub_effective_present / sub_total * 100) if sub_total > 0 else 0
             
             subjects_breakdown.append({
                 'id': sub.id,
