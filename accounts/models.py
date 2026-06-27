@@ -52,7 +52,7 @@ class Class(models.Model):
             else:
                 t = self.tutor3 or self.tutor1 or self.tutor2
             
-            adv = self.advisor or self.tutor1
+            adv = self.advisor or self.tutor3
             
             updated_tutor = t if force else (student.tutor or t)
             updated_advisor = adv if force else (student.advisor or adv)
@@ -61,17 +61,17 @@ class Class(models.Model):
                 self.student_set.filter(pk=student.pk).update(tutor=updated_tutor, advisor=updated_advisor)
 
     def save(self, *args, **kwargs):
-        if self.tutor1:
-            self.advisor = self.tutor1
+        if self.tutor3:
+            self.advisor = self.tutor3
         super().save(*args, **kwargs)
         self.auto_assign_tutors(force=True)
 
         # Sync all staff types based on class assignments
         from accounts.models import Staff
         advisors = Class.objects.exclude(advisor__isnull=True).values_list('advisor_id', flat=True).distinct()
+        tutors = Class.objects.exclude(tutor1__isnull=True).values_list('tutor1_id', flat=True)
         tutors2 = Class.objects.exclude(tutor2__isnull=True).values_list('tutor2_id', flat=True)
-        tutors3 = Class.objects.exclude(tutor3__isnull=True).values_list('tutor3_id', flat=True)
-        all_tutors = set(list(tutors2) + list(tutors3)) - set(advisors)
+        all_tutors = set(list(tutors) + list(tutors2)) - set(advisors)
 
         Staff.objects.filter(user_id__in=list(advisors)).update(staff_type='Advisor')
         Staff.objects.filter(user_id__in=list(all_tutors)).update(staff_type='Tutor')

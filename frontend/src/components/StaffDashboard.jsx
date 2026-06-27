@@ -490,17 +490,19 @@ const StaffDashboard = ({ activeTab }) => {
     setStudentAge('');
     setStudentPhone('');
     
-    const advised = user.staff_details?.advised_class_details;
-    if (advised) {
-      setStudentClassId(advised.id.toString());
-      setStudentYear(advised.year.toString());
+    const isAdvisor = user?.staff_details?.staff_type === 'Advisor';
+    const advisedClass = isAdvisor ? classes.find(c => c.advisor === user.id) : null;
+    
+    if (advisedClass) {
+      setStudentClassId(advisedClass.id.toString());
+      setStudentYear(advisedClass.year.toString());
+      setStudentAdvisorId(user.id.toString());
     } else {
       setStudentClassId('');
       setStudentYear('');
+      setStudentAdvisorId('');
     }
-    
     setStudentTutorId('');
-    setStudentAdvisorId('');
   };
 
   const handleEditStudentClick = (s) => {
@@ -1731,7 +1733,7 @@ const StaffDashboard = ({ activeTab }) => {
 
               <div className="form-group">
                 <label className="form-label">Department (Auto-filled)</label>
-                <input type="text" className="input" value={user.staff_details?.advised_class_details?.department_name || user.department_name || 'My Department'} disabled style={{ backgroundColor: 'var(--bg-tertiary)' }} />
+                <input type="text" className="input" value={user.department_name || 'My Department'} disabled style={{ backgroundColor: 'var(--bg-tertiary)' }} />
               </div>
 
               <div className="grid grid-cols-2">
@@ -1741,7 +1743,7 @@ const StaffDashboard = ({ activeTab }) => {
                     className="input" 
                     value={studentYear} 
                     onChange={(e) => { setStudentYear(e.target.value); setStudentClassId(''); }} 
-                    disabled={!!user.staff_details?.advised_class_details}
+                    disabled={user?.staff_details?.staff_type === 'Advisor'}
                     required
                   >
                     <option value="">-- Select Year --</option>
@@ -1757,7 +1759,7 @@ const StaffDashboard = ({ activeTab }) => {
                     className="input" 
                     value={studentClassId} 
                     onChange={(e) => setStudentClassId(e.target.value)} 
-                    disabled={!!user.staff_details?.advised_class_details}
+                    disabled={user?.staff_details?.staff_type === 'Advisor'}
                     required
                   >
                     <option value="">-- Select Class --</option>
@@ -1778,7 +1780,12 @@ const StaffDashboard = ({ activeTab }) => {
                 </div>
                 <div className="form-group">
                   <label className="form-label">Advisor</label>
-                  <select className="input" value={studentAdvisorId} onChange={(e) => setStudentAdvisorId(e.target.value)}>
+                  <select 
+                    className="input" 
+                    value={studentAdvisorId} 
+                    onChange={(e) => setStudentAdvisorId(e.target.value)}
+                    disabled={user?.staff_details?.staff_type === 'Advisor'}
+                  >
                     <option value="">-- Select Advisor --</option>
                     {staffList.map(s => <option key={s.id} value={s.id}>{s.first_name} {s.last_name} ({s.username})</option>)}
                   </select>

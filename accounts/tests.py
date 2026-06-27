@@ -108,7 +108,7 @@ class StudentBulkImportTestCase(TestCase):
         self.assertEqual(Student.objects.filter(user__username__startswith='csv_student', tutor=self.tutor3_user).count(), 21)
         
         # Verify advisor fallback (tutor3 since clazz.advisor is None)
-        self.assertEqual(Student.objects.filter(user__username__startswith='csv_student', advisor=self.tutor1_user).count(), 63)
+        self.assertEqual(Student.objects.filter(user__username__startswith='csv_student', advisor=self.tutor3_user).count(), 63)
 
     def test_excel_bulk_import_64_students(self):
         wb = openpyxl.Workbook()
@@ -201,7 +201,7 @@ class StudentBulkImportTestCase(TestCase):
 
     def test_tolerant_class_lookup(self):
         # Create classes with different formats to test tolerant class lookup
-        Class.objects.create(name='B.E CSE', year=3, section='A', department=self.dept, tutor1=self.advisor_user)
+        Class.objects.create(name='B.E CSE', year=3, section='A', department=self.dept, tutor3=self.advisor_user)
         
         # Test class matching for: B.E. CSE A, B.E CSE_A, BE CSE A, b.e cse a
         csv_buffer = io.StringIO()
@@ -321,7 +321,7 @@ class StudentBulkImportTestCase(TestCase):
         other_student.refresh_from_db()
         
         assigned_tutor_user = tutor_student.tutor
-        other_tutor_user = self.tutor2_user if assigned_tutor_user != self.tutor2_user else self.tutor3_user
+        other_tutor_user = self.tutor1_user if assigned_tutor_user != self.tutor1_user else self.tutor2_user
         
         # Log in as the assigned tutor
         self.client.login(username=assigned_tutor_user.username, password='pass123')

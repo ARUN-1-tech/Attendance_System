@@ -141,25 +141,10 @@ class StudentSerializer(serializers.ModelSerializer):
 
 class StaffSerializer(serializers.ModelSerializer):
     user = UserSerializer()
-    advised_class_details = serializers.SerializerMethodField()
 
     class Meta:
         model = Staff
         fields = '__all__'
-
-    def get_advised_class_details(self, obj):
-        from accounts.models import Class
-        cls = Class.objects.filter(advisor=obj.user).first()
-        if cls:
-            return {
-                'id': cls.id,
-                'name': cls.name,
-                'year': cls.year,
-                'section': cls.section,
-                'department_id': cls.department.id if cls.department else None,
-                'department_name': cls.department.name if cls.department else None,
-            }
-        return None
 
     def create(self, validated_data):
         user_data = validated_data.pop('user')
