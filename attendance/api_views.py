@@ -318,9 +318,7 @@ def api_student_stats(request, username):
     from accounts.models import Subject
     if student.student_class:
         class_subject_ids = Schedule.objects.filter(student_class=student.student_class).values_list('subject_id', flat=True).distinct()
-        class_subjects = Subject.objects.filter(
-            Q(student_class=student.student_class) | Q(id__in=class_subject_ids)
-        ).distinct()
+        class_subjects = Subject.objects.filter(id__in=class_subject_ids)
     else:
         class_subjects = Subject.objects.none()
 
@@ -406,10 +404,7 @@ def api_student_stats(request, username):
             
             sub_verified_od = sub_att.filter(status='OD', date__in=verified_ods).count()
             sub_effective_present = sub_present + sub_verified_od
-            if sub_total > 0:
-                sub_percentage = round((sub_effective_present / sub_total * 100), 2)
-            else:
-                sub_percentage = None
+            sub_percentage = (sub_effective_present / sub_total * 100) if sub_total > 0 else 0
             
             subjects_breakdown.append({
                 'id': sub.id,
@@ -422,7 +417,7 @@ def api_student_stats(request, username):
                 'leave_periods': sub_leave,
                 'verified_od_periods': sub_verified_od,
                 'effective_present': sub_effective_present,
-                'percentage': sub_percentage
+                'percentage': round(sub_percentage, 2)
             })
 
     # AI Suggestion

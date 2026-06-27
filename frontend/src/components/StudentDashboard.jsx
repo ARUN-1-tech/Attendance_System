@@ -684,9 +684,8 @@ const StudentDashboard = ({ activeTab }) => {
                   </tr>
                 ) : (
                   analysisStats.subjects_breakdown.map((sub, idx) => {
-                    const hasPeriods = sub.percentage !== null && sub.percentage !== undefined;
-                    const subSafe = hasPeriods ? sub.percentage >= 75.0 : null;
-                    const subColor = subSafe === null ? 'var(--text-muted)' : (subSafe ? 'var(--success)' : 'var(--danger)');
+                    const subSafe = sub.percentage >= 75.0;
+                    const subColor = subSafe ? 'var(--success)' : 'var(--danger)';
                     return (
                       <tr key={idx}>
                         <td>
@@ -694,37 +693,21 @@ const StudentDashboard = ({ activeTab }) => {
                           <div style={{ fontSize: '11px', color: 'var(--text-muted)' }}>{sub.code}</div>
                         </td>
                         <td style={{ width: '240px' }}>
-                          {!hasPeriods ? (
-                            <span style={{ color: 'var(--text-muted)' }}>-</span>
-                          ) : (
-                            <div style={{ width: '100%', height: '8px', backgroundColor: 'var(--bg-tertiary)', borderRadius: '4px', overflow: 'hidden' }}>
-                              <div style={{ width: `${sub.percentage}%`, height: '100%', backgroundColor: subColor, borderRadius: '4px' }} />
-                            </div>
-                          )}
+                          <div style={{ width: '100%', height: '8px', backgroundColor: 'var(--bg-tertiary)', borderRadius: '4px', overflow: 'hidden' }}>
+                            <div style={{ width: `${sub.percentage}%`, height: '100%', backgroundColor: subColor, borderRadius: '4px' }} />
+                          </div>
                         </td>
                         <td>
-                          {!hasPeriods ? (
-                            <span style={{ color: 'var(--text-muted)' }}>-</span>
-                          ) : (
-                            <>
-                              <strong>{sub.effective_present}</strong> / {sub.total_periods} 
-                              <span style={{ fontSize: '11px', color: 'var(--text-secondary)', marginLeft: '8px' }}>
-                                (Raw Pres: {sub.present_periods}, OD: {sub.verified_od_periods})
-                              </span>
-                            </>
-                          )}
+                          <strong>{sub.effective_present}</strong> / {sub.total_periods} 
+                          <span style={{ fontSize: '11px', color: 'var(--text-secondary)', marginLeft: '8px' }}>
+                            (Raw Pres: {sub.present_periods}, OD: {sub.verified_od_periods})
+                          </span>
                         </td>
-                        <td style={{ fontWeight: '700', color: subColor }}>
-                          {!hasPeriods ? '-' : `${sub.percentage}%`}
-                        </td>
+                        <td style={{ fontWeight: '700', color: subColor }}>{sub.percentage}%</td>
                         <td>
-                          {subSafe === null ? (
-                            <span style={{ color: 'var(--text-muted)' }}>-</span>
-                          ) : (
-                            <span className={`badge ${subSafe ? 'badge-present' : 'badge-absent'}`}>
-                              {subSafe ? 'Safe' : 'Critical'}
-                            </span>
-                          )}
+                          <span className={`badge ${subSafe ? 'badge-present' : 'badge-absent'}`}>
+                            {subSafe ? 'Safe' : 'Critical'}
+                          </span>
                         </td>
                       </tr>
                     );
