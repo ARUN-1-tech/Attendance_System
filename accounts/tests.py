@@ -428,7 +428,7 @@ class UserPasswordChangeAndManualAttendanceTestCase(TestCase):
         self.assertEqual(response.status_code, 200)
         self.assertEqual(len(response.data['students']), 1)
         self.assertEqual(response.data['students'][0]['id'], self.student_user.id)
-        self.assertEqual(response.data['students'][0]['current_status'], 'Absent')
+        self.assertEqual(response.data['students'][0]['current_status'], 'Present')
 
     def test_save_class_manual_attendance(self):
         self.client.login(username='staff_user', password='staffpass123')
@@ -611,3 +611,72 @@ class UserPasswordChangeAndManualAttendanceTestCase(TestCase):
         # Verify database
         self.assertTrue(Subject.objects.filter(code='PHY101', student_class=self.clazz).exists())
         self.assertTrue(Subject.objects.filter(code='CHM101', student_class=self.clazz).exists())
+
+    def test_period_lock_conflict(self):
+        from attendance.models import PeriodLock
+        # Create user B
+        staff2_user = User.objects.create_user('staff2', 'staff2@example.com', 'staffpass123')
+        staff2_user.role = 'staff'
+        staff2_user.save()
+        Staff.objects.create(user=staff2_user, staff_type='Normal')
+
+        # Create period lock by staff2 for clazz today (Thursday is weekday for target_date)
+        from django.utils import timezone
+        import datetime
+        target_date = datetime.date(2026, 6, 25) # Thursday
+        PeriodLock.objects.create(
+            student_class=self.clazz,
+            date=target_date,
+            period=1,
+            staff=staff2_user
+        )
+
+        # Login as staff_user (owner of clazz advisor is staff_user if set, but we login as staff_user here)
+        self.client.login(username='staff_user', password='staffpass123')
+
+        # Attempt to save subject manual attendance for locked period 1 -> should fail
+        response = self.client.post('/api/attendances/save-class-manual-attendance/', {
+            'class_id': self.clazz.id,
+            'subject_id': self.subject.id,
+            'date': '2026-06-25',
+            'period': '1',
+            'statuses': {
+                str(self.student_user.id): 'Present'
+            }
+        }, content_type='application/json')
+        self.assertEqual(response.status_code, 400)
+        self.assertIn("already marked/used", response.data['detail'])
+
+        # Attempt to save advisor manual attendance for locked period 1 -> should fail
+        self.staff.staff_type = 'Advisor'
+        self.staff.save()
+        self.clazz.advisor = self.staff_user
+        self.clazz.save()
+        response = self.client.post('/api/attendances/save-advisor-manual-attendance/', {
+            'date': '2026-06-25',
+            'attendance_data': {
+                str(self.student_user.id): {
+                    'overall_status': 'Present',
+                    'periods': {}
+                }
+            }
+        }, content_type='application/json')
+        self.assertEqual(response.status_code, 400)
+        self.assertIn("already marked/used", response.data['detail'])
+
+    def test_default_present_in_subject_manual_save(self):
+        self.client.login(username='staff_user', password='staffpass123')
+        # Create an attendance record and verify default Present status
+        response = self.client.post('/api/attendances/save-class-manual-attendance/', {
+            'class_id': self.clazz.id,
+            'subject_id': self.subject.id,
+            'date': '2026-06-25',
+            'period': '2', # lock period 2
+            'statuses': {} # empty statuses, should default student_user to Present
+        }, content_type='application/json')
+        self.assertEqual(response.status_code, 200)
+        
+        from attendance.models import Attendance
+        attendance = Attendance.objects.filter(student=self.student, date='2026-06-25', schedule__period=2).first()
+        self.assertIsNotNone(attendance)
+        self.assertEqual(attendance.status, 'Present')

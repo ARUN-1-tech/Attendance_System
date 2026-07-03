@@ -64,11 +64,19 @@ def generate_otp(request):
         today = timezone.now().date()
         day_str = today.strftime('%A')
         
+        # Check PeriodLock
+        from .models import PeriodLock
+        p_val = int(period) if str(period).isdigit() else period
+        lock = PeriodLock.objects.filter(student_class=student_class, date=today, period=p_val).first()
+        if lock and lock.staff != request.user:
+            messages.error(request, f"Period {p_val} is already marked/used by {lock.staff.first_name} {lock.staff.last_name} ({lock.staff.username}).")
+            return redirect('staff_dashboard')
+
         import datetime
         schedule, created = Schedule.objects.get_or_create(
             student_class=student_class,
             subject=subject,
-            period=period,
+            period=p_val,
             day=day_str,
             defaults={
                 'start_time': datetime.time(9, 0),
@@ -76,6 +84,14 @@ def generate_otp(request):
             }
         )
         
+        # Acquire lock
+        PeriodLock.objects.get_or_create(
+            student_class=student_class,
+            date=today,
+            period=p_val,
+            defaults={'staff': request.user}
+        )
+
         # Deactivate old OTPs for this schedule today
         OTP.objects.filter(schedule=schedule, is_active=True).update(is_active=False)
 

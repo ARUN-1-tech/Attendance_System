@@ -31,3 +31,17 @@ class Attendance(models.Model):
 
     def __str__(self):
         return f"{self.student} - {self.date} - {self.status}"
+
+
+class PeriodLock(models.Model):
+    student_class = models.ForeignKey('accounts.Class', on_delete=models.CASCADE)
+    date = models.DateField()
+    period = models.IntegerField()
+    staff = models.ForeignKey('accounts.User', on_delete=models.CASCADE)
+
+    class Meta:
+        unique_together = ('student_class', 'date', 'period')
+
+    def __str__(self):
+        return f"{self.student_class} - {self.date} Period {self.period} locked by {self.staff}"
+

@@ -93,6 +93,10 @@ const StaffDashboard = ({ activeTab }) => {
   const [manualAttMessage, setManualAttMessage] = useState(null);
   const [manualAttError, setManualAttError] = useState(null);
   const [recentlyMarked, setRecentlyMarked] = useState([]);
+  const [manualPeriod, setManualPeriod] = useState('1');
+  const [manualIsLocked, setManualIsLocked] = useState(false);
+  const [manualLockedByName, setManualLockedByName] = useState('');
+  const [manualSearchQuery, setManualSearchQuery] = useState('');
 
   // Advisor Manual Attendance states
   const [advisorDate, setAdvisorDate] = useState(new Date().toISOString().split('T')[0]);
@@ -353,12 +357,12 @@ const StaffDashboard = ({ activeTab }) => {
   }, [activeTab]);
 
   useEffect(() => {
-    if (activeTab === 'manual_attendance' && manualClassId && manualSubjectId && manualDate) {
-      fetchManualClassStudents(manualClassId, manualSubjectId, manualDate);
+    if (activeTab === 'manual_attendance' && manualClassId && manualSubjectId && manualDate && manualPeriod) {
+      fetchManualClassStudents(manualClassId, manualSubjectId, manualDate, manualPeriod);
     } else {
       setManualAttStudents([]);
     }
-  }, [activeTab, manualClassId, manualSubjectId, manualDate]);
+  }, [activeTab, manualClassId, manualSubjectId, manualDate, manualPeriod]);
 
   useEffect(() => {
     if (activeTab === 'manual_attendance' && user.staff_details?.staff_type === 'Advisor') {
@@ -672,18 +676,26 @@ const StaffDashboard = ({ activeTab }) => {
 
 
 
-  const fetchManualClassStudents = async (classId, subjectId, dateVal) => {
+  const fetchManualClassStudents = async (classId, subjectId, dateVal, periodVal = '1') => {
     if (!classId || !subjectId || !dateVal) return;
     setManualAttLoading(true);
     setManualAttMessage(null);
     setManualAttError(null);
+    setManualIsLocked(false);
+    setManualLockedByName('');
     try {
-      const data = await api.get(`/api/attendances/manual-class-students/?class_id=${classId}&subject_id=${subjectId}&date=${dateVal}`);
+      const data = await api.get(`/api/attendances/manual-class-students/?class_id=${classId}&subject_id=${subjectId}&date=${dateVal}&period=${periodVal}`);
       setManualAttStudents(data.students || []);
+      setManualIsLocked(data.is_locked || false);
+      setManualLockedByName(data.locked_by_name || '');
+      
+      if (data.is_locked) {
+        setManualAttError(`Period ${periodVal} is locked by ${data.locked_by_name}. You cannot modify this attendance.`);
+      }
       
       const initialStatuses = {};
       (data.students || []).forEach(s => {
-        initialStatuses[s.id] = s.current_status || 'Absent';
+        initialStatuses[s.id] = s.current_status || 'Present';
       });
       setManualStatuses(initialStatuses);
     } catch (err) {
@@ -697,20 +709,22 @@ const StaffDashboard = ({ activeTab }) => {
 
   const handleSaveClassManualAttendance = async (e) => {
     if (e) e.preventDefault();
-    if (!manualClassId || !manualSubjectId || !manualDate || !selectedManualStudentId) return;
+    if (!manualClassId || !manualSubjectId || !manualDate || !manualPeriod) return;
+    if (manualIsLocked) {
+      alert('This period is locked. You cannot modify the attendance.');
+      return;
+    }
     
     setManualAttLoading(true);
     setManualAttMessage(null);
     setManualAttError(null);
     try {
-      const statusVal = manualStatuses[selectedManualStudentId];
       const res = await api.post('/api/attendances/save-class-manual-attendance/', {
         class_id: manualClassId,
         subject_id: manualSubjectId,
         date: manualDate,
-        statuses: {
-          [selectedManualStudentId]: statusVal
-        }
+        period: manualPeriod,
+        statuses: manualStatuses
       });
 
       setManualAttMessage(res.detail || 'Attendance updated successfully.');
@@ -721,18 +735,20 @@ const StaffDashboard = ({ activeTab }) => {
       const subjObj = subjects.find(sub => sub.id.toString() === manualSubjectId.toString());
       const subjectName = subjObj ? subjObj.name : 'Selected Subject';
 
-      const s = manualAttStudents.find(stud => stud.id.toString() === selectedManualStudentId.toString());
-      if (s) {
-        newEntries.push({
-          studentName: s.name,
-          regNo: s.reg_no,
-          date: manualDate,
-          period: 1,
-          subjectName: subjectName,
-          status: statusVal,
-          timeMarked: nowStr
-        });
-      }
+      Object.keys(manualStatuses).forEach(sId => {
+        const s = manualAttStudents.find(stud => stud.id.toString() === sId.toString());
+        if (s) {
+          newEntries.push({
+            studentName: s.name,
+            regNo: s.reg_no,
+            date: manualDate,
+            period: parseInt(manualPeriod),
+            subjectName: subjectName,
+            status: manualStatuses[sId],
+            timeMarked: nowStr
+          });
+        }
+      });
 
       setRecentlyMarked(prev => [...newEntries, ...prev]);
 
@@ -2225,7 +2241,6 @@ const StaffDashboard = ({ activeTab }) => {
                     setManualClassId('');
                     setManualSubjectId('');
                     setManualAttStudents([]);
-                    setSelectedManualStudentId('');
                   }}
                   required
                 >
@@ -2245,7 +2260,6 @@ const StaffDashboard = ({ activeTab }) => {
                     setManualClassId(e.target.value);
                     setManualSubjectId('');
                     setManualAttStudents([]);
-                    setSelectedManualStudentId('');
                   }}
                   disabled={!manualDeptId}
                   required
@@ -2267,7 +2281,6 @@ const StaffDashboard = ({ activeTab }) => {
                   onChange={(e) => {
                     setManualSubjectId(e.target.value);
                     setManualAttStudents([]);
-                    setSelectedManualStudentId('');
                   }}
                   disabled={!manualClassId}
                   required
@@ -2290,7 +2303,6 @@ const StaffDashboard = ({ activeTab }) => {
                   onChange={(e) => {
                     setManualDate(e.target.value);
                     setManualAttStudents([]);
-                    setSelectedManualStudentId('');
                   }}
                   disabled={!manualSubjectId}
                   required
@@ -2298,19 +2310,19 @@ const StaffDashboard = ({ activeTab }) => {
               </div>
 
               <div className="form-group">
-                <label className="form-label">5. Student</label>
+                <label className="form-label">5. Period</label>
                 <select 
                   className="input" 
-                  value={selectedManualStudentId} 
-                  onChange={(e) => setSelectedManualStudentId(e.target.value)}
-                  disabled={!manualDate || manualAttStudents.length === 0}
+                  value={manualPeriod} 
+                  onChange={(e) => {
+                    setManualPeriod(e.target.value);
+                    setManualAttStudents([]);
+                  }}
+                  disabled={!manualDate}
                   required
                 >
-                  <option value="">-- Choose Student --</option>
-                  {manualAttStudents.map(s => (
-                    <option key={s.id} value={s.id}>
-                      {s.name} ({s.reg_no})
-                    </option>
+                  {[1, 2, 3, 4, 5, 6, 7].map(num => (
+                    <option key={num} value={num.toString()}>Period {num}</option>
                   ))}
                 </select>
               </div>
@@ -2330,52 +2342,106 @@ const StaffDashboard = ({ activeTab }) => {
               </div>
             )}
 
-            {!manualAttLoading && manualClassId && manualSubjectId && manualDate && selectedManualStudentId && (
+            {!manualAttLoading && manualClassId && manualSubjectId && manualDate && manualPeriod && manualAttStudents.length > 0 && (
               <div style={{ marginTop: '24px' }}>
-                <h3 style={{ marginBottom: '16px', fontSize: '15px', fontWeight: '600' }}>Mark Attendance for Student</h3>
-                {(() => {
-                  const student = manualAttStudents.find(s => s.id.toString() === selectedManualStudentId.toString());
-                  if (!student) return null;
-                  return (
-                    <div className="card" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '20px', backgroundColor: 'var(--bg-primary)', border: '1px solid var(--border-color)' }}>
-                      <div>
-                        <strong style={{ color: 'var(--text-primary)', fontSize: '15px', display: 'block' }}>{student.name}</strong>
-                        <span style={{ fontSize: '13px', color: 'var(--text-secondary)' }}>
-                          Reg No: {student.reg_no} | Roll No: {student.roll_no}
-                        </span>
-                      </div>
-                      <div style={{ display: 'flex', gap: '20px' }}>
-                        {['Present', 'Absent', 'OD'].map(st => (
-                          <label key={st} style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '13px', cursor: 'pointer' }}>
-                            <input 
-                              type="radio" 
-                              name={`status_${student.id}`} 
-                              value={st}
-                              checked={manualStatuses[student.id] === st}
-                              onChange={(e) => {
-                                setManualStatuses({
-                                  ...manualStatuses,
-                                  [student.id]: e.target.value
-                                });
-                              }}
-                            />
-                            <span style={{
-                              color: st === 'Present' ? 'var(--success)' :
-                                     st === 'Absent' ? 'var(--danger)' : 'var(--info)',
-                              fontWeight: '600'
-                            }}>
-                              {st}
-                            </span>
-                          </label>
-                        ))}
-                      </div>
-                    </div>
-                  );
-                })()}
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', margin: '20px 0 12px 0' }}>
+                  <h3 style={{ fontSize: '15px', fontWeight: '600', color: 'var(--text-primary)' }}>Mark Subject Attendance</h3>
+                  <input 
+                    type="text" 
+                    placeholder="Search by student name or reg no..." 
+                    className="input" 
+                    style={{ maxWidth: '300px', height: '38px', fontSize: '13px' }}
+                    value={manualSearchQuery}
+                    onChange={(e) => setManualSearchQuery(e.target.value)}
+                  />
+                </div>
 
-                <div style={{ marginTop: '24px' }}>
-                  <button type="submit" className="btn btn-primary" style={{ width: '100%' }}>
-                    Save Attendance
+                <div className="table-container" style={{ overflowX: 'auto', marginBottom: '20px' }}>
+                  <table className="table" style={{ width: '100%' }}>
+                    <thead>
+                      <tr>
+                        <th>Student</th>
+                        <th style={{ width: '220px', textAlign: 'center' }}>Status Toggle</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {manualAttStudents
+                        .filter(s => 
+                          s.name.toLowerCase().includes(manualSearchQuery.toLowerCase()) ||
+                          s.reg_no.toLowerCase().includes(manualSearchQuery.toLowerCase())
+                        )
+                        .map(s => (
+                          <tr key={s.id} style={{ borderBottom: '1px solid var(--border-color)' }}>
+                            <td style={{ padding: '12px 8px' }}>
+                              <strong style={{ color: 'var(--text-primary)', display: 'block', fontSize: '14px' }}>{s.name}</strong>
+                              <span style={{ fontSize: '12px', color: 'var(--text-secondary)' }}>Reg No: {s.reg_no} | Roll No: {s.roll_no || 'N/A'}</span>
+                            </td>
+                            <td style={{ padding: '12px 8px', textAlign: 'center' }}>
+                              <div style={{ display: 'flex', gap: '6px', justifyContent: 'center' }}>
+                                {['Present', 'Absent', 'OD'].map(statusOption => {
+                                  let activeStyle = {};
+                                  const isActive = manualStatuses[s.id] === statusOption;
+                                  if (isActive) {
+                                    if (statusOption === 'Present') activeStyle = { backgroundColor: 'var(--success)', color: 'white' };
+                                    else if (statusOption === 'Absent') activeStyle = { backgroundColor: 'var(--danger)', color: 'white' };
+                                    else if (statusOption === 'OD') activeStyle = { backgroundColor: 'var(--info)', color: 'white' };
+                                  } else {
+                                    activeStyle = { backgroundColor: 'var(--bg-secondary)', color: 'var(--text-secondary)', border: '1px solid var(--border-color)' };
+                                  }
+                                  return (
+                                    <button
+                                      key={statusOption}
+                                      type="button"
+                                      onClick={() => {
+                                        if (!manualIsLocked) {
+                                          setManualStatuses({
+                                            ...manualStatuses,
+                                            [s.id]: statusOption
+                                          });
+                                        }
+                                      }}
+                                      disabled={manualIsLocked}
+                                      style={{
+                                        padding: '6px 12px',
+                                        borderRadius: 'var(--radius-sm)',
+                                        fontSize: '12px',
+                                        fontWeight: '600',
+                                        cursor: manualIsLocked ? 'not-allowed' : 'pointer',
+                                        border: 'none',
+                                        transition: 'all 0.2s ease',
+                                        ...activeStyle
+                                      }}
+                                    >
+                                      {statusOption}
+                                    </button>
+                                  );
+                                })}
+                              </div>
+                            </td>
+                          </tr>
+                        ))}
+                      {manualAttStudents.filter(s => 
+                        s.name.toLowerCase().includes(manualSearchQuery.toLowerCase()) ||
+                        s.reg_no.toLowerCase().includes(manualSearchQuery.toLowerCase())
+                      ).length === 0 && (
+                        <tr>
+                          <td colSpan={2} style={{ textAlign: 'center', padding: '24px', color: 'var(--text-muted)' }}>
+                            No students match the search query.
+                          </td>
+                        </tr>
+                      )}
+                    </tbody>
+                  </table>
+                </div>
+
+                <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: '16px' }}>
+                  <button 
+                    type="submit" 
+                    className="btn btn-primary" 
+                    disabled={manualIsLocked} 
+                    style={{ minWidth: '220px', height: '44px', fontWeight: '600', cursor: manualIsLocked ? 'not-allowed' : 'pointer' }}
+                  >
+                    Save Subject Attendance
                   </button>
                 </div>
               </div>

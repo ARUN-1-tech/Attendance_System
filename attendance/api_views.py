@@ -90,6 +90,16 @@ def api_generate_otp(request):
 
     today = timezone.now().date()
     day_str = today.strftime('%A')
+
+    # Check locks first
+    from .models import PeriodLock
+    for p in periods:
+        p_val = int(p) if str(p).isdigit() else p
+        lock = PeriodLock.objects.filter(student_class=student_class, date=today, period=p_val).first()
+        if lock and lock.staff != request.user:
+            return Response({
+                'detail': f'Period {p_val} is already marked/used by {lock.staff.first_name} {lock.staff.last_name} ({lock.staff.username}).'
+            }, status=status.HTTP_400_BAD_REQUEST)
     
     # Generate a single 6-digit code shared among all selected periods
     code = ''.join(random.choices(string.digits, k=6))
@@ -103,6 +113,15 @@ def api_generate_otp(request):
 
     for p in periods:
         p_val = int(p) if str(p).isdigit() else p
+        
+        # Acquire/Ensure lock exists for current staff
+        PeriodLock.objects.get_or_create(
+            student_class=student_class,
+            date=today,
+            period=p_val,
+            defaults={'staff': request.user}
+        )
+
         schedule, created = Schedule.objects.get_or_create(
             student_class=student_class,
             subject=subject,
@@ -133,6 +152,7 @@ def api_generate_otp(request):
                 date=today,
                 defaults={'status': default_status}
             )
+
             
     if not otps_created:
         return Response({'detail': 'No periods could be resolved.'}, status=status.HTTP_400_BAD_REQUEST)
@@ -816,6 +836,7 @@ class AttendanceViewSet(viewsets.ModelViewSet):
         class_id = request.query_params.get('class_id')
         subject_id = request.query_params.get('subject_id')
         date_str = request.query_params.get('date')
+        period = request.query_params.get('period')
 
         if not (class_id and subject_id and date_str):
             return Response({'detail': 'Missing class_id, subject_id, or date.'}, status=status.HTTP_400_BAD_REQUEST)
@@ -830,7 +851,21 @@ class AttendanceViewSet(viewsets.ModelViewSet):
 
         # Retrieve existing attendance for this class, subject, and date
         weekday = target_date.strftime('%A')
-        schedules = Schedule.objects.filter(student_class_id=class_id, subject_id=subject_id, day=weekday)
+        
+        schedules_filter = {
+            'student_class_id': class_id,
+            'subject_id': subject_id,
+            'day': weekday
+        }
+        period_val = None
+        if period:
+            try:
+                period_val = int(period)
+                schedules_filter['period'] = period_val
+            except ValueError:
+                pass
+
+        schedules = Schedule.objects.filter(**schedules_filter)
         
         existing_attendance = {}
         if schedules.exists():
@@ -851,17 +886,29 @@ class AttendanceViewSet(viewsets.ModelViewSet):
                 'name': f"{s.user.first_name} {s.user.last_name}".strip() or s.user.username,
                 'reg_no': s.reg_no or s.roll_no or s.user.username,
                 'roll_no': s.roll_no or '',
-                'current_status': existing_attendance.get(s.user_id, 'Absent')  # Default to Absent if not marked
+                'current_status': existing_attendance.get(s.user_id, 'Present')  # Default to Present if not marked
             } for s in students
         ]
 
         # Check if weekly schedule exists for this class, subject on this weekday
         schedule_exists = schedules.exists()
 
+        # Check if this period is locked by someone else
+        from .models import PeriodLock
+        is_locked = False
+        locked_by_name = ""
+        if period_val:
+            lock = PeriodLock.objects.filter(student_class_id=class_id, date=target_date, period=period_val).first()
+            if lock:
+                is_locked = (lock.staff != user)
+                locked_by_name = f"{lock.staff.first_name} {lock.staff.last_name}".strip() or lock.staff.username
+
         return Response({
             'students': students_list,
             'schedule_exists': schedule_exists,
-            'weekday': weekday
+            'weekday': weekday,
+            'is_locked': is_locked,
+            'locked_by_name': locked_by_name
         })
 
     @action(detail=False, methods=['post'], url_path='save-class-manual-attendance')
@@ -873,6 +920,7 @@ class AttendanceViewSet(viewsets.ModelViewSet):
         class_id = request.data.get('class_id')
         subject_id = request.data.get('subject_id')
         date_str = request.data.get('date')
+        period = request.data.get('period')
         statuses = request.data.get('statuses', {})
 
         if not (class_id and subject_id and date_str):
@@ -884,37 +932,63 @@ class AttendanceViewSet(viewsets.ModelViewSet):
         except ValueError:
             return Response({'detail': 'Invalid date format.'}, status=status.HTTP_400_BAD_REQUEST)
 
+        period_val = int(period) if (period and str(period).isdigit()) else 1
+
+        # Check PeriodLock
+        from .models import PeriodLock
+        lock = PeriodLock.objects.filter(student_class_id=class_id, date=target_date, period=period_val).first()
+        if lock and lock.staff != user:
+            return Response({
+                'detail': f'Period {period_val} attendance is already marked/used by {lock.staff.first_name} {lock.staff.last_name} ({lock.staff.username}).'
+            }, status=status.HTTP_400_BAD_REQUEST)
+
         from django.db import transaction
         try:
             with transaction.atomic():
-                # Find/Create the schedule for this class, subject, and day of week
-                schedules = list(Schedule.objects.filter(student_class_id=class_id, subject_id=subject_id, day=weekday))
-                if not schedules:
+                # Acquire/Ensure lock exists for current user
+                PeriodLock.objects.get_or_create(
+                    student_class_id=class_id,
+                    date=target_date,
+                    period=period_val,
+                    defaults={'staff': user}
+                )
+
+                # Find/Create the schedule for this class, subject, and day of week at selected period
+                sched = Schedule.objects.filter(student_class_id=class_id, subject_id=subject_id, day=weekday, period=period_val).first()
+                if not sched:
                     from accounts.models import Class, Subject
                     student_class = get_object_or_404(Class, id=class_id)
                     subject = get_object_or_404(Subject, id=subject_id)
-                    default_sched = Schedule.objects.create(
+                    
+                    # Calculate start/end time based on period
+                    start_hour = 9 + (period_val - 1)
+                    if period_val >= 5:
+                        start_hour += 1  # lunch break
+                    start_time = datetime.time(start_hour, 0)
+                    end_time = datetime.time(start_hour + 1, 0)
+                    
+                    sched = Schedule.objects.create(
                         student_class=student_class,
                         subject=subject,
-                        period=1,
+                        period=period_val,
                         day=weekday,
-                        start_time=datetime.time(9, 0),
-                        end_time=datetime.time(10, 0)
+                        start_time=start_time,
+                        end_time=end_time
                     )
-                    schedules = [default_sched]
+                schedules = [sched]
 
                 # Update or create attendance for each student in the class
                 students = Student.objects.filter(student_class_id=class_id)
                 updated_count = 0
                 for student in students:
-                    status_val = statuses.get(str(student.user_id)) or statuses.get(student.user_id) or 'Absent'
+                    status_val = statuses.get(str(student.user_id)) or statuses.get(student.user_id) or 'Present'
                     if status_val not in ['Present', 'Absent', 'OD']:
-                        status_val = 'Absent'
+                        status_val = 'Present'
 
-                    for sched in schedules:
+                    for s_item in schedules:
                         Attendance.objects.update_or_create(
                             student=student,
-                            schedule=sched,
+                            schedule=s_item,
                             date=target_date,
                             defaults={'status': status_val}
                         )
@@ -1034,10 +1108,32 @@ class AttendanceViewSet(viewsets.ModelViewSet):
             weekday = target_date.strftime('%A')
         except ValueError:
             return Response({'detail': 'Invalid date format.'}, status=status.HTTP_400_BAD_REQUEST)
-            
+
+        # Check PeriodLock for periods 1 to 7
+        from .models import PeriodLock
+        locked_periods = []
+        for p in range(1, 8):
+            lock = PeriodLock.objects.filter(student_class=advised_class, date=target_date, period=p).first()
+            if lock and lock.staff != user:
+                locked_periods.append(p)
+        if locked_periods:
+            p_str = ", ".join(map(str, locked_periods))
+            return Response({
+                'detail': f'Periods {p_str} are already marked/used by other staff members.'
+            }, status=status.HTTP_400_BAD_REQUEST)
+
         from django.db import transaction
         try:
             with transaction.atomic():
+                # Acquire locks for periods 1 to 7
+                for p in range(1, 8):
+                    PeriodLock.objects.get_or_create(
+                        student_class=advised_class,
+                        date=target_date,
+                        period=p,
+                        defaults={'staff': user}
+                    )
+
                 # We need to make sure Schedule objects exist for periods 1 to 7 on this weekday.
                 # If they do not, we create default schedules for the class.
                 schedules_by_period = {}

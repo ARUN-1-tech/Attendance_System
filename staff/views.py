@@ -698,17 +698,36 @@ def manual_attendance(request):
             
             if student.student_class:
                 schedules = Schedule.objects.filter(student_class=student.student_class, day=weekday)
+                skipped_periods = []
                 for sched in schedules:
                     status_name = f"status_{sched.id}"
                     status_val = request.POST.get(status_name)
                     if status_val in ['Present', 'Absent', 'OD', 'Leave']:
+                        from attendance.models import PeriodLock
+                        lock = PeriodLock.objects.filter(student_class=student.student_class, date=target_date, period=sched.period).first()
+                        if lock and lock.staff != request.user:
+                            skipped_periods.append(sched.period)
+                            continue
+
+                        # Acquire lock
+                        PeriodLock.objects.get_or_create(
+                            student_class=student.student_class,
+                            date=target_date,
+                            period=sched.period,
+                            defaults={'staff': request.user}
+                        )
+
                         Attendance.objects.update_or_create(
                             student=student,
                             schedule=sched,
                             date=target_date,
                             defaults={'status': status_val}
                         )
-                messages.success(request, f"Attendance for {student.user.first_name} on {date_str} updated successfully.")
+                if skipped_periods:
+                    skipped_str = ", ".join(map(str, skipped_periods))
+                    messages.warning(request, f"Attendance updated, but skipped locked periods: {skipped_str}.")
+                else:
+                    messages.success(request, f"Attendance for {student.user.first_name} on {date_str} updated successfully.")
             else:
                 messages.error(request, "Student has no assigned class.")
             return redirect(f"{request.path}?student_id={student_id}&date={date_str}")
