@@ -344,6 +344,8 @@ def api_student_stats(request, username):
         class_subjects = Subject.objects.none()
 
     attendances = Attendance.objects.filter(student=student, schedule__subject__in=class_subjects)
+    from .models import filter_active_attendance
+    attendances = filter_active_attendance(attendances)
     
     is_today = request.query_params.get('today') == 'true'
     if is_today:
@@ -614,6 +616,8 @@ def api_attendance_report_data(request):
             student__in=students_list,
             date__in=target_dates
         ).select_related('student__user', 'student__student_class')
+        from .models import filter_active_attendance
+        records_in_range = filter_active_attendance(records_in_range)
         
         from collections import defaultdict
         student_date_statuses = defaultdict(list)
@@ -668,6 +672,8 @@ def api_attendance_report_data(request):
         
         for student in students_list:
             student_atts = Attendance.objects.filter(student=student)
+            from .models import filter_active_attendance
+            student_atts = filter_active_attendance(student_atts)
             if from_date:
                 student_atts = student_atts.filter(date__gte=from_date)
             if to_date:
@@ -827,6 +833,28 @@ class AttendanceViewSet(viewsets.ModelViewSet):
         except Exception as e:
             return Response({'detail': f'Error saving attendance: {str(e)}'}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
+    @action(detail=False, methods=['get'], url_path='locked-periods')
+    def locked_periods(self, request):
+        class_id = request.query_params.get('class_id')
+        date_str = request.query_params.get('date')
+        if not (class_id and date_str):
+            return Response({'detail': 'class_id and date are required.'}, status=status.HTTP_400_BAD_REQUEST)
+        try:
+            target_date = datetime.datetime.strptime(date_str, '%Y-%m-%d').date()
+        except ValueError:
+            return Response({'detail': 'Invalid date format.'}, status=status.HTTP_400_BAD_REQUEST)
+            
+        from .models import PeriodLock
+        locks = PeriodLock.objects.filter(student_class_id=class_id, date=target_date)
+        locks_data = [
+            {
+                'period': l.period,
+                'locked_by_id': l.staff_id,
+                'locked_by_name': f"{l.staff.first_name} {l.staff.last_name}".strip() or l.staff.username
+            } for l in locks
+        ]
+        return Response(locks_data)
+
     @action(detail=False, methods=['get'], url_path='manual-class-students')
     def manual_class_students(self, request):
         user = self.request.user
@@ -893,15 +921,23 @@ class AttendanceViewSet(viewsets.ModelViewSet):
         # Check if weekly schedule exists for this class, subject on this weekday
         schedule_exists = schedules.exists()
 
-        # Check if this period is locked by someone else
+        # Check if this period is locked
         from .models import PeriodLock
         is_locked = False
         locked_by_name = ""
         if period_val:
             lock = PeriodLock.objects.filter(student_class_id=class_id, date=target_date, period=period_val).first()
             if lock:
-                is_locked = (lock.staff != user)
-                locked_by_name = f"{lock.staff.first_name} {lock.staff.last_name}".strip() or lock.staff.username
+                from accounts.models import Class
+                student_class = Class.objects.filter(id=class_id).first()
+                is_advisor = student_class and (student_class.advisor == user)
+                
+                if is_advisor:
+                    is_locked = True
+                    locked_by_name = "Advisor (must edit through HOD/Advisor Whole Day Attendance)"
+                else:
+                    is_locked = (lock.staff != user)
+                    locked_by_name = f"{lock.staff.first_name} {lock.staff.last_name}".strip() or lock.staff.username
 
         return Response({
             'students': students_list,
@@ -937,10 +973,19 @@ class AttendanceViewSet(viewsets.ModelViewSet):
         # Check PeriodLock
         from .models import PeriodLock
         lock = PeriodLock.objects.filter(student_class_id=class_id, date=target_date, period=period_val).first()
-        if lock and lock.staff != user:
-            return Response({
-                'detail': f'Period {period_val} attendance is already marked/used by {lock.staff.first_name} {lock.staff.last_name} ({lock.staff.username}).'
-            }, status=status.HTTP_400_BAD_REQUEST)
+        if lock:
+            from accounts.models import Class
+            student_class = Class.objects.filter(id=class_id).first()
+            is_advisor = student_class and (student_class.advisor == user)
+            
+            if is_advisor:
+                return Response({
+                    'detail': f'This period is marked. As the advisor, you must edit it through the Advisor Whole Day Manual Attendance page.'
+                }, status=status.HTTP_400_BAD_REQUEST)
+            elif lock.staff != user:
+                return Response({
+                    'detail': f'Period {period_val} attendance is already marked/used by {lock.staff.first_name} {lock.staff.last_name} ({lock.staff.username}).'
+                }, status=status.HTTP_400_BAD_REQUEST)
 
         from django.db import transaction
         try:
@@ -1031,9 +1076,9 @@ class AttendanceViewSet(viewsets.ModelViewSet):
         # Get schedules for this class on this weekday
         schedules = Schedule.objects.filter(student_class=advised_class, day=weekday).order_by('period')
         
-        # We want to represent 7 periods (1 to 7)
+        # We want to represent 8 periods (1 to 8)
         periods_list = []
-        for period in range(1, 8):
+        for period in range(1, 9):
             sched = schedules.filter(period=period).first()
             periods_list.append({
                 'period': period,
@@ -1061,7 +1106,7 @@ class AttendanceViewSet(viewsets.ModelViewSet):
         for s in students:
             # By default, all periods are 'Present' unless already marked in DB
             statuses = {}
-            for p in range(1, 8):
+            for p in range(1, 9):
                 statuses[str(p)] = att_map.get(s.user_id, {}).get(p, 'Present')
                 
             students_data.append({
@@ -1109,35 +1154,23 @@ class AttendanceViewSet(viewsets.ModelViewSet):
         except ValueError:
             return Response({'detail': 'Invalid date format.'}, status=status.HTTP_400_BAD_REQUEST)
 
-        # Check PeriodLock for periods 1 to 7
-        from .models import PeriodLock
-        locked_periods = []
-        for p in range(1, 8):
-            lock = PeriodLock.objects.filter(student_class=advised_class, date=target_date, period=p).first()
-            if lock and lock.staff != user:
-                locked_periods.append(p)
-        if locked_periods:
-            p_str = ", ".join(map(str, locked_periods))
-            return Response({
-                'detail': f'Periods {p_str} are already marked/used by other staff members.'
-            }, status=status.HTTP_400_BAD_REQUEST)
-
         from django.db import transaction
         try:
             with transaction.atomic():
-                # Acquire locks for periods 1 to 7
-                for p in range(1, 8):
-                    PeriodLock.objects.get_or_create(
+                # Acquire/Update locks for periods 1 to 8
+                from .models import PeriodLock
+                for p in range(1, 9):
+                    PeriodLock.objects.update_or_create(
                         student_class=advised_class,
                         date=target_date,
                         period=p,
                         defaults={'staff': user}
                     )
 
-                # We need to make sure Schedule objects exist for periods 1 to 7 on this weekday.
+                # We need to make sure Schedule objects exist for periods 1 to 8 on this weekday.
                 # If they do not, we create default schedules for the class.
                 schedules_by_period = {}
-                for p in range(1, 8):
+                for p in range(1, 9):
                     sched = Schedule.objects.filter(student_class=advised_class, day=weekday, period=p).first()
                     if not sched:
                         # Find a subject for this class, or create/use a default subject
@@ -1183,7 +1216,7 @@ class AttendanceViewSet(viewsets.ModelViewSet):
                     overall_status = student_payload.get('overall_status', 'Present')
                     period_statuses = student_payload.get('periods', {})
                     
-                    for p in range(1, 8):
+                    for p in range(1, 9):
                         # Determine status for this period
                         if overall_status == 'Present':
                             p_status = 'Present'

@@ -25,6 +25,8 @@ const StaffDashboard = ({ activeTab }) => {
   const [departments, setDepartments] = useState([]);
   const [otpClasses, setOtpClasses] = useState([]);
   const [classSubjects, setClassSubjects] = useState([]);
+  const [otpLockedPeriods, setOtpLockedPeriods] = useState([]);
+  const [manualLockedPeriods, setManualLockedPeriods] = useState([]);
   
   // Approvals states
   const [leaves, setLeaves] = useState([]);
@@ -431,6 +433,41 @@ const StaffDashboard = ({ activeTab }) => {
     };
     fetchClassSubjects();
   }, [selectedClassName]);
+
+  useEffect(() => {
+    const fetchOtpLockedPeriods = async () => {
+      if (!selectedClassName) {
+        setOtpLockedPeriods([]);
+        return;
+      }
+      try {
+        const todayStr = new Date().toISOString().substring(0, 10);
+        const data = await api.get(`/api/attendances/locked-periods/?class_id=${selectedClassName}&date=${todayStr}`);
+        setOtpLockedPeriods(data.map(l => l.period));
+      } catch (err) {
+        console.error('Error fetching OTP locked periods:', err);
+        setOtpLockedPeriods([]);
+      }
+    };
+    fetchOtpLockedPeriods();
+  }, [selectedClassName]);
+
+  useEffect(() => {
+    const fetchManualLockedPeriods = async () => {
+      if (!manualClassId || !manualDate) {
+        setManualLockedPeriods([]);
+        return;
+      }
+      try {
+        const data = await api.get(`/api/attendances/locked-periods/?class_id=${manualClassId}&date=${manualDate}`);
+        setManualLockedPeriods(data);
+      } catch (err) {
+        console.error('Error fetching manual locked periods:', err);
+        setManualLockedPeriods([]);
+      }
+    };
+    fetchManualLockedPeriods();
+  }, [manualClassId, manualDate]);
 
   const fetchOtpClasses = async (deptId) => {
     try {
@@ -1359,7 +1396,8 @@ const StaffDashboard = ({ activeTab }) => {
                 <div className="form-group" style={{ marginBottom: '32px' }}>
                   <label className="form-label" style={{ marginBottom: '8px', display: 'block' }}>Select Period(s) (Check all that apply for continuous classes)</label>
                   <div style={{ display: 'flex', flexWrap: 'wrap', gap: '10px' }}>
-                    {[1, 2, 3, 4, 5, 6, 7].map(p => {
+                    {[1, 2, 3, 4, 5, 6, 7, 8].map(p => {
+                      const isLocked = otpLockedPeriods.includes(p);
                       const isChecked = selectedPeriods.includes(p.toString());
                       return (
                         <label 
@@ -1369,22 +1407,32 @@ const StaffDashboard = ({ activeTab }) => {
                             alignItems: 'center',
                             gap: '8px',
                             padding: '10px 16px',
-                            border: isChecked ? '1px solid var(--accent-primary)' : '1px solid var(--border-color)',
-                            backgroundColor: isChecked ? 'var(--accent-light)' : 'var(--bg-secondary)',
+                            border: isLocked 
+                              ? '1px dashed var(--border-color)' 
+                              : (isChecked ? '1px solid var(--accent-primary)' : '1px solid var(--border-color)'),
+                            backgroundColor: isLocked 
+                              ? 'rgba(0,0,0,0.05)' 
+                              : (isChecked ? 'var(--accent-light)' : 'var(--bg-secondary)'),
                             borderRadius: 'var(--radius-sm)',
-                            cursor: 'pointer',
+                            cursor: isLocked ? 'not-allowed' : 'pointer',
                             fontSize: '14px',
                             fontWeight: '500',
                             userSelect: 'none',
                             transition: 'all 0.2s ease',
-                            color: isChecked ? 'var(--accent-primary)' : 'var(--text-primary)'
+                            color: isLocked 
+                              ? '#a0a0a0' 
+                              : (isChecked ? 'var(--accent-primary)' : 'var(--text-primary)'),
+                            opacity: isLocked ? 0.6 : 1
                           }}
+                          title={isLocked ? 'This period is already marked/locked' : ''}
                         >
                           <input 
                             type="checkbox" 
-                            checked={isChecked}
-                            style={{ cursor: 'pointer' }}
+                            checked={isChecked && !isLocked}
+                            disabled={isLocked}
+                            style={{ cursor: isLocked ? 'not-allowed' : 'pointer' }}
                             onChange={(e) => {
+                              if (isLocked) return;
                               const pStr = p.toString();
                               if (e.target.checked) {
                                 setSelectedPeriods([...selectedPeriods, pStr]);
@@ -1397,7 +1445,7 @@ const StaffDashboard = ({ activeTab }) => {
                               }
                             }}
                           />
-                          Period {p}
+                          Period {p} {isLocked && <span style={{ fontSize: '10px', color: 'var(--danger)', marginLeft: '4px' }}>(Locked)</span>}
                         </label>
                       );
                     })}
@@ -2163,7 +2211,7 @@ const StaffDashboard = ({ activeTab }) => {
                             </td>
                             <td style={{ padding: '12px 8px' }}>
                               <div style={{ display: 'flex', gap: '8px', justifyContent: 'center', alignItems: 'center' }}>
-                                {[1, 2, 3, 4, 5, 6, 7].map(num => {
+                                {[1, 2, 3, 4, 5, 6, 7, 8].map(num => {
                                   const pStatus = sStatus.periods[num.toString()] || 'Present';
                                   const pInfo = advisorPeriods.find(p => p.period === num);
                                   const tooltipText = pInfo ? `Period ${num}: ${pInfo.subject_name} (${pInfo.subject_code || 'N/A'})` : `Period ${num}`;
@@ -2321,9 +2369,32 @@ const StaffDashboard = ({ activeTab }) => {
                   disabled={!manualDate}
                   required
                 >
-                  {[1, 2, 3, 4, 5, 6, 7].map(num => (
-                    <option key={num} value={num.toString()}>Period {num}</option>
-                  ))}
+                  {[1, 2, 3, 4, 5, 6, 7, 8].map(num => {
+                    const lock = manualLockedPeriods.find(l => l.period === num);
+                    const selectedClassObj = classes.find(c => c.id.toString() === manualClassId);
+                    const isUserAdvisor = selectedClassObj && (selectedClassObj.advisor === user.id || selectedClassObj.advisor?.id === user.id);
+                    
+                    const isLocked = lock && (lock.locked_by_id !== user.id || isUserAdvisor);
+                    
+                    let label = `Period ${num}`;
+                    if (lock) {
+                      if (isLocked) {
+                        label += ` (Locked by ${lock.locked_by_name})`;
+                      } else {
+                        label += ` (Marked by you)`;
+                      }
+                    }
+                    
+                    return (
+                      <option 
+                        key={num} 
+                        value={num.toString()} 
+                        disabled={isLocked}
+                      >
+                        {label}
+                      </option>
+                    );
+                  })}
                 </select>
               </div>
             </div>

@@ -274,7 +274,7 @@ def advisor_reports(request):
         response['Content-Disposition'] = f'attachment; filename="Advisor_Daily_Report_{c.name}_{date}.csv"'
         
         writer = csv.writer(response)
-        writer.writerow(['Register Number', 'Name', 'Department', 'Year', 'Class', 'Section', 'Period 1', 'Period 2', 'Period 3', 'Period 4', 'Period 5', 'Period 6', 'Period 7'])
+        writer.writerow(['Register Number', 'Name', 'Department', 'Year', 'Class', 'Section', 'Period 1', 'Period 2', 'Period 3', 'Period 4', 'Period 5', 'Period 6', 'Period 7', 'Period 8'])
         
         student_data = {}
         for r in records:
@@ -286,7 +286,7 @@ def advisor_reports(request):
                     'year': r.student.student_class.year if r.student.student_class else '',
                     'class_name': r.student.student_class.name if r.student.student_class else '',
                     'section': r.student.student_class.section if r.student.student_class else '',
-                    'periods': {str(p): '-' for p in range(1, 8)}
+                    'periods': {str(p): '-' for p in range(1, 9)}
                 }
             student_data[username]['periods'][str(r.schedule.period)] = r.status
             
@@ -299,16 +299,17 @@ def advisor_reports(request):
                 data['class_name'],
                 data['section'],
                 data['periods']['1'], data['periods']['2'], data['periods']['3'], 
-                data['periods']['4'], data['periods']['5'], data['periods']['6'], data['periods']['7']
+                data['periods']['4'], data['periods']['5'], data['periods']['6'], 
+                data['periods']['7'], data['periods']['8']
             ])
             
         total_st = len(student_data)
-        period_present = {str(p): 0 for p in range(1, 8)}
-        period_absent = {str(p): 0 for p in range(1, 8)}
-        period_od = {str(p): 0 for p in range(1, 8)}
+        period_present = {str(p): 0 for p in range(1, 9)}
+        period_absent = {str(p): 0 for p in range(1, 9)}
+        period_od = {str(p): 0 for p in range(1, 9)}
         
         for username, data in student_data.items():
-            for p in range(1, 8):
+            for p in range(1, 9):
                 status = data['periods'][str(p)]
                 if status == 'Present':
                     period_present[str(p)] += 1
@@ -325,7 +326,7 @@ def advisor_reports(request):
         a_row = ['Absent', '', '', '', '', '']
         o_row = ['OD', '', '', '', '', '']
         
-        for p in range(1, 8):
+        for p in range(1, 9):
             p_row.append(period_present[str(p)])
             a_row.append(period_absent[str(p)])
             o_row.append(period_od[str(p)])

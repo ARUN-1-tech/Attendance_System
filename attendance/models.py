@@ -1,6 +1,11 @@
 from django.db import models
 from accounts.models import Student, User
 from timetable.models import Schedule
+from django.db.models import Q
+
+def filter_active_attendance(queryset):
+    return queryset.filter(~Q(schedule__period=8) | Q(schedule__period=8, status='Present'))
+
 
 class OTP(models.Model):
     code = models.CharField(max_length=6)

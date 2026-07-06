@@ -424,6 +424,8 @@ def download_report(request):
                     student__in=students_list,
                     date__in=target_dates
                 ).select_related('student__user', 'student__student_class')
+                from .models import filter_active_attendance
+                records_in_range = filter_active_attendance(records_in_range)
                 
                 from collections import defaultdict
                 student_date_statuses = defaultdict(list)
@@ -477,6 +479,8 @@ def download_report(request):
                 
                 for student in students_list:
                     student_atts = Attendance.objects.filter(student=student)
+                    from .models import filter_active_attendance
+                    student_atts = filter_active_attendance(student_atts)
                     if from_date:
                         student_atts = student_atts.filter(date__gte=from_date)
                     if to_date:
@@ -672,6 +676,8 @@ def student_attendance_stats(request, user_id):
         class_subjects = Subject.objects.none()
 
     attendances = Attendance.objects.filter(student=student, schedule__subject__in=class_subjects)
+    from .models import filter_active_attendance
+    attendances = filter_active_attendance(attendances)
     
     total_periods = attendances.count()
     present_periods = attendances.filter(status='Present').count()

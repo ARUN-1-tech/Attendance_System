@@ -466,7 +466,7 @@ class UserPasswordChangeAndManualAttendanceTestCase(TestCase):
         self.assertEqual(response.data['students'][0]['id'], self.student_user.id)
         # Default all periods to Present in fetched statuses if not created in DB
         self.assertEqual(response.data['students'][0]['statuses']['1'], 'Present')
-        self.assertEqual(len(response.data['periods']), 7)
+        self.assertEqual(len(response.data['periods']), 8)
 
     def test_save_advisor_manual_attendance(self):
         self.staff.staff_type = 'Advisor'
@@ -490,7 +490,7 @@ class UserPasswordChangeAndManualAttendanceTestCase(TestCase):
         self.assertTrue(response.data['success'])
         
         from attendance.models import Attendance
-        self.assertEqual(Attendance.objects.filter(student=self.student, date='2026-06-25').count(), 7)
+        self.assertEqual(Attendance.objects.filter(student=self.student, date='2026-06-25').count(), 8)
         self.assertTrue(all(att.status == 'Present' for att in Attendance.objects.filter(student=self.student, date='2026-06-25')))
 
         # Test 2: Half Day (FN Present / AN Absent)
@@ -508,7 +508,7 @@ class UserPasswordChangeAndManualAttendanceTestCase(TestCase):
         atts_fn = Attendance.objects.filter(student=self.student, date='2026-06-26', schedule__period__lte=4)
         atts_an = Attendance.objects.filter(student=self.student, date='2026-06-26', schedule__period__gt=4)
         self.assertEqual(atts_fn.count(), 4)
-        self.assertEqual(atts_an.count(), 3)
+        self.assertEqual(atts_an.count(), 4)
         self.assertTrue(all(att.status == 'Present' for att in atts_fn))
         self.assertTrue(all(att.status == 'Absent' for att in atts_an))
 
@@ -647,7 +647,7 @@ class UserPasswordChangeAndManualAttendanceTestCase(TestCase):
         self.assertEqual(response.status_code, 400)
         self.assertIn("already marked/used", response.data['detail'])
 
-        # Attempt to save advisor manual attendance for locked period 1 -> should fail
+        # Attempt to save advisor manual attendance for locked period 1 -> should succeed (advisor overrides locks)
         self.staff.staff_type = 'Advisor'
         self.staff.save()
         self.clazz.advisor = self.staff_user
@@ -661,8 +661,23 @@ class UserPasswordChangeAndManualAttendanceTestCase(TestCase):
                 }
             }
         }, content_type='application/json')
+        self.assertEqual(response.status_code, 200)
+
+        # But if advisor tries to save subject manual attendance for ANY locked period -> should fail (advisors must use whole day page)
+        # Verify that lock is now owned by advisor (staff_user)
+        self.assertEqual(PeriodLock.objects.get(student_class=self.clazz, date='2026-06-25', period=1).staff, self.staff_user)
+        
+        response = self.client.post('/api/attendances/save-class-manual-attendance/', {
+            'class_id': self.clazz.id,
+            'subject_id': self.subject.id,
+            'date': '2026-06-25',
+            'period': '1',
+            'statuses': {
+                str(self.student_user.id): 'Present'
+            }
+        }, content_type='application/json')
         self.assertEqual(response.status_code, 400)
-        self.assertIn("already marked/used", response.data['detail'])
+        self.assertIn("must edit it through the Advisor Whole Day", response.data['detail'])
 
     def test_default_present_in_subject_manual_save(self):
         self.client.login(username='staff_user', password='staffpass123')
@@ -680,3 +695,54 @@ class UserPasswordChangeAndManualAttendanceTestCase(TestCase):
         attendance = Attendance.objects.filter(student=self.student, date='2026-06-25', schedule__period=2).first()
         self.assertIsNotNone(attendance)
         self.assertEqual(attendance.status, 'Present')
+
+    def test_optional_eighth_period_calculation(self):
+        # We need a schedule for period 8
+        from timetable.models import Schedule
+        import datetime
+        from attendance.models import Attendance
+        
+        # Create a period 1 schedule
+        sched1 = Schedule.objects.create(
+            student_class=self.clazz,
+            subject=self.subject,
+            period=1,
+            day='Thursday',
+            start_time=datetime.time(9, 0),
+            end_time=datetime.time(10, 0)
+        )
+        
+        # Create a period 8 schedule
+        sched8 = Schedule.objects.create(
+            student_class=self.clazz,
+            subject=self.subject,
+            period=8,
+            day='Thursday',
+            start_time=datetime.time(16, 0),
+            end_time=datetime.time(17, 0)
+        )
+        
+        # Login and check student stats initially - should be 0 total periods since no attendance exists
+        self.client.login(username='stud_user', password='studpass123')
+        response = self.client.get('/api/attendance/student-stats/stud_user/')
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.data['total_periods'], 0)
+        
+        # Mark period 1 as Absent
+        Attendance.objects.create(student=self.student, schedule=sched1, date='2026-06-25', status='Absent')
+        response = self.client.get('/api/attendance/student-stats/stud_user/')
+        self.assertEqual(response.data['total_periods'], 1)
+        self.assertEqual(response.data['percentage'], 0.0)
+        
+        # Mark period 8 as Absent - total_periods should STILL be 1 because optional 8th period is ignored when not Present
+        att8 = Attendance.objects.create(student=self.student, schedule=sched8, date='2026-06-25', status='Absent')
+        response = self.client.get('/api/attendance/student-stats/stud_user/')
+        self.assertEqual(response.data['total_periods'], 1)
+        self.assertEqual(response.data['percentage'], 0.0)
+        
+        # Change period 8 to Present - total_periods should become 2, present_periods = 1, percentage = 50.0
+        att8.status = 'Present'
+        att8.save()
+        response = self.client.get('/api/attendance/student-stats/stud_user/')
+        self.assertEqual(response.data['total_periods'], 2)
+        self.assertEqual(response.data['percentage'], 50.0)

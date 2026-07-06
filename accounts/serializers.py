@@ -86,6 +86,8 @@ class StudentSerializer(serializers.ModelSerializer):
         class_subjects = Subject.objects.filter(id__in=class_subject_ids)
         
         attendances = Attendance.objects.filter(student=obj, schedule__subject__in=class_subjects)
+        from attendance.models import filter_active_attendance
+        attendances = filter_active_attendance(attendances)
         total_periods = attendances.count()
         if total_periods == 0:
             return 100.0
