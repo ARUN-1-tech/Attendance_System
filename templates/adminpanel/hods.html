@@ -25,7 +25,7 @@
                     <th>Email</th>
                     <th>Department</th>
                     <th>Phone</th>
-                    <th>Age / DOB</th>
+                    <th>Date of Birth</th>
                     <th>Staff ID</th>
                     <th>Designation</th>
                     <th style="text-align: right;">Actions</th>
@@ -34,7 +34,18 @@
             <tbody>
                 {% for hod in hods %}
                 <tr>
-                    <td style="font-weight: 600; color: var(--text-primary);">{{ hod.username }}</td>
+                    <td style="font-weight: 600; color: var(--text-primary);">
+                        <div style="display: flex; align-items: center; gap: 10px;">
+                            {% if hod.profile_photo %}
+                            <img src="{{ hod.profile_photo }}" alt="Photo" style="width: 32px; height: 32px; border-radius: 50%; object-fit: cover; border: 1px solid var(--border-color);">
+                            {% else %}
+                            <div style="width: 32px; height: 32px; border-radius: 50%; background: var(--border-color); display: flex; align-items: center; justify-content: center; font-size: 0.8rem; color: var(--text-secondary); font-weight: bold;">
+                                {{ hod.username|slice:":2"|upper }}
+                            </div>
+                            {% endif %}
+                            {{ hod.username }}
+                        </div>
+                    </td>
                     <td>{{ hod.first_name }} {{ hod.last_name }}</td>
                     <td>{{ hod.email }}</td>
                     <td>
@@ -44,7 +55,6 @@
                     </td>
                     <td>{{ hod.phone_number|default:"-" }}</td>
                     <td>
-                        {% if hod.age %}{{ hod.age }}{% else %}-{% endif %} / 
                         {% if hod.dob %}{{ hod.dob|date:"Y-m-d" }}{% else %}-{% endif %}
                     </td>
                     <td><code style="background: rgba(255,255,255,0.05); padding: 2px 6px; border-radius: 4px; font-size: 0.9rem;">{{ hod.staff.staff_id|default:"-" }}</code></td>

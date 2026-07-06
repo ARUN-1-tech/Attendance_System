@@ -475,6 +475,7 @@ def api_student_stats(request, username):
     return Response({
         'username': student.user.username,
         'name': f"{student.user.first_name} {student.user.last_name}".strip(),
+        'profile_photo': student.user.profile_photo or None,
         'class_name': str(student.student_class),
         'total': total_periods,
         'present': present_periods,

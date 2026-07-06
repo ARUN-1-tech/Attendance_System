@@ -23,7 +23,7 @@ const StudentDashboard = ({ activeTab }) => {
   const [lastName, setLastName] = useState(user.last_name || '');
   const [email, setEmail] = useState(user.email || '');
   const [phone, setPhone] = useState(user.phone_number || '');
-  const [age, setAge] = useState(user.age || '');
+  const [dob, setDob] = useState(user.dob || '');
   const [profileMessage, setProfileMessage] = useState('');
   const [profileEditMode, setProfileEditMode] = useState(false);
 
@@ -261,7 +261,7 @@ const StudentDashboard = ({ activeTab }) => {
         last_name: lastName,
         email: email,
         phone_number: phone,
-        age: age ? parseInt(age) : null,
+        dob: dob || null,
         role: user.role,
         username: user.username
       });
@@ -874,9 +874,13 @@ const StudentDashboard = ({ activeTab }) => {
 
         <div className="card" style={{ maxWidth: '600px' }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: '20px', marginBottom: '28px' }}>
-            <div style={{ width: '64px', height: '64px', borderRadius: '50%', backgroundColor: 'var(--accent-light)', color: 'var(--accent-primary)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-              <User size={32} />
-            </div>
+            {user.profile_photo ? (
+              <img src={user.profile_photo} alt="Profile" style={{ width: '64px', height: '64px', borderRadius: '50%', objectFit: 'cover', border: '2px solid var(--accent-primary)' }} />
+            ) : (
+              <div style={{ width: '64px', height: '64px', borderRadius: '50%', backgroundColor: 'var(--accent-light)', color: 'var(--accent-primary)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                <User size={32} />
+              </div>
+            )}
             <div>
               <h2 style={{ fontSize: '20px' }}>{user.first_name || user.username} {user.last_name || ''}</h2>
               <span className="badge badge-present" style={{ marginTop: '4px' }}>Class Roll: {user.username}</span>
@@ -904,8 +908,8 @@ const StudentDashboard = ({ activeTab }) => {
                   <div>{user.phone_number || '-'}</div>
                 </div>
                 <div style={{ display: 'flex', borderBottom: '1px solid var(--border-color)', paddingBottom: '10px' }}>
-                  <div style={{ width: '150px', color: 'var(--text-muted)' }}>Age</div>
-                  <div>{user.age || '-'}</div>
+                  <div style={{ width: '150px', color: 'var(--text-muted)' }}>Date of Birth</div>
+                  <div>{user.dob || '-'}</div>
                 </div>
                 <div style={{ display: 'flex', borderBottom: '1px solid var(--border-color)', paddingBottom: '10px' }}>
                   <div style={{ width: '150px', color: 'var(--text-muted)' }}>Class / Year</div>
@@ -959,8 +963,8 @@ const StudentDashboard = ({ activeTab }) => {
               </div>
 
               <div className="form-group">
-                <label className="form-label">Age</label>
-                <input type="number" className="input" value={age} onChange={(e) => setAge(e.target.value)} />
+                <label className="form-label">Date of Birth</label>
+                <input type="date" className="input" value={dob} onChange={(e) => setDob(e.target.value)} />
               </div>
 
               {/* Password Change inside Edit Profile */}

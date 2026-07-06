@@ -11,7 +11,7 @@ class UserSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = User
-        fields = ['id', 'username', 'email', 'first_name', 'last_name', 'role', 'department', 'department_name', 'phone_number', 'age', 'is_superuser', 'password', 'dob']
+        fields = ['id', 'username', 'email', 'first_name', 'last_name', 'role', 'department', 'department_name', 'phone_number', 'is_superuser', 'password', 'dob', 'profile_photo']
         extra_kwargs = {
             'password': {'write_only': True},
             'username': {
@@ -125,8 +125,8 @@ class StudentSerializer(serializers.ModelSerializer):
             user.first_name = user_data.get('first_name', user.first_name)
             user.last_name = user_data.get('last_name', user.last_name)
             user.phone_number = user_data.get('phone_number', user.phone_number)
-            user.age = user_data.get('age', user.age)
             user.dob = user_data.get('dob', user.dob)
+            user.profile_photo = user_data.get('profile_photo', user.profile_photo)
             password = user_data.get('password')
             if password:
                 user.set_password(password)
@@ -166,8 +166,8 @@ class StaffSerializer(serializers.ModelSerializer):
             user.first_name = user_data.get('first_name', user.first_name)
             user.last_name = user_data.get('last_name', user.last_name)
             user.phone_number = user_data.get('phone_number', user.phone_number)
-            user.age = user_data.get('age', user.age)
             user.dob = user_data.get('dob', user.dob)
+            user.profile_photo = user_data.get('profile_photo', user.profile_photo)
             password = user_data.get('password')
             if password:
                 user.set_password(password)

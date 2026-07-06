@@ -526,7 +526,8 @@ class StudentViewSet(viewsets.ModelViewSet):
             email = get_val('email') or get_val('collegemail') or get_val('mail') or get_val('college_mail') or get_val('email_id') or get_val('emailid')
             reg_no = get_val('regno') or get_val('registerno') or get_val('register_no') or get_val('reg_no')
             roll_no = get_val('rollno') or get_val('roll_no')
-            age_val = get_val('age')
+            dob_val = get_val('dob') or get_val('dateofbirth') or get_val('date_of_birth')
+            profile_photo_val = get_val('profilephoto') or get_val('profile_photo') or get_val('photo') or get_val('image')
             mobile_no = get_val('mobileno') or get_val('mobile_no') or get_val('phone') or get_val('phonenumber')
             class_name = get_val('class')
             year_val = get_val('year')
@@ -581,7 +582,8 @@ class StudentViewSet(viewsets.ModelViewSet):
                 'email': email,
                 'reg_no': reg_no,
                 'roll_no': roll_no,
-                'age_val': age_val,
+                'dob_val': dob_val,
+                'profile_photo_val': profile_photo_val,
                 'mobile_no': mobile_no,
                 'password': password
             })
@@ -626,6 +628,18 @@ class StudentViewSet(viewsets.ModelViewSet):
             password_hash_cache = {}
             users_to_create = []
             
+            def parse_date(date_str):
+                if not date_str:
+                    return None
+                date_str = str(date_str).strip()
+                import datetime
+                for fmt in ('%Y-%m-%d', '%d-%m-%Y', '%d/%m/%Y', '%m/%d/%Y', '%Y/%m/%d'):
+                    try:
+                        return datetime.datetime.strptime(date_str, fmt).date()
+                    except ValueError:
+                        continue
+                return None
+
             for stud in valid_students_to_create:
                 pw = stud['password']
                 if pw not in password_hash_cache:
@@ -636,6 +650,7 @@ class StudentViewSet(viewsets.ModelViewSet):
                 if email:
                     email = User.objects.normalize_email(email)
                     
+                dob_parsed = parse_date(stud['dob_val'])
                 user_obj = User(
                     username=stud['username'],
                     email=email,
@@ -644,7 +659,8 @@ class StudentViewSet(viewsets.ModelViewSet):
                     first_name=stud['username'],
                     department=request.user.department,
                     phone_number=stud['mobile_no'],
-                    age=int(stud['age_val']) if stud['age_val'].isdigit() else None,
+                    dob=dob_parsed,
+                    profile_photo=stud['profile_photo_val'] if stud['profile_photo_val'] else None,
                     is_staff=False,
                     is_superuser=False,
                     is_active=True,

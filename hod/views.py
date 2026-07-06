@@ -482,9 +482,18 @@ def hod_profile(request):
         user.email = request.POST.get('email', user.email)
         user.phone_number = request.POST.get('phone_number', user.phone_number)
         
-        age = request.POST.get('age')
-        if age:
-            user.age = int(age)
+        dob = request.POST.get('dob')
+        if dob:
+            user.dob = dob
+        else:
+            user.dob = None
+            
+        profile_photo_file = request.FILES.get('profile_photo')
+        if profile_photo_file:
+            import base64
+            encoded_string = base64.b64encode(profile_photo_file.read()).decode('utf-8')
+            mime_type = profile_photo_file.content_type
+            user.profile_photo = f"data:{mime_type};base64,{encoded_string}"
             
         user.save()
         messages.success(request, 'Profile updated successfully.')

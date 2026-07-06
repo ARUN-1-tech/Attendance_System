@@ -124,7 +124,14 @@ def add_hod(request):
             return render(request, 'adminpanel/hod_form.html', context)
 
         department = get_object_or_404(Department, id=dept_id)
-        age = int(age_str) if age_str.isdigit() else None
+        
+        profile_photo_file = request.FILES.get('profile_photo')
+        profile_photo_b64 = None
+        if profile_photo_file:
+            import base64
+            encoded_string = base64.b64encode(profile_photo_file.read()).decode('utf-8')
+            mime_type = profile_photo_file.content_type
+            profile_photo_b64 = f"data:{mime_type};base64,{encoded_string}"
 
         # Create HOD User
         user = User.objects.create_user(
@@ -136,8 +143,8 @@ def add_hod(request):
             role='hod',
             department=department,
             phone_number=phone_number,
-            age=age,
-            dob=dob if dob else None
+            dob=dob if dob else None,
+            profile_photo=profile_photo_b64
         )
 
         # Create corresponding Staff record
@@ -192,7 +199,14 @@ def edit_hod(request, hod_id):
         hod_user.last_name = last_name
         hod_user.phone_number = phone_number
         hod_user.department = department
-        hod_user.age = int(age_str) if age_str.isdigit() else None
+        
+        profile_photo_file = request.FILES.get('profile_photo')
+        if profile_photo_file:
+            import base64
+            encoded_string = base64.b64encode(profile_photo_file.read()).decode('utf-8')
+            mime_type = profile_photo_file.content_type
+            hod_user.profile_photo = f"data:{mime_type};base64,{encoded_string}"
+            
         if dob:
             hod_user.dob = dob
         else:

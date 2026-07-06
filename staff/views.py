@@ -350,9 +350,18 @@ def staff_profile(request):
         user.email = request.POST.get('email', user.email)
         user.phone_number = request.POST.get('phone_number', user.phone_number)
         
-        age = request.POST.get('age')
-        if age:
-            user.age = int(age)
+        dob = request.POST.get('dob')
+        if dob:
+            user.dob = dob
+        else:
+            user.dob = None
+            
+        profile_photo_file = request.FILES.get('profile_photo')
+        if profile_photo_file:
+            import base64
+            encoded_string = base64.b64encode(profile_photo_file.read()).decode('utf-8')
+            mime_type = profile_photo_file.content_type
+            user.profile_photo = f"data:{mime_type};base64,{encoded_string}"
             
         user.save()
         messages.success(request, 'Profile updated successfully.')
@@ -404,7 +413,15 @@ def add_student(request):
         username = request.POST.get('username')
         email = request.POST.get('email')
         phone_number = request.POST.get('phone_number')
-        age = request.POST.get('age')
+        dob = request.POST.get('dob')
+        profile_photo_file = request.FILES.get('profile_photo')
+        profile_photo_b64 = None
+        if profile_photo_file:
+            import base64
+            encoded_string = base64.b64encode(profile_photo_file.read()).decode('utf-8')
+            mime_type = profile_photo_file.content_type
+            profile_photo_b64 = f"data:{mime_type};base64,{encoded_string}"
+
         roll_no = request.POST.get('roll_no')
         reg_no = request.POST.get('reg_no')
         class_id = request.POST.get('class_id')
@@ -424,7 +441,8 @@ def add_student(request):
             role='student',
             department=department,
             phone_number=phone_number,
-            age=int(age) if age and age.isdigit() else None
+            dob=dob if dob else None,
+            profile_photo=profile_photo_b64
         )
         selected_class = Class.objects.get(id=class_id)
         
@@ -452,9 +470,19 @@ def edit_student(request, user_id):
         student.user.username = request.POST.get('username')
         student.user.email = request.POST.get('email')
         student.user.phone_number = request.POST.get('phone_number')
-        age = request.POST.get('age')
-        student.user.age = int(age) if age and age.isdigit() else None
-        
+        dob = request.POST.get('dob')
+        if dob:
+            student.user.dob = dob
+        else:
+            student.user.dob = None
+
+        profile_photo_file = request.FILES.get('profile_photo')
+        if profile_photo_file:
+            import base64
+            encoded_string = base64.b64encode(profile_photo_file.read()).decode('utf-8')
+            mime_type = profile_photo_file.content_type
+            student.user.profile_photo = f"data:{mime_type};base64,{encoded_string}"
+
         new_password = request.POST.get('password', '')
         if new_password:
             student.user.set_password(new_password)
@@ -543,6 +571,18 @@ def bulk_add_students(request):
         classes_to_update = set()
         
         try:
+            def parse_date(date_str):
+                if not date_str:
+                    return None
+                date_str = str(date_str).strip()
+                import datetime
+                for fmt in ('%Y-%m-%d', '%d-%m-%Y', '%d/%m/%Y', '%m/%d/%Y', '%Y/%m/%d'):
+                    try:
+                        return datetime.datetime.strptime(date_str, fmt).date()
+                    except ValueError:
+                        continue
+                return None
+
             with transaction.atomic():
                 for row_idx, row in enumerate(reader, start=1):
                     def get_val(norm_name, default=''):
@@ -553,7 +593,8 @@ def bulk_add_students(request):
                     email = get_val('collagemail').strip() or get_val('email').strip() or get_val('mail').strip()
                     reg_no = get_val('registerno').strip() or get_val('reg_no').strip() or get_val('regno').strip()
                     roll_no = get_val('rollno').strip() or get_val('roll_no').strip()
-                    age_val = get_val('age').strip()
+                    dob_val = get_val('dob').strip() or get_val('dateofbirth').strip() or get_val('date_of_birth').strip()
+                    profile_photo_val = get_val('profilephoto').strip() or get_val('profile_photo').strip() or get_val('photo').strip() or get_val('image').strip()
                     mobile_no = get_val('mobileno').strip() or get_val('mobile_no').strip() or get_val('phone_number').strip() or get_val('phone').strip()
                     class_name = get_val('class').strip()
                     year_val = get_val('year').strip()
@@ -589,6 +630,7 @@ def bulk_add_students(request):
                         advisor_user = User.objects.filter(username=advisor_val, role__in=['staff', 'hod']).first()
                         
                     try:
+                        dob_parsed = parse_date(dob_val)
                         user = User.objects.create_user(
                             username=username,
                             email=email,
@@ -596,7 +638,8 @@ def bulk_add_students(request):
                             role='student',
                             department=request.user.department,
                             phone_number=mobile_no,
-                            age=int(age_val) if age_val.isdigit() else None
+                            dob=dob_parsed,
+                            profile_photo=profile_photo_val if profile_photo_val else None
                         )
                         student = Student(
                             user=user,

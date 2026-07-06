@@ -56,7 +56,8 @@ const StaffDashboard = ({ activeTab }) => {
   const [lastName, setLastName] = useState(user.last_name || '');
   const [email, setEmail] = useState(user.email || '');
   const [phone, setPhone] = useState(user.phone_number || '');
-  const [age, setAge] = useState(user.age || '');
+  const [dob, setDob] = useState(user.dob || '');
+  const [profilePhoto, setProfilePhoto] = useState(user.profile_photo || '');
   const [profileMessage, setProfileMessage] = useState('');
   const [profileEditMode, setProfileEditMode] = useState(false);
 
@@ -595,7 +596,8 @@ const StaffDashboard = ({ activeTab }) => {
   const [studentPassword, setStudentPassword] = useState('');
   const [studentRegNo, setStudentRegNo] = useState('');
   const [studentRollNo, setStudentRollNo] = useState('');
-  const [studentAge, setStudentAge] = useState('');
+  const [studentDob, setStudentDob] = useState('');
+  const [studentProfilePhoto, setStudentProfilePhoto] = useState('');
   const [studentPhone, setStudentPhone] = useState('');
   const [studentClassId, setStudentClassId] = useState('');
   const [studentYear, setStudentYear] = useState('');
@@ -608,7 +610,8 @@ const StaffDashboard = ({ activeTab }) => {
     setStudentPassword('');
     setStudentRegNo('');
     setStudentRollNo('');
-    setStudentAge('');
+    setStudentDob('');
+    setStudentProfilePhoto('');
     setStudentPhone('');
     setStudentClassId('');
     setStudentYear('');
@@ -626,7 +629,8 @@ const StaffDashboard = ({ activeTab }) => {
     setStudentPhone(s.user.phone_number || '');
     setStudentRollNo(s.roll_no || '');
     setStudentRegNo(s.reg_no || '');
-    setStudentAge(s.user.age?.toString() || '');
+    setStudentDob(s.user.dob || '');
+    setStudentProfilePhoto(s.user.profile_photo || '');
     setStudentTutorId(s.tutor?.toString() || '');
     setStudentAdvisorId(s.advisor?.toString() || '');
     setStudentFormOpen(true);
@@ -642,7 +646,8 @@ const StaffDashboard = ({ activeTab }) => {
         first_name: studentUsername,
         role: 'student',
         phone_number: studentPhone || null,
-        age: studentAge ? parseInt(studentAge) : null
+        dob: studentDob || null,
+        profile_photo: studentProfilePhoto || null
       },
       student_class: parseInt(studentClassId),
       roll_no: studentRollNo || '',
@@ -1247,7 +1252,8 @@ const StaffDashboard = ({ activeTab }) => {
         last_name: lastName,
         email: email,
         phone_number: phone,
-        age: age ? parseInt(age) : null,
+        dob: dob || null,
+        profile_photo: profilePhoto || null,
         role: user.role,
         username: user.username
       });
@@ -1825,7 +1831,8 @@ const StaffDashboard = ({ activeTab }) => {
                   <li>email</li>
                   <li>register_no</li>
                   <li>roll_no</li>
-                  <li>age</li>
+                  <li>dob</li>
+                  <li>profile photo</li>
                   <li>mobile_no</li>
                 </ul>
                 <li>Tutor and Advisor are assigned automatically based on the selected class.</li>
@@ -1833,7 +1840,7 @@ const StaffDashboard = ({ activeTab }) => {
                 <li><code>class</code> matches class name; <code>year</code> matches year number (e.g. 1, 2, 3).</li>
               </ul>
               <div style={{ marginTop: '12px' }}>
-                <a href="data:text/csv;charset=utf-8,username,email,register_no,roll_no,age,mobile_no,class,year,password%0Astudent1,student1@college.edu,REG1001,ROLL01,20,9876543210,B.Tech CS,3,password123" 
+                <a href="data:text/csv;charset=utf-8,username,email,register_no,roll_no,dob,profile photo,mobile_no,class,year,password%0Astudent1,student1@college.edu,REG1001,ROLL01,2005-08-15,,9876543210,B.Tech CS,3,password123" 
                    download="student_bulk_sample.csv" 
                    style={{ fontSize: '13px', color: 'var(--accent-primary)', fontWeight: '600', textDecoration: 'none', display: 'inline-flex', alignItems: 'center', gap: '4px' }}>
                   <Plus size={14} /> Download Sample CSV
@@ -1902,13 +1909,32 @@ const StaffDashboard = ({ activeTab }) => {
 
               <div className="grid grid-cols-2">
                 <div className="form-group">
-                  <label className="form-label">Age</label>
-                  <input type="number" className="input" required value={studentAge} onChange={(e) => setStudentAge(e.target.value)} min="1" max="120" />
+                  <label className="form-label">Date of Birth</label>
+                  <input type="date" className="input" required value={studentDob} onChange={(e) => setStudentDob(e.target.value)} />
                 </div>
                 <div className="form-group">
                   <label className="form-label">Mobile Number (Phone)</label>
                   <input type="text" className="input" required value={studentPhone} onChange={(e) => setStudentPhone(e.target.value)} />
                 </div>
+              </div>
+
+              <div className="form-group">
+                <label className="form-label">Profile Photo</label>
+                <input type="file" className="input" accept="image/*" onChange={(e) => {
+                  const file = e.target.files[0];
+                  if (file) {
+                    const reader = new FileReader();
+                    reader.onloadend = () => {
+                      setStudentProfilePhoto(reader.result);
+                    };
+                    reader.readAsDataURL(file);
+                  }
+                }} />
+                {studentProfilePhoto && (
+                  <div style={{ marginTop: '10px' }}>
+                    <img src={studentProfilePhoto} alt="Preview" style={{ width: '50px', height: '50px', borderRadius: '50%', objectFit: 'cover', border: '1px solid var(--border-color)' }} />
+                  </div>
+                )}
               </div>
 
               <div className="form-group">
@@ -1984,7 +2010,18 @@ const StaffDashboard = ({ activeTab }) => {
                 {assignedStudents.map(s => (
                   <tr key={s.user.id}>
                     <td style={{ fontWeight: '600' }}>{s.reg_no || '-'}</td>
-                    <td>{s.user.first_name || s.user.last_name ? `${s.user.first_name} ${s.user.last_name}` : s.user.username}</td>
+                    <td>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                        {s.user.profile_photo ? (
+                          <img src={s.user.profile_photo} alt="Student" style={{ width: '28px', height: '28px', borderRadius: '50%', objectFit: 'cover', border: '1px solid var(--border-color)' }} />
+                        ) : (
+                          <div style={{ width: '28px', height: '28px', borderRadius: '50%', backgroundColor: 'var(--accent-light)', color: 'var(--accent-primary)', display: 'flex', alignItems: 'center', justify-content: 'center', fontSize: '0.75rem', fontWeight: 'bold' }}>
+                            {s.user.username.slice(-2).toUpperCase()}
+                          </div>
+                        )}
+                        <span>{s.user.first_name || s.user.last_name ? `${s.user.first_name} ${s.user.last_name || ''}` : s.user.username}</span>
+                      </div>
+                    </td>
                     <td>{s.class_name} - Year {s.class_year} (Sec {s.class_section})</td>
                     <td>
                       <span className="badge badge-present" style={{ fontSize: '11px' }}>
@@ -2029,11 +2066,20 @@ const StaffDashboard = ({ activeTab }) => {
           }}>
             <div className="card" style={{ width: '90%', maxWidth: '800px', maxHeight: '90vh', overflowY: 'auto', padding: '30px', position: 'relative' }}>
               <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '24px', alignItems: 'center', borderBottom: '1px solid var(--border-color)', paddingBottom: '16px' }}>
-                <div>
-                  <h2 style={{ fontSize: '22px', fontWeight: '700', margin: 0, color: 'var(--text-primary)' }}>Attendance Analysis & Insights</h2>
-                  <span style={{ fontSize: '13px', color: 'var(--text-secondary)' }}>
-                    Student: <strong>{selectedStudentStats.name}</strong> ({selectedStudentStats.username}) | Class: <strong>{selectedStudentStats.class_name}</strong>
-                  </span>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '15px' }}>
+                  {selectedStudentStats.profile_photo ? (
+                    <img src={selectedStudentStats.profile_photo} alt="Student" style={{ width: '50px', height: '50px', borderRadius: '50%', objectFit: 'cover', border: '2px solid var(--accent-primary)' }} />
+                  ) : (
+                    <div style={{ width: '50px', height: '50px', borderRadius: '50%', backgroundColor: 'var(--accent-light)', color: 'var(--accent-primary)', display: 'flex', alignItems: 'center', justify-content: 'center', fontSize: '1.2rem', fontWeight: 'bold' }}>
+                      {selectedStudentStats.username.slice(-2).toUpperCase()}
+                    </div>
+                  )}
+                  <div>
+                    <h2 style={{ fontSize: '22px', fontWeight: '700', margin: 0, color: 'var(--text-primary)' }}>Attendance Analysis & Insights</h2>
+                    <span style={{ fontSize: '13px', color: 'var(--text-secondary)' }}>
+                      Student: <strong>{selectedStudentStats.name}</strong> ({selectedStudentStats.username}) | Class: <strong>{selectedStudentStats.class_name}</strong>
+                    </span>
+                  </div>
                 </div>
                 <button className="btn btn-outline" style={{ padding: '8px 16px', fontSize: '13px' }} onClick={() => setStatsModalOpen(false)}>Close</button>
               </div>
@@ -3364,9 +3410,13 @@ const StaffDashboard = ({ activeTab }) => {
 
         <div className="card" style={{ maxWidth: '600px' }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: '20px', marginBottom: '28px' }}>
-            <div style={{ width: '64px', height: '64px', borderRadius: '50%', backgroundColor: 'var(--accent-light)', color: 'var(--accent-primary)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-              <User size={32} />
-            </div>
+            {user.profile_photo ? (
+              <img src={user.profile_photo} alt="Profile" style={{ width: '64px', height: '64px', borderRadius: '50%', objectFit: 'cover', border: '2px solid var(--accent-primary)' }} />
+            ) : (
+              <div style={{ width: '64px', height: '64px', borderRadius: '50%', backgroundColor: 'var(--accent-light)', color: 'var(--accent-primary)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                <User size={32} />
+              </div>
+            )}
             <div>
               <h2 style={{ fontSize: '20px' }}>{user.first_name || user.username} {user.last_name || ''}</h2>
               <span className="badge badge-present" style={{ marginTop: '4px' }}>Staff ID: {user.username}</span>
@@ -3386,8 +3436,8 @@ const StaffDashboard = ({ activeTab }) => {
                   <div>{user.phone_number || '-'}</div>
                 </div>
                 <div style={{ display: 'flex', borderBottom: '1px solid var(--border-color)', paddingBottom: '10px' }}>
-                  <div style={{ width: '150px', color: 'var(--text-muted)' }}>Age</div>
-                  <div>{user.age || '-'}</div>
+                  <div style={{ width: '150px', color: 'var(--text-muted)' }}>Date of Birth</div>
+                  <div>{user.dob || '-'}</div>
                 </div>
                 <div style={{ display: 'flex', borderBottom: '1px solid var(--border-color)', paddingBottom: '10px' }}>
                   <div style={{ width: '150px', color: 'var(--text-muted)' }}>Assigned Department</div>
@@ -3441,8 +3491,27 @@ const StaffDashboard = ({ activeTab }) => {
               </div>
 
               <div className="form-group">
-                <label className="form-label">Age</label>
-                <input type="number" className="input" value={age} onChange={(e) => setAge(e.target.value)} />
+                <label className="form-label">Date of Birth</label>
+                <input type="date" className="input" value={dob} onChange={(e) => setDob(e.target.value)} />
+              </div>
+
+              <div className="form-group" style={{ gridColumn: 'span 2' }}>
+                <label className="form-label">Profile Photo</label>
+                <input type="file" className="input" accept="image/*" onChange={(e) => {
+                  const file = e.target.files[0];
+                  if (file) {
+                    const reader = new FileReader();
+                    reader.onloadend = () => {
+                      setProfilePhoto(reader.result);
+                    };
+                    reader.readAsDataURL(file);
+                  }
+                }} />
+                {profilePhoto && (
+                  <div style={{ marginTop: '10px' }}>
+                    <img src={profilePhoto} alt="Preview" style={{ width: '50px', height: '50px', borderRadius: '50%', objectFit: 'cover', border: '1px solid var(--border-color)' }} />
+                  </div>
+                )}
               </div>
 
               {/* Password Change inside Edit Profile */}

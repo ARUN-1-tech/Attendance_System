@@ -43,7 +43,7 @@ const HODDashboard = ({ activeTab, setActiveTab }) => {
   const [studentRegNo, setStudentRegNo] = useState('');
   const [studentTutorId, setStudentTutorId] = useState('');
   const [studentAdvisorId, setStudentAdvisorId] = useState('');
-  const [studentAge, setStudentAge] = useState('');
+  const [studentProfilePhoto, setStudentProfilePhoto] = useState('');
   const [studentYear, setStudentYear] = useState('');
   
   // Subject detail states
@@ -117,7 +117,8 @@ const HODDashboard = ({ activeTab, setActiveTab }) => {
   const [lastName, setLastName] = useState(user.last_name || '');
   const [email, setEmail] = useState(user.email || '');
   const [phone, setPhone] = useState(user.phone_number || '');
-  const [age, setAge] = useState(user.age || '');
+  const [dob, setDob] = useState(user.dob || '');
+  const [profilePhoto, setProfilePhoto] = useState(user.profile_photo || '');
   const [profileMessage, setProfileMessage] = useState('');
   const [profileEditMode, setProfileEditMode] = useState(false);
 
@@ -436,7 +437,8 @@ const HODDashboard = ({ activeTab, setActiveTab }) => {
         first_name: studentUsername,
         role: 'student',
         phone_number: studentPhone || null,
-        age: studentAge ? parseInt(studentAge) : null
+        dob: studentDob || null,
+        profile_photo: studentProfilePhoto || null
       },
       student_class: parseInt(studentClassId),
       roll_no: studentRollNo || '',
@@ -538,7 +540,8 @@ const HODDashboard = ({ activeTab, setActiveTab }) => {
     setStudentRegNo(s.reg_no || '');
     setStudentTutorId(s.tutor?.toString() || '');
     setStudentAdvisorId(s.advisor?.toString() || '');
-    setStudentAge(s.user.age?.toString() || '');
+    setStudentDob(s.user.dob || '');
+    setStudentProfilePhoto(s.user.profile_photo || '');
     setStudentYear(s.class_year?.toString() || '');
     setStudentFormOpen(true);
   };
@@ -566,7 +569,8 @@ const HODDashboard = ({ activeTab, setActiveTab }) => {
     setStudentRegNo('');
     setStudentTutorId('');
     setStudentAdvisorId('');
-    setStudentAge('');
+    setStudentDob('');
+    setStudentProfilePhoto('');
     setStudentYear('');
   };
 
@@ -818,7 +822,8 @@ const HODDashboard = ({ activeTab, setActiveTab }) => {
         last_name: lastName,
         email: email,
         phone_number: phone,
-        age: age ? parseInt(age) : null,
+        dob: dob || null,
+        profile_photo: profilePhoto || null,
         role: user.role,
         username: user.username
       });
@@ -1565,13 +1570,32 @@ const HODDashboard = ({ activeTab, setActiveTab }) => {
 
                   <div className="grid grid-cols-2">
                     <div className="form-group">
-                      <label className="form-label">Age</label>
-                      <input type="number" className="input" required value={studentAge} onChange={(e) => setStudentAge(e.target.value)} min="1" max="120" />
+                      <label className="form-label">Date of Birth</label>
+                      <input type="date" className="input" required value={studentDob} onChange={(e) => setStudentDob(e.target.value)} />
                     </div>
                     <div className="form-group">
                       <label className="form-label">Mobile Number (Phone)</label>
                       <input type="text" className="input" required value={studentPhone} onChange={(e) => setStudentPhone(e.target.value)} />
                     </div>
+                  </div>
+
+                  <div className="form-group">
+                    <label className="form-label">Profile Photo</label>
+                    <input type="file" className="input" accept="image/*" onChange={(e) => {
+                      const file = e.target.files[0];
+                      if (file) {
+                        const reader = new FileReader();
+                        reader.onloadend = () => {
+                          setStudentProfilePhoto(reader.result);
+                        };
+                        reader.readAsDataURL(file);
+                      }
+                    }} />
+                    {studentProfilePhoto && (
+                      <div style={{ marginTop: '10px' }}>
+                        <img src={studentProfilePhoto} alt="Preview" style={{ width: '50px', height: '50px', borderRadius: '50%', objectFit: 'cover', border: '1px solid var(--border-color)' }} />
+                      </div>
+                    )}
                   </div>
 
                   <div className="grid grid-cols-2">
@@ -1643,7 +1667,18 @@ const HODDashboard = ({ activeTab, setActiveTab }) => {
                       classStudents.map(s => (
                         <tr key={s.user.id}>
                           <td style={{ fontWeight: '600' }}>{s.roll_no && s.reg_no ? `${s.roll_no} / ${s.reg_no}` : (s.roll_no || s.reg_no || '-')}</td>
-                          <td>{s.user.first_name || s.user.last_name ? `${s.user.first_name} ${s.user.last_name}` : s.user.username}</td>
+                          <td>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                              {s.user.profile_photo ? (
+                                <img src={s.user.profile_photo} alt="Student" style={{ width: '28px', height: '28px', borderRadius: '50%', objectFit: 'cover', border: '1px solid var(--border-color)' }} />
+                              ) : (
+                                <div style={{ width: '28px', height: '28px', borderRadius: '50%', backgroundColor: 'var(--accent-light)', color: 'var(--accent-primary)', display: 'flex', alignItems: 'center', justify-content: 'center', fontSize: '0.75rem', fontWeight: 'bold' }}>
+                                  {s.user.username.slice(-2).toUpperCase()}
+                                </div>
+                              )}
+                              <span>{s.user.first_name || s.user.last_name ? `${s.user.first_name} ${s.user.last_name || ''}` : s.user.username}</span>
+                            </div>
+                          </td>
                           <td>{s.roll_no}</td>
                           <td>{s.reg_no}</td>
                           <td style={{ fontWeight: '600', color: (s.attendance_percentage || 0) >= 75 ? 'var(--success)' : 'var(--danger)' }}>
@@ -1672,11 +1707,20 @@ const HODDashboard = ({ activeTab, setActiveTab }) => {
             }}>
               <div className="card" style={{ width: '90%', maxWidth: '800px', maxHeight: '90vh', overflowY: 'auto', padding: '30px', position: 'relative' }}>
                 <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '24px', alignItems: 'center', borderBottom: '1px solid var(--border-color)', paddingBottom: '16px' }}>
-                  <div>
-                    <h2 style={{ fontSize: '22px', fontWeight: '700', margin: 0, color: 'var(--text-primary)' }}>Attendance Analysis & Insights</h2>
-                    <span style={{ fontSize: '13px', color: 'var(--text-secondary)' }}>
-                      Student: <strong>{selectedStudentStats.name}</strong> ({selectedStudentStats.username}) | Class: <strong>{selectedStudentStats.class_name}</strong>
-                    </span>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '15px' }}>
+                    {selectedStudentStats.profile_photo ? (
+                      <img src={selectedStudentStats.profile_photo} alt="Student" style={{ width: '50px', height: '50px', borderRadius: '50%', objectFit: 'cover', border: '2px solid var(--accent-primary)' }} />
+                    ) : (
+                      <div style={{ width: '50px', height: '50px', borderRadius: '50%', backgroundColor: 'var(--accent-light)', color: 'var(--accent-primary)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '1.2rem', fontWeight: 'bold' }}>
+                        {selectedStudentStats.username.slice(-2).toUpperCase()}
+                      </div>
+                    )}
+                    <div>
+                      <h2 style={{ fontSize: '22px', fontWeight: '700', margin: 0, color: 'var(--text-primary)' }}>Attendance Analysis & Insights</h2>
+                      <span style={{ fontSize: '13px', color: 'var(--text-secondary)' }}>
+                        Student: <strong>{selectedStudentStats.name}</strong> ({selectedStudentStats.username}) | Class: <strong>{selectedStudentStats.class_name}</strong>
+                      </span>
+                    </div>
                   </div>
                   <button className="btn btn-outline" style={{ padding: '8px 16px', fontSize: '13px' }} onClick={() => setStatsModalOpen(false)}>Close</button>
                 </div>
@@ -2354,9 +2398,13 @@ const HODDashboard = ({ activeTab, setActiveTab }) => {
 
         <div className="card" style={{ maxWidth: '600px' }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: '20px', marginBottom: '28px' }}>
-            <div style={{ width: '64px', height: '64px', borderRadius: '50%', backgroundColor: 'var(--accent-light)', color: 'var(--accent-primary)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-              <User size={32} />
-            </div>
+            {user.profile_photo ? (
+              <img src={user.profile_photo} alt="Profile" style={{ width: '64px', height: '64px', borderRadius: '50%', objectFit: 'cover', border: '2px solid var(--accent-primary)' }} />
+            ) : (
+              <div style={{ width: '64px', height: '64px', borderRadius: '50%', backgroundColor: 'var(--accent-light)', color: 'var(--accent-primary)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                <User size={32} />
+              </div>
+            )}
             <div>
               <h2 style={{ fontSize: '20px' }}>{user.first_name || user.username} {user.last_name || ''}</h2>
               <span className="badge badge-present" style={{ marginTop: '4px' }}>HOD ID: {user.username}</span>
@@ -2375,8 +2423,8 @@ const HODDashboard = ({ activeTab, setActiveTab }) => {
                   <div>{user.phone_number || '-'}</div>
                 </div>
                 <div style={{ display: 'flex', borderBottom: '1px solid var(--border-color)', paddingBottom: '10px' }}>
-                  <div style={{ width: '150px', color: 'var(--text-muted)' }}>Age</div>
-                  <div>{user.age || '-'}</div>
+                  <div style={{ width: '150px', color: 'var(--text-muted)' }}>Date of Birth</div>
+                  <div>{user.dob || '-'}</div>
                 </div>
                 <div style={{ display: 'flex', borderBottom: '1px solid var(--border-color)', paddingBottom: '10px' }}>
                   <div style={{ width: '150px', color: 'var(--text-muted)' }}>Assigned Department</div>
@@ -2421,8 +2469,27 @@ const HODDashboard = ({ activeTab, setActiveTab }) => {
               </div>
 
               <div className="form-group">
-                <label className="form-label">Age</label>
-                <input type="number" className="input" value={age} onChange={(e) => setAge(e.target.value)} />
+                <label className="form-label">Date of Birth</label>
+                <input type="date" className="input" value={dob} onChange={(e) => setDob(e.target.value)} />
+              </div>
+
+              <div className="form-group" style={{ gridColumn: 'span 2' }}>
+                <label className="form-label">Profile Photo</label>
+                <input type="file" className="input" accept="image/*" onChange={(e) => {
+                  const file = e.target.files[0];
+                  if (file) {
+                    const reader = new FileReader();
+                    reader.onloadend = () => {
+                      setProfilePhoto(reader.result);
+                    };
+                    reader.readAsDataURL(file);
+                  }
+                }} />
+                {profilePhoto && (
+                  <div style={{ marginTop: '10px' }}>
+                    <img src={profilePhoto} alt="Preview" style={{ width: '50px', height: '50px', borderRadius: '50%', objectFit: 'cover', border: '1px solid var(--border-color)' }} />
+                  </div>
+                )}
               </div>
 
               {/* Password Change inside Edit Profile */}

@@ -17,8 +17,8 @@ class User(AbstractUser):
     role = models.CharField(max_length=20, choices=ROLE_CHOICES, default='student')
     department = models.ForeignKey(Department, on_delete=models.SET_NULL, null=True, blank=True)
     phone_number = models.CharField(max_length=15, null=True, blank=True)
-    age = models.PositiveIntegerField(null=True, blank=True)
     dob = models.DateField(null=True, blank=True)
+    profile_photo = models.TextField(null=True, blank=True)
 
 class Class(models.Model):
     name = models.CharField(max_length=100)
