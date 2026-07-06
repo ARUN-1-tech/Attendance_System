@@ -2015,7 +2015,7 @@ const StaffDashboard = ({ activeTab }) => {
                         {s.user.profile_photo ? (
                           <img src={s.user.profile_photo} alt="Student" style={{ width: '28px', height: '28px', borderRadius: '50%', objectFit: 'cover', border: '1px solid var(--border-color)' }} />
                         ) : (
-                          <div style={{ width: '28px', height: '28px', borderRadius: '50%', backgroundColor: 'var(--accent-light)', color: 'var(--accent-primary)', display: 'flex', alignItems: 'center', justify-content: 'center', fontSize: '0.75rem', fontWeight: 'bold' }}>
+                          <div style={{ width: '28px', height: '28px', borderRadius: '50%', backgroundColor: 'var(--accent-light)', color: 'var(--accent-primary)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '0.75rem', fontWeight: 'bold' }}>
                             {s.user.username.slice(-2).toUpperCase()}
                           </div>
                         )}
@@ -2070,7 +2070,7 @@ const StaffDashboard = ({ activeTab }) => {
                   {selectedStudentStats.profile_photo ? (
                     <img src={selectedStudentStats.profile_photo} alt="Student" style={{ width: '50px', height: '50px', borderRadius: '50%', objectFit: 'cover', border: '2px solid var(--accent-primary)' }} />
                   ) : (
-                    <div style={{ width: '50px', height: '50px', borderRadius: '50%', backgroundColor: 'var(--accent-light)', color: 'var(--accent-primary)', display: 'flex', alignItems: 'center', justify-content: 'center', fontSize: '1.2rem', fontWeight: 'bold' }}>
+                    <div style={{ width: '50px', height: '50px', borderRadius: '50%', backgroundColor: 'var(--accent-light)', color: 'var(--accent-primary)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '1.2rem', fontWeight: 'bold' }}>
                       {selectedStudentStats.username.slice(-2).toUpperCase()}
                     </div>
                   )}
