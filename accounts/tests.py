@@ -746,3 +746,70 @@ class UserPasswordChangeAndManualAttendanceTestCase(TestCase):
         response = self.client.get('/api/attendance/student-stats/stud_user/')
         self.assertEqual(response.data['total_periods'], 2)
         self.assertEqual(response.data['percentage'], 50.0)
+
+    def test_subject_detail_and_csv(self):
+        # We need a schedule and attendance record
+        from attendance.models import Attendance
+        from timetable.models import Schedule
+        import datetime
+        
+        sched = Schedule.objects.create(
+            student_class=self.clazz,
+            subject=self.subject,
+            period=2,
+            day='Thursday',
+            start_time=datetime.time(10, 0),
+            end_time=datetime.time(11, 0)
+        )
+        
+        # Create an attendance record
+        Attendance.objects.create(student=self.student, schedule=sched, date='2026-06-25', status='Present')
+        
+        self.client.login(username='stud_user', password='studpass123')
+        
+        # Test JSON endpoint
+        response = self.client.get(f'/api/attendances/subject-detail/?student_username=stud_user&subject_id={self.subject.id}')
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.data['stats']['total_hours'], 1)
+        self.assertEqual(response.data['stats']['effective_present'], 1)
+        self.assertEqual(response.data['records'][0]['status'], 'Present')
+        
+        # Test CSV download endpoint
+        response = self.client.get(f'/api/attendances/subject-detail/?student_username=stud_user&subject_id={self.subject.id}&download=true')
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response['Content-Type'], 'text/csv')
+        self.assertIn("STUDENT DETAILS", response.content.decode('utf-8'))
+        self.assertIn("SUBJECT DETAILS", response.content.decode('utf-8'))
+        self.assertIn("ATTENDANCE SUMMARY", response.content.decode('utf-8'))
+
+    def test_advisor_subject_report_csv(self):
+        # Test downloading class-wide subject report by advisor
+        self.staff.staff_type = 'Advisor'
+        self.staff.save()
+        self.clazz.advisor = self.staff_user
+        self.clazz.save()
+        
+        from attendance.models import Attendance
+        from timetable.models import Schedule
+        import datetime
+        
+        sched = Schedule.objects.create(
+            student_class=self.clazz,
+            subject=self.subject,
+            period=2,
+            day='Thursday',
+            start_time=datetime.time(10, 0),
+            end_time=datetime.time(11, 0)
+        )
+        Attendance.objects.create(student=self.student, schedule=sched, date='2026-06-25', status='Present')
+        
+        # Log in as Advisor (staff_user)
+        self.client.login(username='staff_user', password='staffpass123')
+        
+        # Call report download API
+        response = self.client.get(f'/api/attendances/advisor-subject-report/?subject_id={self.subject.id}')
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response['Content-Type'], 'text/csv')
+        self.assertIn("Register Number", response.content.decode('utf-8'))
+        self.assertIn("Name", response.content.decode('utf-8'))
+        self.assertIn("Percentage", response.content.decode('utf-8'))

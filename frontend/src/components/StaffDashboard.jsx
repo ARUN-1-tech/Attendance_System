@@ -112,6 +112,15 @@ const StaffDashboard = ({ activeTab }) => {
   const [advisorSuccess, setAdvisorSuccess] = useState(null);
   const [manualMode, setManualMode] = useState('subject');
 
+  // Subject detail states
+  const [subjectDetailModalOpen, setSubjectDetailModalOpen] = useState(false);
+  const [subjectDetailData, setSubjectDetailData] = useState(null);
+  const [subjectDetailLoading, setSubjectDetailLoading] = useState(false);
+
+  // Advisor subject download states
+  const [advSelectedSubject, setAdvSelectedSubject] = useState('');
+  const [advClassSubjects, setAdvClassSubjects] = useState([]);
+
   const fetchAdvisedSubjects = async (classId) => {
     if (!classId) return;
     setAdvisedSubjectsLoading(true);
@@ -186,6 +195,75 @@ const StaffDashboard = ({ activeTab }) => {
       alert("Error deleting subject.");
     }
   };
+
+  const handleSubjectClick = async (studentUsername, subjectId) => {
+    setSubjectDetailLoading(true);
+    setSubjectDetailModalOpen(true);
+    setSubjectDetailData(null);
+    try {
+      const data = await api.get(`/api/attendances/subject-detail/?student_username=${studentUsername}&subject_id=${subjectId}`);
+      setSubjectDetailData(data);
+    } catch (err) {
+      console.error('Failed to fetch subject details:', err);
+      alert('Failed to load subject details.');
+      setSubjectDetailModalOpen(false);
+    } finally {
+      setSubjectDetailLoading(false);
+    }
+  };
+
+  const handleDownloadSubjectDetailCSV = async (studentUsername, subjectId, subjectCode) => {
+    try {
+      const csvText = await api.get(`/api/attendances/subject-detail/?student_username=${studentUsername}&subject_id=${subjectId}&download=true`);
+      const blob = new Blob([csvText], { type: 'text/csv' });
+      const url = window.URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.setAttribute('download', `Attendance_${studentUsername}_${subjectCode}.csv`);
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+    } catch (err) {
+      console.error('Failed to download subject CSV:', err);
+      alert('Failed to download CSV report.');
+    }
+  };
+
+  const handleDownloadAdvisorSubjectCSV = async () => {
+    if (!advSelectedSubject) return;
+    try {
+      const dataText = await api.get(`/api/attendances/advisor-subject-report/?subject_id=${advSelectedSubject}`);
+      const blob = new Blob([dataText], { type: 'text/csv' });
+      const url = window.URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      const sub = advClassSubjects.find(s => s.id.toString() === advSelectedSubject);
+      const subCode = sub ? sub.code : 'Subject';
+      link.setAttribute('download', `Class_Attendance_${subCode}.csv`);
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+    } catch (err) {
+      console.error('Failed to download advisor subject attendance CSV:', err);
+      alert('Failed to download CSV report.');
+    }
+  };
+
+  useEffect(() => {
+    const fetchAdvClassSubjects = async () => {
+      if (!advisorLiveData || !advisorLiveData.class_id) return;
+      try {
+        const data = await api.get(`/api/subjects/?class_id=${advisorLiveData.class_id}`);
+        setAdvClassSubjects(data);
+        if (data.length > 0) {
+          setAdvSelectedSubject(data[0].id.toString());
+        }
+      } catch (err) {
+        console.error('Error fetching advisor class subjects:', err);
+      }
+    };
+    fetchAdvClassSubjects();
+  }, [advisorLiveData]);
 
   const fetchAdvisorLive = async () => {
     try {
@@ -2035,7 +2113,13 @@ const StaffDashboard = ({ activeTab }) => {
                       </thead>
                       <tbody>
                         {selectedStudentStats.subjects.map(sub => (
-                          <tr key={sub.id}>
+                          <tr 
+                            key={sub.id} 
+                            style={{ cursor: 'pointer' }}
+                            onClick={() => handleSubjectClick(selectedStudentStats.username, sub.id)}
+                            onMouseEnter={(e) => e.currentTarget.style.backgroundColor = 'var(--bg-tertiary)'}
+                            onMouseLeave={(e) => e.currentTarget.style.backgroundColor = 'transparent'}
+                          >
                             <td>
                               <strong style={{ color: 'var(--accent-primary)' }}>{sub.code}</strong> - {sub.name}
                             </td>
@@ -2057,6 +2141,104 @@ const StaffDashboard = ({ activeTab }) => {
                             </td>
                           </tr>
                         ))}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+              )}
+            </div>
+          </div>
+        )}
+
+        {subjectDetailModalOpen && (
+          <div style={{
+            position: 'fixed', top: 0, left: 0, right: 0, bottom: 0,
+            backgroundColor: 'rgba(0,0,0,0.6)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1100,
+            backdropFilter: 'blur(4px)'
+          }}>
+            <div className="card" style={{ width: '90%', maxWidth: '650px', maxHeight: '90vh', overflowY: 'auto', padding: '30px' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '24px', alignItems: 'center', borderBottom: '1px solid var(--border-color)', paddingBottom: '16px' }}>
+                <h2 style={{ fontSize: '20px', fontWeight: '700', margin: 0, color: 'var(--text-primary)' }}>Subject Attendance Log</h2>
+                <button className="btn btn-secondary" style={{ padding: '6px 12px', fontSize: '13px' }} onClick={() => setSubjectDetailModalOpen(false)}>Close</button>
+              </div>
+              
+              {subjectDetailLoading ? (
+                <div style={{ textAlign: 'center', padding: '20px' }}>Loading details...</div>
+              ) : !subjectDetailData ? (
+                <div style={{ textAlign: 'center', padding: '20px', color: 'var(--text-muted)' }}>No details found.</div>
+              ) : (
+                <div>
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px', backgroundColor: 'var(--bg-secondary)', border: '1px solid var(--border-color)', padding: '16px', borderRadius: 'var(--radius-md)', marginBottom: '20px', fontSize: '13px' }}>
+                    <div>
+                      <div style={{ color: 'var(--text-secondary)', textTransform: 'uppercase', fontSize: '10px', fontWeight: '600', marginBottom: '2px' }}>Student</div>
+                      <strong>{subjectDetailData.student_details.name}</strong> ({subjectDetailData.student_details.reg_no})
+                    </div>
+                    <div>
+                      <div style={{ color: 'var(--text-secondary)', textTransform: 'uppercase', fontSize: '10px', fontWeight: '600', marginBottom: '2px' }}>Subject</div>
+                      <strong>{subjectDetailData.subject_details.name}</strong> ({subjectDetailData.subject_details.code})
+                    </div>
+                  </div>
+
+                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '12px', marginBottom: '24px', textAlign: 'center' }}>
+                    <div style={{ backgroundColor: 'var(--bg-secondary)', border: '1px solid var(--border-color)', padding: '12px', borderRadius: 'var(--radius-sm)' }}>
+                      <div style={{ fontSize: '11px', color: 'var(--text-secondary)' }}>Total Hours</div>
+                      <div style={{ fontSize: '18px', fontWeight: '700', color: 'var(--text-primary)', marginTop: '2px' }}>{subjectDetailData.stats.total_hours}</div>
+                    </div>
+                    <div style={{ backgroundColor: 'var(--bg-secondary)', border: '1px solid var(--border-color)', padding: '12px', borderRadius: 'var(--radius-sm)' }}>
+                      <div style={{ fontSize: '11px', color: 'var(--success)' }}>Present</div>
+                      <div style={{ fontSize: '18px', fontWeight: '700', color: 'var(--success)', marginTop: '2px' }}>{subjectDetailData.stats.effective_present}</div>
+                    </div>
+                    <div style={{ backgroundColor: 'var(--bg-secondary)', border: '1px solid var(--border-color)', padding: '12px', borderRadius: 'var(--radius-sm)' }}>
+                      <div style={{ fontSize: '11px', color: 'var(--danger)' }}>Absent</div>
+                      <div style={{ fontSize: '18px', fontWeight: '700', color: 'var(--danger)', marginTop: '2px' }}>{subjectDetailData.stats.absent_count}</div>
+                    </div>
+                    <div style={{ backgroundColor: 'var(--bg-secondary)', border: '1px solid var(--border-color)', padding: '12px', borderRadius: 'var(--radius-sm)' }}>
+                      <div style={{ fontSize: '11px', color: 'var(--info)' }}>Percentage</div>
+                      <div style={{ fontSize: '18px', fontWeight: '700', color: 'var(--info)', marginTop: '2px' }}>{subjectDetailData.stats.percentage}%</div>
+                    </div>
+                  </div>
+
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
+                    <h3 style={{ margin: 0, fontSize: '16px', fontWeight: '600' }}>Attendance Log</h3>
+                    <button 
+                      className="btn btn-primary" 
+                      style={{ display: 'flex', alignItems: 'center', gap: '6px', padding: '6px 12px', fontSize: '12px' }}
+                      onClick={() => handleDownloadSubjectDetailCSV(subjectDetailData.student_details.username, subjectDetailData.subject_details.id, subjectDetailData.subject_details.code)}
+                    >
+                      <Download size={14} />
+                      Download CSV
+                    </button>
+                  </div>
+
+                  <div style={{ maxHeight: '250px', overflowY: 'auto', border: '1px solid var(--border-color)', borderRadius: 'var(--radius-md)' }}>
+                    <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '13px' }}>
+                      <thead>
+                        <tr style={{ backgroundColor: 'var(--bg-secondary)', borderBottom: '1px solid var(--border-color)', position: 'sticky', top: 0 }}>
+                          <th style={{ padding: '10px 12px', textAlign: 'left', fontWeight: '600' }}>Date</th>
+                          <th style={{ padding: '10px 12px', textAlign: 'center', fontWeight: '600' }}>Period</th>
+                          <th style={{ padding: '10px 12px', textAlign: 'center', fontWeight: '600' }}>Status</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {subjectDetailData.records.map((rec, rIdx) => (
+                          <tr key={rIdx} style={{ borderBottom: '1px solid var(--border-color)' }}>
+                            <td style={{ padding: '10px 12px' }}>{rec.date}</td>
+                            <td style={{ padding: '10px 12px', textAlign: 'center' }}>Period {rec.period}</td>
+                            <td style={{ padding: '10px 12px', textAlign: 'center' }}>
+                              <span 
+                                className={`badge ${rec.status === 'Present' ? 'badge-present' : (rec.status === 'Absent' ? 'badge-absent' : 'badge-od')}`}
+                                style={{ opacity: rec.ignored ? 0.5 : 1 }}
+                              >
+                                {rec.status} {rec.ignored && '(Ignored)'}
+                              </span>
+                            </td>
+                          </tr>
+                        ))}
+                        {subjectDetailData.records.length === 0 && (
+                          <tr>
+                            <td colSpan={3} style={{ textAlign: 'center', padding: '16px', color: 'var(--text-muted)' }}>No records logged.</td>
+                          </tr>
+                        )}
                       </tbody>
                     </table>
                   </div>
@@ -2626,7 +2808,30 @@ const StaffDashboard = ({ activeTab }) => {
                   />
                   <Search size={16} style={{ position: 'absolute', left: '12px', top: '50%', transform: 'translateY(-50%)', color: 'var(--text-muted)' }} />
                 </div>
-                <div style={{ display: 'flex', gap: '12px' }}>
+                <div style={{ display: 'flex', gap: '12px', alignItems: 'center', flexWrap: 'wrap' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                    <select 
+                      className="input" 
+                      style={{ width: '180px', height: '38px', margin: 0, padding: '6px 10px', fontSize: '13px' }}
+                      value={advSelectedSubject} 
+                      onChange={(e) => setAdvSelectedSubject(e.target.value)}
+                    >
+                      <option value="">-- Choose Subject --</option>
+                      {advClassSubjects.map(sub => (
+                        <option key={sub.id} value={sub.id}>{sub.name} ({sub.code})</option>
+                      ))}
+                    </select>
+                    <button
+                      className="btn btn-secondary"
+                      style={{ display: 'flex', alignItems: 'center', gap: '8px', height: '38px' }}
+                      onClick={handleDownloadAdvisorSubjectCSV}
+                      disabled={!advSelectedSubject}
+                      title="Download class-wide attendance report for selected subject"
+                    >
+                      <Download size={16} />
+                      <span>Download Subject CSV</span>
+                    </button>
+                  </div>
                   <button
                     className="btn btn-secondary"
                     style={{ display: 'flex', alignItems: 'center', gap: '8px', height: '38px' }}
