@@ -21,6 +21,7 @@
             {% csrf_token %}
             <input type="hidden" name="latitude" id="staff-lat">
             <input type="hidden" name="longitude" id="staff-lng">
+            <input type="hidden" name="accuracy" id="staff-acc">
             
             <div style="flex: 1; min-width: 180px;">
                 <label style="display: block; margin-bottom: 5px; font-size: 0.9rem; color: var(--text-secondary);">Department</label>
@@ -136,6 +137,7 @@
                 navigator.geolocation.getCurrentPosition(function(position) {
                     document.getElementById('staff-lat').value = position.coords.latitude;
                     document.getElementById('staff-lng').value = position.coords.longitude;
+                    document.getElementById('staff-acc').value = position.coords.accuracy;
                     document.getElementById('otp-form').submit();
                 }, function(error) {
                     alert("Location access is required to generate a session.");

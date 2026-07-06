@@ -156,7 +156,8 @@ const StudentDashboard = ({ activeTab }) => {
           const res = await api.post('/api/attendance/verify-otp/', {
             otp_code: otpCode,
             latitude: position.coords.latitude,
-            longitude: position.coords.longitude
+            longitude: position.coords.longitude,
+            accuracy: position.coords.accuracy
           });
           setOtpSuccess(res.detail || 'Attendance marked successfully!');
           setOtpCode('');

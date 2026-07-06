@@ -132,6 +132,7 @@ def verify_otp(request):
         code = request.POST.get('otp_code')
         student_lat = request.POST.get('latitude')
         student_lng = request.POST.get('longitude')
+        student_accuracy = request.POST.get('accuracy')
         
         if not student_lat or not student_lng:
             messages.error(request, "Failed to retrieve your location.")
@@ -162,8 +163,14 @@ def verify_otp(request):
                 # Geofence check if staff provided location
                 if otp.staff_latitude and otp.staff_longitude:
                     distance = haversine(student_lng, student_lat, otp.staff_longitude, otp.staff_latitude)
-                    if distance > 100.0:
-                        messages.error(request, f"You are too far from the classroom to mark attendance (Distance: {distance:.1f}m > limit 100m).")
+                    
+                    s_acc = float(student_accuracy) if student_accuracy else 10.0
+                    t_acc = float(otp.staff_accuracy) if otp.staff_accuracy else 10.0
+                    inaccuracy_buffer = max(0.0, s_acc - 10.0) + max(0.0, t_acc - 10.0)
+                    allowed_limit = 100.0 + inaccuracy_buffer
+                    
+                    if distance > allowed_limit:
+                        messages.error(request, f"You are too far from the classroom to mark attendance (Distance: {distance:.1f}m > limit {allowed_limit:.1f}m).")
                         return redirect('student_dashboard')
                 
                 try:

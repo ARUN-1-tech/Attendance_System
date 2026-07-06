@@ -106,8 +106,10 @@ def api_generate_otp(request):
     
     lat = request.data.get('latitude')
     lng = request.data.get('longitude')
+    accuracy = request.data.get('accuracy')
     lat = float(lat) if lat else None
     lng = float(lng) if lng else None
+    accuracy = float(accuracy) if accuracy else 10.0
 
     otps_created = []
 
@@ -136,7 +138,7 @@ def api_generate_otp(request):
         # Deactivate old OTPs for this schedule today
         OTP.objects.filter(schedule=schedule, is_active=True).update(is_active=False)
         
-        otp = OTP.objects.create(code=code, schedule=schedule, staff_latitude=lat, staff_longitude=lng, creator=request.user)
+        otp = OTP.objects.create(code=code, schedule=schedule, staff_latitude=lat, staff_longitude=lng, staff_accuracy=accuracy, creator=request.user)
         otps_created.append(otp)
         
         # Pre-mark all students
@@ -174,6 +176,7 @@ def api_verify_otp(request):
     code = request.data.get('otp_code')
     student_lat = request.data.get('latitude')
     student_lng = request.data.get('longitude')
+    student_accuracy = request.data.get('accuracy')
     
     if student_lat is None or student_lng is None:
         return Response({'detail': 'Failed to retrieve your location'}, status=status.HTTP_400_BAD_REQUEST)
@@ -192,9 +195,15 @@ def api_verify_otp(request):
             # Geofence check if staff provided location
             if otp.staff_latitude and otp.staff_longitude:
                 distance = haversine(student_lng, student_lat, otp.staff_longitude, otp.staff_latitude)
-                if distance > 100.0:
+                
+                s_acc = float(student_accuracy) if student_accuracy else 10.0
+                t_acc = float(otp.staff_accuracy) if otp.staff_accuracy else 10.0
+                inaccuracy_buffer = max(0.0, s_acc - 10.0) + max(0.0, t_acc - 10.0)
+                allowed_limit = 100.0 + inaccuracy_buffer
+                
+                if distance > allowed_limit:
                     return Response({
-                        'detail': f'You are too far from the classroom (Distance: {distance:.1f}m > limit 100m).'
+                        'detail': f'You are too far from the classroom (Distance: {distance:.1f}m > limit {allowed_limit:.1f}m).'
                     }, status=status.HTTP_400_BAD_REQUEST)
             
             try:

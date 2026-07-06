@@ -13,6 +13,7 @@
             {% csrf_token %}
             <input type="hidden" name="latitude" id="student-lat">
             <input type="hidden" name="longitude" id="student-lng">
+            <input type="hidden" name="accuracy" id="student-acc">
             
             <input type="text" name="otp_code" class="form-control" placeholder="6-digit OTP" maxlength="6" required
                 style="flex: 1;">
@@ -30,6 +31,7 @@
                 navigator.geolocation.getCurrentPosition(function(position) {
                     document.getElementById('student-lat').value = position.coords.latitude;
                     document.getElementById('student-lng').value = position.coords.longitude;
+                    document.getElementById('student-acc').value = position.coords.accuracy;
                     document.getElementById('student-otp-form').submit();
                 }, function(error) {
                     alert("Location access is required to mark attendance.");

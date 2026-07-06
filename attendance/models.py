@@ -14,6 +14,7 @@ class OTP(models.Model):
     is_active = models.BooleanField(default=True)
     staff_latitude = models.FloatField(null=True, blank=True)
     staff_longitude = models.FloatField(null=True, blank=True)
+    staff_accuracy = models.FloatField(null=True, blank=True, default=10.0)
     creator = models.ForeignKey(User, on_delete=models.CASCADE, null=True, blank=True, related_name='created_otps')
 
     def __str__(self):
