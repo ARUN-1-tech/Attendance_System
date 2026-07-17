@@ -187,11 +187,25 @@ const StudentDashboard = ({ activeTab }) => {
       return;
     }
 
+    // Normalize date format to YYYY-MM-DD if it's DD-MM-YYYY or DD/MM/YYYY
+    let formattedDate = leaveDate;
+    if (leaveDate.includes('-')) {
+      const parts = leaveDate.split('-');
+      if (parts[0].length === 2 && parts[2].length === 4) {
+        formattedDate = `${parts[2]}-${parts[1]}-${parts[0]}`;
+      }
+    } else if (leaveDate.includes('/')) {
+      const parts = leaveDate.split('/');
+      if (parts[0].length === 2 && parts[2].length === 4) {
+        formattedDate = `${parts[2]}-${parts[1]}-${parts[0]}`;
+      }
+    }
+
     setLeaveSubmitting(true);
     try {
       await api.post('/api/leaves/', {
         leave_type: leaveType,
-        date: leaveDate,
+        date: formattedDate,
         reason: leaveReason
       });
       setLeaveSuccess(`${leaveType} request submitted successfully.`);
@@ -199,7 +213,20 @@ const StudentDashboard = ({ activeTab }) => {
       setLeaveReason('');
       fetchLeaves();
     } catch (err) {
-      setLeaveError(err.message || 'Failed to submit leave.');
+      let friendlyError = err.message || 'Failed to submit leave.';
+      try {
+        if (friendlyError.startsWith('{') && friendlyError.endsWith('}')) {
+          const parsed = JSON.parse(friendlyError);
+          const errors = [];
+          for (const key in parsed) {
+            errors.push(`${key}: ${parsed[key].join(', ')}`);
+          }
+          friendlyError = errors.join(' | ');
+        }
+      } catch (e) {
+        // ignore
+      }
+      setLeaveError(friendlyError);
     } finally {
       setLeaveSubmitting(false);
     }
