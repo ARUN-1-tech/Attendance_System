@@ -363,7 +363,7 @@ const HODDashboard = ({ activeTab, setActiveTab }) => {
     }
     
     const csvRows = [headers.join(',')];
-    let total = 0, present = 0, absent = 0, od = 0;
+    let total = 0, present = 0, absent = 0, od = 0, leave = 0, halfday = 0;
 
     reportData.forEach(r => {
       let row;
@@ -388,7 +388,8 @@ const HODDashboard = ({ activeTab, setActiveTab }) => {
         if (r.status === 'Present') present++;
         else if (r.status === 'Absent') absent++;
         else if (r.status === 'OD') od++;
-        else if (r.status === 'Half Day') { present += 0.5; absent += 0.5; }
+        else if (r.status === 'Leave') leave++;
+        else if (r.status === 'Half Day') halfday++;
       } else {
         row = [
           regNo,
@@ -411,6 +412,8 @@ const HODDashboard = ({ activeTab, setActiveTab }) => {
       csvRows.push(`Present,${present}`);
       csvRows.push(`Absent,${absent}`);
       csvRows.push(`OD,${od}`);
+      csvRows.push(`Leave,${leave}`);
+      csvRows.push(`Half Day,${halfday}`);
     }
     
     const blob = new Blob([csvRows.join('\n')], { type: 'text/csv' });
@@ -877,7 +880,7 @@ const HODDashboard = ({ activeTab, setActiveTab }) => {
       }
       const headers = ['Register Number', 'Name', 'Department', 'Year', 'Class', 'Section', 'Date', 'Period', 'Subject', 'Status'];
       const csvRows = [headers.join(',')];
-      let total = 0, present = 0, absent = 0, od = 0;
+      let total = 0, present = 0, absent = 0, od = 0, leave = 0, halfday = 0;
       data.forEach(r => {
         const row = [
           r.student_reg_no || r.student_username,
@@ -896,6 +899,8 @@ const HODDashboard = ({ activeTab, setActiveTab }) => {
         if (r.status === 'Present') present++;
         else if (r.status === 'Absent') absent++;
         else if (r.status === 'OD') od++;
+        else if (r.status === 'Leave') leave++;
+        else if (r.status === 'Half Day') halfday++;
       });
 
       csvRows.push('');
@@ -904,6 +909,8 @@ const HODDashboard = ({ activeTab, setActiveTab }) => {
       csvRows.push(`Present,${present}`);
       csvRows.push(`Absent,${absent}`);
       csvRows.push(`OD,${od}`);
+      csvRows.push(`Leave,${leave}`);
+      csvRows.push(`Half Day,${halfday}`);
 
       const blob = new Blob([csvRows.join('\n')], { type: 'text/csv' });
       const url = window.URL.createObjectURL(blob);

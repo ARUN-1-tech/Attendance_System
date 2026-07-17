@@ -540,6 +540,8 @@ def download_report(request):
                 present_c = 0
                 absent_c = 0
                 od_c = 0
+                leave_c = 0
+                halfday_c = 0
                 for row in report_rows:
                     writer.writerow([
                         row['reg_no'], 
@@ -558,6 +560,10 @@ def download_report(request):
                         absent_c += 1
                     elif row['status'] == 'OD':
                         od_c += 1
+                    elif row['status'] == 'Leave':
+                        leave_c += 1
+                    elif row['status'] == 'Half Day':
+                        halfday_c += 1
                 
                 writer.writerow([])
                 writer.writerow(['Summary'])
@@ -565,6 +571,8 @@ def download_report(request):
                 writer.writerow(['Present', present_c])
                 writer.writerow(['Absent', absent_c])
                 writer.writerow(['OD', od_c])
+                writer.writerow(['Leave', leave_c])
+                writer.writerow(['Half Day', halfday_c])
             else:
                 response['Content-Disposition'] = f'attachment; filename="attendance_{report_type}_percentage_report.csv"'
                 writer = csv.writer(response)

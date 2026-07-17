@@ -1192,7 +1192,7 @@ const StaffDashboard = ({ activeTab }) => {
       headers = ['Register Number', 'Name', 'Department', 'Year', 'Class', 'Section', 'Subject', 'Attendance Percentage'];
     }
     const csvRows = [headers.join(',')];
-    let total = 0, present = 0, absent = 0, od = 0;
+    let total = 0, present = 0, absent = 0, od = 0, leave = 0, halfday = 0;
 
     reportData.forEach(r => {
       let row;
@@ -1217,7 +1217,8 @@ const StaffDashboard = ({ activeTab }) => {
         if (r.status === 'Present') present++;
         else if (r.status === 'Absent') absent++;
         else if (r.status === 'OD') od++;
-        else if (r.status === 'Half Day') { present += 0.5; absent += 0.5; }
+        else if (r.status === 'Leave') leave++;
+        else if (r.status === 'Half Day') halfday++;
       } else {
         row = [
           regNo,
@@ -1240,6 +1241,8 @@ const StaffDashboard = ({ activeTab }) => {
       csvRows.push(`Present,${present}`);
       csvRows.push(`Absent,${absent}`);
       csvRows.push(`OD,${od}`);
+      csvRows.push(`Leave,${leave}`);
+      csvRows.push(`Half Day,${halfday}`);
     }
 
     const blob = new Blob([csvRows.join('\n')], { type: 'text/csv' });
@@ -2341,83 +2344,6 @@ const StaffDashboard = ({ activeTab }) => {
             </div>
           </div>
         )}
-        {subjectDetailsModalOpen && selectedSubjectDetails && (
-          <div style={{
-            position: 'fixed', top: 0, left: 0, right: 0, bottom: 0,
-            backgroundColor: 'rgba(0,0,0,0.6)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1100,
-            backdropFilter: 'blur(4px)'
-          }}>
-            <div className="card" style={{ width: '90%', maxWidth: '900px', maxHeight: '90vh', overflowY: 'auto', padding: '30px', position: 'relative' }}>
-              <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '24px', alignItems: 'center', borderBottom: '1px solid var(--border-color)', paddingBottom: '16px' }}>
-                <div>
-                  <h2 style={{ fontSize: '20px', fontWeight: '700', margin: 0, color: 'var(--text-primary)' }}>
-                    Subject Attendance Details: {selectedSubjectDetails.name}
-                  </h2>
-                  <span className="badge badge-secondary" style={{ marginTop: '4px' }}>
-                    Code: {selectedSubjectDetails.code}
-                  </span>
-                </div>
-                <button 
-                  className="btn btn-secondary" 
-                  style={{ padding: '6px 12px', fontSize: '13px' }} 
-                  onClick={() => setSubjectDetailsModalOpen(false)}
-                >
-                  Close
-                </button>
-              </div>
-
-              {subjectDetailsLoading ? (
-                <div style={{ textAlign: 'center', padding: '40px' }}>
-                  <div className="spinner" style={{ display: 'inline-block', width: '30px', height: '30px', border: '3px solid var(--border-color)', borderTop: '3px solid var(--accent-primary)', borderRadius: '50%', animation: 'spin 1s linear infinite' }} />
-                  <p style={{ marginTop: '12px', color: 'var(--text-secondary)' }}>Loading student details...</p>
-                </div>
-              ) : subjectDetailsError ? (
-                <div style={{ textAlign: 'center', padding: '20px', color: 'var(--danger)' }}>
-                  Error: {subjectDetailsError}
-                </div>
-              ) : !subjectStudentsAttendance ? (
-                <div style={{ textAlign: 'center', padding: '20px', color: 'var(--text-muted)' }}>
-                  No statistics available.
-                </div>
-              ) : (
-                <div className="table-container">
-                  <table className="table">
-                    <thead>
-                      <tr>
-                        <th style={{ width: '60px' }}>S.No</th>
-                        <th>Reg No</th>
-                        <th>Student Name</th>
-                        <th>Total Hours</th>
-                        <th>Present</th>
-                        <th>Absent</th>
-                        <th>OD</th>
-                        <th>Leave</th>
-                        <th>Percentage</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {subjectStudentsAttendance.students.map((stud, idx) => (
-                        <tr key={stud.id}>
-                          <td style={{ fontWeight: '600' }}>{idx + 1}</td>
-                          <td style={{ fontWeight: '600' }}>{stud.reg_no}</td>
-                          <td>{stud.name}</td>
-                          <td>{stud.total_hours}</td>
-                          <td style={{ color: 'var(--success)' }}>{stud.present_count}</td>
-                          <td style={{ color: 'var(--danger)' }}>{stud.absent_count}</td>
-                          <td style={{ color: 'var(--info)' }}>{stud.od_count}</td>
-                          <td style={{ color: 'var(--warning)' }}>{stud.leave_count}</td>
-                          <td style={{ fontWeight: '600', color: stud.percentage >= 75.0 ? 'var(--success)' : 'var(--danger)' }}>
-                            {stud.percentage}%
-                          </td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
-              )}
-            </div>
-          </div>
-        )}
       </div>
     );
   }
@@ -3338,6 +3264,84 @@ const StaffDashboard = ({ activeTab }) => {
                 </div>
               </div>
             )}
+          </div>
+        )}
+
+        {subjectDetailsModalOpen && selectedSubjectDetails && (
+          <div style={{
+            position: 'fixed', top: 0, left: 0, right: 0, bottom: 0,
+            backgroundColor: 'rgba(0,0,0,0.6)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1100,
+            backdropFilter: 'blur(4px)'
+          }}>
+            <div className="card" style={{ width: '90%', maxWidth: '900px', maxHeight: '90vh', overflowY: 'auto', padding: '30px', position: 'relative' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '24px', alignItems: 'center', borderBottom: '1px solid var(--border-color)', paddingBottom: '16px' }}>
+                <div>
+                  <h2 style={{ fontSize: '20px', fontWeight: '700', margin: 0, color: 'var(--text-primary)' }}>
+                    Subject Attendance Details: {selectedSubjectDetails.name}
+                  </h2>
+                  <span className="badge badge-secondary" style={{ marginTop: '4px' }}>
+                    Code: {selectedSubjectDetails.code}
+                  </span>
+                </div>
+                <button 
+                  className="btn btn-secondary" 
+                  style={{ padding: '6px 12px', fontSize: '13px' }} 
+                  onClick={() => setSubjectDetailsModalOpen(false)}
+                >
+                  Close
+                </button>
+              </div>
+
+              {subjectDetailsLoading ? (
+                <div style={{ textAlign: 'center', padding: '40px' }}>
+                  <div className="spinner" style={{ display: 'inline-block', width: '30px', height: '30px', border: '3px solid var(--border-color)', borderTop: '3px solid var(--accent-primary)', borderRadius: '50%', animation: 'spin 1s linear infinite' }} />
+                  <p style={{ marginTop: '12px', color: 'var(--text-secondary)' }}>Loading student details...</p>
+                </div>
+              ) : subjectDetailsError ? (
+                <div style={{ textAlign: 'center', padding: '20px', color: 'var(--danger)' }}>
+                  Error: {subjectDetailsError}
+                </div>
+              ) : !subjectStudentsAttendance ? (
+                <div style={{ textAlign: 'center', padding: '20px', color: 'var(--text-muted)' }}>
+                  No statistics available.
+                </div>
+              ) : (
+                <div className="table-container">
+                  <table className="table">
+                    <thead>
+                      <tr>
+                        <th style={{ width: '60px' }}>S.No</th>
+                        <th>Reg No</th>
+                        <th>Student Name</th>
+                        <th>Total Hours</th>
+                        <th>Present</th>
+                        <th>Absent</th>
+                        <th>OD</th>
+                        <th>Leave</th>
+                        <th>Percentage</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {subjectStudentsAttendance.students.map((stud, idx) => (
+                        <tr key={stud.id}>
+                          <td style={{ fontWeight: '600' }}>{idx + 1}</td>
+                          <td style={{ fontWeight: '600' }}>{stud.reg_no}</td>
+                          <td>{stud.name}</td>
+                          <td>{stud.total_hours}</td>
+                          <td style={{ color: 'var(--success)' }}>{stud.present_count}</td>
+                          <td style={{ color: 'var(--danger)' }}>{stud.absent_count}</td>
+                          <td style={{ color: 'var(--info)' }}>{stud.od_count}</td>
+                          <td style={{ color: 'var(--warning)' }}>{stud.leave_count}</td>
+                          <td style={{ fontWeight: '600', color: stud.percentage >= 75.0 ? 'var(--success)' : 'var(--danger)' }}>
+                            {stud.percentage}%
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+            </div>
           </div>
         )}
       </div>

@@ -74,26 +74,87 @@ class StudentSerializer(serializers.ModelSerializer):
         fields = '__all__'
 
     def get_attendance_percentage(self, obj):
-        from attendance.models import Attendance
-        from timetable.models import Schedule
-        from accounts.models import Subject
+        if self.context is not None and 'attendance_percentages' not in self.context:
+            student_ids = []
+            parent = self.parent
+            if parent and hasattr(parent, 'instance'):
+                instances = parent.instance
+                # instances can be a QuerySet or list
+                try:
+                    student_ids = [s.user_id for s in instances if hasattr(s, 'user_id')]
+                except TypeError:
+                    student_ids = [obj.user_id]
+            else:
+                student_ids = [obj.user_id]
+                
+            if not student_ids:
+                student_ids = [obj.user_id]
+
+            from collections import defaultdict
+            from django.db.models import Q
+            from attendance.models import Attendance
+            from leave.models import Leave
+            from timetable.models import Schedule
+            from accounts.models import Subject
+
+            # Prefetch active attendances for all students in batch
+            active_atts = Attendance.objects.filter(
+                student_id__in=student_ids
+            ).filter(
+                ~Q(schedule__period=8) | Q(schedule__period=8, status='Present')
+            ).values('student_id', 'status', 'date')
+            
+            # Prefetch approved OD leaves for all students in batch
+            verified_ods = Leave.objects.filter(
+                student_id__in=student_ids,
+                leave_type='OD',
+                final_status='Approved',
+                certificate_verified=True
+            ).values('student_id', 'date')
+            
+            ods_by_student = defaultdict(set)
+            for l in verified_ods:
+                ods_by_student[l['student_id']].add(l['date'])
+                
+            stats_by_student = defaultdict(lambda: {'total': 0, 'present': 0, 'od': 0})
+            for att in active_atts:
+                sid = att['student_id']
+                status = att['status']
+                dt = att['date']
+                
+                stats_by_student[sid]['total'] += 1
+                if status == 'Present':
+                    stats_by_student[sid]['present'] += 1
+                elif status == 'OD' and dt in ods_by_student[sid]:
+                    stats_by_student[sid]['od'] += 1
+                    
+            percentages = {}
+            for sid in student_ids:
+                stats = stats_by_student[sid]
+                tot = stats['total']
+                if tot == 0:
+                    percentages[sid] = 100.0
+                else:
+                    eff_pres = stats['present'] + stats['od']
+                    percentages[sid] = round((eff_pres / tot * 100), 2)
+                    
+            self.context['attendance_percentages'] = percentages
+
+        percentages = self.context.get('attendance_percentages', {}) if self.context else {}
+        if obj.user_id in percentages:
+            return percentages[obj.user_id]
+
+        # Fallback to single student calculation if not batching
+        from attendance.models import Attendance, filter_active_attendance
         from leave.models import Leave
         
-        if not obj.student_class:
-            return 100.0
-            
-        class_subject_ids = Schedule.objects.filter(student_class=obj.student_class).values_list('subject_id', flat=True).distinct()
-        class_subjects = Subject.objects.filter(id__in=class_subject_ids)
-        
-        attendances = Attendance.objects.filter(student=obj, schedule__subject__in=class_subjects)
-        from attendance.models import filter_active_attendance
+        attendances = Attendance.objects.filter(student=obj)
         attendances = filter_active_attendance(attendances)
         total_periods = attendances.count()
         if total_periods == 0:
             return 100.0
             
         present_periods = attendances.filter(status='Present').count()
-        
         verified_ods = Leave.objects.filter(
             student=obj, 
             leave_type='OD', 

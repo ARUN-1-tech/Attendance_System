@@ -328,7 +328,7 @@ class StudentViewSet(viewsets.ModelViewSet):
     permission_classes = [permissions.IsAuthenticated]
 
     def get_queryset(self):
-        queryset = Student.objects.all()
+        queryset = Student.objects.all().select_related('user', 'student_class', 'student_class__department', 'tutor', 'advisor')
         # HOD can only see students in their department
         if self.request.user.role == 'hod' and self.request.user.department:
             queryset = queryset.filter(user__department=self.request.user.department)
@@ -809,6 +809,7 @@ def api_hod_dashboard_stats(request):
     from attendance.models import Attendance
     from leave.models import Leave
     from accounts.models import Class
+    from django.db.models import Count
     
     present_students = Attendance.objects.filter(
         student__in=students, 
@@ -843,27 +844,38 @@ def api_hod_dashboard_stats(request):
         hod_approved='Pending'
     ).count()
     
+    # Pre-fetch all class-level stats for today period 1 in a single query
+    all_classes = Class.objects.filter(department=department)
+    attendance_counts = Attendance.objects.filter(
+        student__student_class__in=all_classes,
+        date=today,
+        schedule__period=1
+    ).values('student__student_class_id', 'status').annotate(count=Count('id'))
+    
+    class_stats = {cls.id: {'Present': 0, 'Absent': 0, 'OD': 0} for cls in all_classes}
+    for item in attendance_counts:
+        cls_id = item['student__student_class_id']
+        status = item['status']
+        count = item['count']
+        if cls_id in class_stats and status in class_stats[cls_id]:
+            class_stats[cls_id][status] = count
+            
     year_stats = []
     for y in [1, 2, 3, 4]:
-        classes_in_year = Class.objects.filter(department=department, year=y)
-        students_in_year = Student.objects.filter(student_class__in=classes_in_year)
+        classes_in_year = [cls for cls in all_classes if cls.year == y]
         
-        y_present = Attendance.objects.filter(student__in=students_in_year, date=today, schedule__period=1, status='Present').count()
-        y_absent = Attendance.objects.filter(student__in=students_in_year, date=today, schedule__period=1, status='Absent').count()
-        y_od = Attendance.objects.filter(student__in=students_in_year, date=today, schedule__period=1, status='OD').count()
+        y_present = sum(class_stats[cls.id]['Present'] for cls in classes_in_year)
+        y_absent = sum(class_stats[cls.id]['Absent'] for cls in classes_in_year)
+        y_od = sum(class_stats[cls.id]['OD'] for cls in classes_in_year)
         
         classes_data = []
         for cls in classes_in_year:
-            cls_students = Student.objects.filter(student_class=cls)
-            c_present = Attendance.objects.filter(student__in=cls_students, date=today, schedule__period=1, status='Present').count()
-            c_absent = Attendance.objects.filter(student__in=cls_students, date=today, schedule__period=1, status='Absent').count()
-            c_od = Attendance.objects.filter(student__in=cls_students, date=today, schedule__period=1, status='OD').count()
             classes_data.append({
                 'class_id': cls.id,
                 'class_name': str(cls),
-                'present': c_present,
-                'absent': c_absent,
-                'od': c_od
+                'present': class_stats[cls.id]['Present'],
+                'absent': class_stats[cls.id]['Absent'],
+                'od': class_stats[cls.id]['OD']
             })
             
         year_stats.append({

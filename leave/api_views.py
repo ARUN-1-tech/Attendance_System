@@ -94,11 +94,14 @@ class LeaveViewSet(viewsets.ModelViewSet):
                     return Response({'detail': 'Not authorized to approve leaves'}, status=status.HTTP_403_FORBIDDEN)
                 
                 approved_as = []
-                if user == leave.student.tutor and leave.tutor_approved == 'Pending':
+                is_tutor = (user.id == leave.student.tutor_id)
+                is_advisor = (user.id == leave.student.advisor_id)
+                
+                if is_tutor and leave.tutor_approved == 'Pending':
                     leave.tutor_approved = 'Approved'
                     approved_as.append("Tutor")
                 
-                if user == leave.student.advisor and leave.tutor_approved == 'Approved' and leave.advisor_approved == 'Pending':
+                if is_advisor and leave.tutor_approved == 'Approved' and leave.advisor_approved == 'Pending':
                     leave.advisor_approved = 'Approved'
                     approved_as.append("Advisor")
                 
