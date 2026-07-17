@@ -494,6 +494,7 @@ const StudentDashboard = ({ activeTab }) => {
               <table className="table">
                 <thead>
                   <tr>
+                    <th style={{ width: '60px' }}>S.No</th>
                     <th>Date</th>
                     <th>Type</th>
                     <th>Reason</th>
@@ -504,13 +505,14 @@ const StudentDashboard = ({ activeTab }) => {
                 <tbody>
                   {leaves.length === 0 ? (
                     <tr>
-                      <td colSpan={5} style={{ textAlign: 'center', color: 'var(--text-muted)', fontStyle: 'italic' }}>
+                      <td colSpan={6} style={{ textAlign: 'center', color: 'var(--text-muted)', fontStyle: 'italic' }}>
                         No leave/OD requests submitted yet.
                       </td>
                     </tr>
                   ) : (
-                    leaves.map((l) => (
+                    leaves.map((l, idx) => (
                       <tr key={l.id}>
+                        <td style={{ fontWeight: '600' }}>{idx + 1}</td>
                         <td style={{ fontWeight: '500' }}>{l.date}</td>
                         <td>
                           <span className={`badge ${l.leave_type === 'OD' ? 'badge-od' : 'badge-leave'}`}>

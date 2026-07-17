@@ -78,6 +78,11 @@ const StaffDashboard = ({ activeTab }) => {
   const [advisedClass, setAdvisedClass] = useState(null);
   const [advisedSubjects, setAdvisedSubjects] = useState([]);
   const [advisedSubjectsLoading, setAdvisedSubjectsLoading] = useState(true);
+  const [subjectDetailsModalOpen, setSubjectDetailsModalOpen] = useState(false);
+  const [selectedSubjectDetails, setSelectedSubjectDetails] = useState(null);
+  const [subjectStudentsAttendance, setSubjectStudentsAttendance] = useState(null);
+  const [subjectDetailsLoading, setSubjectDetailsLoading] = useState(false);
+  const [subjectDetailsError, setSubjectDetailsError] = useState(null);
   const [subjectFormOpen, setSubjectFormOpen] = useState(false);
   const [editingSubject, setEditingSubject] = useState(null);
   const [subjectName, setSubjectName] = useState('');
@@ -227,6 +232,40 @@ const StaffDashboard = ({ activeTab }) => {
     } catch (err) {
       console.error('Failed to download subject CSV:', err);
       alert('Failed to download CSV report.');
+    }
+  };
+
+  const handleDownloadSubjectCSVBySubjectId = async (subjectId, subjectCode) => {
+    try {
+      const dataText = await api.get(`/api/attendances/advisor-subject-report/?subject_id=${subjectId}`);
+      const blob = new Blob([dataText], { type: 'text/csv' });
+      const url = window.URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.setAttribute('download', `Class_Attendance_${subjectCode}.csv`);
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+    } catch (err) {
+      console.error('Failed to download advisor subject attendance CSV:', err);
+      alert('Failed to download CSV report.');
+    }
+  };
+
+  const handleViewSubjectDetails = async (sub) => {
+    setSelectedSubjectDetails(sub);
+    setSubjectDetailsModalOpen(true);
+    setSubjectDetailsLoading(true);
+    setSubjectDetailsError(null);
+    setSubjectStudentsAttendance(null);
+    try {
+      const data = await api.get(`/api/attendances/advisor-subject-report-json/?subject_id=${sub.id}`);
+      setSubjectStudentsAttendance(data);
+    } catch (err) {
+      console.error(err);
+      setSubjectDetailsError(err.message || 'Failed to fetch subject details.');
+    } finally {
+      setSubjectDetailsLoading(false);
     }
   };
 
@@ -2158,6 +2197,7 @@ const StaffDashboard = ({ activeTab }) => {
                     <table className="table" style={{ margin: 0 }}>
                       <thead>
                         <tr>
+                          <th style={{ width: '60px' }}>S.No</th>
                           <th>Subject</th>
                           <th>Total Hours</th>
                           <th>Present Hours</th>
@@ -2165,7 +2205,7 @@ const StaffDashboard = ({ activeTab }) => {
                         </tr>
                       </thead>
                       <tbody>
-                        {selectedStudentStats.subjects.map(sub => (
+                        {selectedStudentStats.subjects.map((sub, idx) => (
                           <tr 
                             key={sub.id} 
                             style={{ cursor: 'pointer' }}
@@ -2173,6 +2213,7 @@ const StaffDashboard = ({ activeTab }) => {
                             onMouseEnter={(e) => e.currentTarget.style.backgroundColor = 'var(--bg-tertiary)'}
                             onMouseLeave={(e) => e.currentTarget.style.backgroundColor = 'transparent'}
                           >
+                            <td style={{ fontWeight: '600' }}>{idx + 1}</td>
                             <td>
                               <strong style={{ color: 'var(--accent-primary)' }}>{sub.code}</strong> - {sub.name}
                             </td>
@@ -2295,6 +2336,83 @@ const StaffDashboard = ({ activeTab }) => {
                       </tbody>
                     </table>
                   </div>
+                </div>
+              )}
+            </div>
+          </div>
+        )}
+        {subjectDetailsModalOpen && selectedSubjectDetails && (
+          <div style={{
+            position: 'fixed', top: 0, left: 0, right: 0, bottom: 0,
+            backgroundColor: 'rgba(0,0,0,0.6)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1100,
+            backdropFilter: 'blur(4px)'
+          }}>
+            <div className="card" style={{ width: '90%', maxWidth: '900px', maxHeight: '90vh', overflowY: 'auto', padding: '30px', position: 'relative' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '24px', alignItems: 'center', borderBottom: '1px solid var(--border-color)', paddingBottom: '16px' }}>
+                <div>
+                  <h2 style={{ fontSize: '20px', fontWeight: '700', margin: 0, color: 'var(--text-primary)' }}>
+                    Subject Attendance Details: {selectedSubjectDetails.name}
+                  </h2>
+                  <span className="badge badge-secondary" style={{ marginTop: '4px' }}>
+                    Code: {selectedSubjectDetails.code}
+                  </span>
+                </div>
+                <button 
+                  className="btn btn-secondary" 
+                  style={{ padding: '6px 12px', fontSize: '13px' }} 
+                  onClick={() => setSubjectDetailsModalOpen(false)}
+                >
+                  Close
+                </button>
+              </div>
+
+              {subjectDetailsLoading ? (
+                <div style={{ textAlign: 'center', padding: '40px' }}>
+                  <div className="spinner" style={{ display: 'inline-block', width: '30px', height: '30px', border: '3px solid var(--border-color)', borderTop: '3px solid var(--accent-primary)', borderRadius: '50%', animation: 'spin 1s linear infinite' }} />
+                  <p style={{ marginTop: '12px', color: 'var(--text-secondary)' }}>Loading student details...</p>
+                </div>
+              ) : subjectDetailsError ? (
+                <div style={{ textAlign: 'center', padding: '20px', color: 'var(--danger)' }}>
+                  Error: {subjectDetailsError}
+                </div>
+              ) : !subjectStudentsAttendance ? (
+                <div style={{ textAlign: 'center', padding: '20px', color: 'var(--text-muted)' }}>
+                  No statistics available.
+                </div>
+              ) : (
+                <div className="table-container">
+                  <table className="table">
+                    <thead>
+                      <tr>
+                        <th style={{ width: '60px' }}>S.No</th>
+                        <th>Reg No</th>
+                        <th>Student Name</th>
+                        <th>Total Hours</th>
+                        <th>Present</th>
+                        <th>Absent</th>
+                        <th>OD</th>
+                        <th>Leave</th>
+                        <th>Percentage</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {subjectStudentsAttendance.students.map((stud, idx) => (
+                        <tr key={stud.id}>
+                          <td style={{ fontWeight: '600' }}>{idx + 1}</td>
+                          <td style={{ fontWeight: '600' }}>{stud.reg_no}</td>
+                          <td>{stud.name}</td>
+                          <td>{stud.total_hours}</td>
+                          <td style={{ color: 'var(--success)' }}>{stud.present_count}</td>
+                          <td style={{ color: 'var(--danger)' }}>{stud.absent_count}</td>
+                          <td style={{ color: 'var(--info)' }}>{stud.od_count}</td>
+                          <td style={{ color: 'var(--warning)' }}>{stud.leave_count}</td>
+                          <td style={{ fontWeight: '600', color: stud.percentage >= 75.0 ? 'var(--success)' : 'var(--danger)' }}>
+                            {stud.percentage}%
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
                 </div>
               )}
             </div>
@@ -3156,6 +3274,7 @@ const StaffDashboard = ({ activeTab }) => {
                   <table className="table">
                     <thead>
                       <tr>
+                        <th style={{ width: '60px' }}>S.No</th>
                         <th>Subject Name</th>
                         <th>Subject Code</th>
                         <th style={{ textAlign: 'right' }}>Actions</th>
@@ -3164,17 +3283,35 @@ const StaffDashboard = ({ activeTab }) => {
                     <tbody>
                       {advisedSubjects.length === 0 ? (
                         <tr>
-                          <td colSpan={3} style={{ textAlign: 'center', color: 'var(--text-muted)' }}>
+                          <td colSpan={4} style={{ textAlign: 'center', color: 'var(--text-muted)' }}>
                             No subjects added yet. Add subjects to enable attendance marking for this class.
                           </td>
                         </tr>
                       ) : (
-                        advisedSubjects.map((sub) => (
+                        advisedSubjects.map((sub, idx) => (
                           <tr key={sub.id}>
-                            <td style={{ fontWeight: '600' }}>{sub.name}</td>
+                            <td style={{ fontWeight: '600' }}>{idx + 1}</td>
+                            <td 
+                              style={{ fontWeight: '600', cursor: 'pointer', color: 'var(--accent-primary)' }} 
+                              onClick={() => handleViewSubjectDetails(sub)}
+                              title="Click to view student attendance details"
+                              onMouseEnter={(e) => e.currentTarget.style.textDecoration = 'underline'}
+                              onMouseLeave={(e) => e.currentTarget.style.textDecoration = 'none'}
+                            >
+                              {sub.name}
+                            </td>
                             <td><span className="badge badge-secondary">{sub.code}</span></td>
                             <td style={{ textAlign: 'right' }}>
                               <div style={{ display: 'flex', gap: '8px', justifyContent: 'flex-end' }}>
+                                <button 
+                                  className="btn btn-secondary btn-sm" 
+                                  style={{ padding: '4px 8px', display: 'flex', alignItems: 'center', gap: '4px' }}
+                                  onClick={() => handleDownloadSubjectCSVBySubjectId(sub.id, sub.code)}
+                                  title="Download subject attendance CSV"
+                                >
+                                  <Download size={14} />
+                                  <span>Download CSV</span>
+                                </button>
                                 <button 
                                   className="btn btn-secondary btn-sm" 
                                   style={{ padding: '4px 8px', display: 'flex', alignItems: 'center', gap: '4px' }}

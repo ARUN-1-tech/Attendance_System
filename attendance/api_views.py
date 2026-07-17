@@ -1067,6 +1067,76 @@ class AttendanceViewSet(viewsets.ModelViewSet):
             
         return response
 
+    @action(detail=False, methods=['get'], url_path='advisor-subject-report-json')
+    def advisor_subject_report_json(self, request):
+        user = self.request.user
+        if user.role not in ['staff', 'hod']:
+            return Response({'detail': 'Only staff and HOD members can access manual attendance.'}, status=status.HTTP_403_FORBIDDEN)
+            
+        from accounts.models import Class
+        advised_class = Class.objects.filter(advisor=user).first()
+        is_advisor = (hasattr(user, 'staff') and user.staff.staff_type == 'Advisor') or advised_class is not None
+        if not is_advisor:
+            return Response({'detail': 'Only Advisors can access class-wide reports.'}, status=status.HTTP_403_FORBIDDEN)
+            
+        if not advised_class:
+            return Response({'detail': 'You are not assigned as an advisor to any class.'}, status=status.HTTP_400_BAD_REQUEST)
+            
+        subject_id = request.query_params.get('subject_id')
+        if not subject_id:
+            return Response({'detail': 'subject_id is required.'}, status=status.HTTP_400_BAD_REQUEST)
+            
+        from accounts.models import Subject, Student
+        subject = get_object_or_404(Subject, id=subject_id, student_class=advised_class)
+        students = Student.objects.filter(student_class=advised_class).select_related('user').order_by('reg_no', 'user__username')
+        
+        records = Attendance.objects.filter(
+            student__student_class=advised_class,
+            schedule__subject=subject
+        ).select_related('student__user', 'schedule')
+        
+        from .models import filter_active_attendance
+        
+        student_data = []
+        for student in students:
+            student_records = records.filter(student=student)
+            filtered_student_records = filter_active_attendance(student_records)
+            
+            total_hours = filtered_student_records.count()
+            present_count = filtered_student_records.filter(status='Present').count()
+            absent_count = filtered_student_records.filter(status='Absent').count()
+            od_count = filtered_student_records.filter(status='OD').count()
+            leave_count = filtered_student_records.filter(status='Leave').count()
+            
+            from leave.models import Leave
+            verified_ods = Leave.objects.filter(
+                student=student, 
+                leave_type='OD', 
+                final_status='Approved', 
+                certificate_verified=True
+            ).values_list('date', flat=True)
+            verified_od_count = filtered_student_records.filter(status='OD', date__in=verified_ods).count()
+            effective_present = present_count + verified_od_count
+            percentage = (effective_present / total_hours * 100) if total_hours > 0 else 100.0
+            
+            student_data.append({
+                'id': student.id,
+                'reg_no': student.reg_no or student.roll_no or student.user.username,
+                'name': f"{student.user.first_name} {student.user.last_name}".strip() or student.user.username,
+                'total_hours': total_hours,
+                'present_count': present_count,
+                'absent_count': absent_count,
+                'od_count': od_count,
+                'leave_count': leave_count,
+                'percentage': round(percentage, 2)
+            })
+            
+        return Response({
+            'subject_name': subject.name,
+            'subject_code': subject.code,
+            'students': student_data
+        })
+
     @action(detail=False, methods=['get'], url_path='manual-class-students')
     def manual_class_students(self, request):
         user = self.request.user

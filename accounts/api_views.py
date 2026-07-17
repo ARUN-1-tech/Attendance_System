@@ -1,7 +1,7 @@
 from rest_framework import viewsets, status, permissions
 from rest_framework.decorators import api_view, permission_classes, action
 from rest_framework.response import Response
-from django.contrib.auth import authenticate, login, logout
+from django.contrib.auth import authenticate, login, logout, update_session_auth_hash
 from django.db.models import Q
 from .models import User, Department, Class, Subject, Student, Staff
 from django.views.decorators.csrf import ensure_csrf_cookie
@@ -319,6 +319,7 @@ class UserViewSet(viewsets.ModelViewSet):
                 
         user.set_password(new_password)
         user.save()
+        update_session_auth_hash(request, user)
         return Response({'detail': 'Password updated successfully.'}, status=status.HTTP_200_OK)
 
 class StudentViewSet(viewsets.ModelViewSet):

@@ -365,3 +365,66 @@ h1, h2, h3, h4, h5, h6 {
   color: var(--text-muted);
   font-style: italic;
 }
+
+@media print {
+  body {
+    background: white !important;
+    color: #000000 !important;
+  }
+  
+  /* Hide sidebar, print buttons, navigation, and other non-print elements */
+  .sidebar, 
+  .mobile-sidebar-toggle, 
+  .btn, 
+  button, 
+  .no-print,
+  nav,
+  header {
+    display: none !important;
+  }
+  
+  /* Reset container styles to display full pages */
+  .main-content {
+    margin: 0 !important;
+    padding: 0 !important;
+    width: 100% !important;
+  }
+  
+  .card {
+    box-shadow: none !important;
+    border: none !important;
+    background: transparent !important;
+    padding: 0 !important;
+    margin: 0 !important;
+    width: 100% !important;
+    max-width: none !important;
+  }
+  
+  /* Remove scroll limitations on tables so everything gets printed */
+  .table-container {
+    max-height: none !important;
+    overflow: visible !important;
+    border: none !important;
+  }
+  
+  .table {
+    width: 100% !important;
+    border-collapse: collapse !important;
+  }
+  
+  .table th, 
+  .table td {
+    border: 1px solid #ddd !important;
+    padding: 8px !important;
+    color: #000000 !important;
+  }
+  
+  /* Force page breaks to be clean */
+  tr {
+    page-break-inside: avoid !important;
+    page-break-after: auto !important;
+  }
+  thead {
+    display: table-header-group !important;
+  }
+}

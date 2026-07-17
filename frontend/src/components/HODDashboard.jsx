@@ -1321,6 +1321,7 @@ const HODDashboard = ({ activeTab, setActiveTab }) => {
             <table className="table">
               <thead>
                 <tr>
+                  <th style={{ width: '60px' }}>S.No</th>
                   <th>Staff ID</th>
                   <th>Username</th>
                   <th>Name</th>
@@ -1331,8 +1332,9 @@ const HODDashboard = ({ activeTab, setActiveTab }) => {
                 </tr>
               </thead>
               <tbody>
-                {staff.map(s => (
+                {staff.map((s, idx) => (
                   <tr key={s.user.id}>
+                    <td style={{ fontWeight: '600' }}>{idx + 1}</td>
                     <td>{s.staff_id || '-'}</td>
                     <td style={{ fontWeight: '600' }}>{s.user.username}</td>
                     <td>{s.user.first_name} {s.user.last_name}</td>
@@ -1797,6 +1799,7 @@ const HODDashboard = ({ activeTab, setActiveTab }) => {
                       <table className="table" style={{ margin: 0 }}>
                         <thead>
                           <tr>
+                            <th style={{ width: '60px' }}>S.No</th>
                             <th>Subject</th>
                             <th>Total Hours</th>
                             <th>Present Hours</th>
@@ -1804,7 +1807,7 @@ const HODDashboard = ({ activeTab, setActiveTab }) => {
                           </tr>
                         </thead>
                         <tbody>
-                          {selectedStudentStats.subjects.map(sub => (
+                          {selectedStudentStats.subjects.map((sub, idx) => (
                             <tr 
                               key={sub.id} 
                               style={{ cursor: 'pointer' }}
@@ -1812,6 +1815,7 @@ const HODDashboard = ({ activeTab, setActiveTab }) => {
                               onMouseEnter={(e) => e.currentTarget.style.backgroundColor = 'var(--bg-tertiary)'}
                               onMouseLeave={(e) => e.currentTarget.style.backgroundColor = 'transparent'}
                             >
+                              <td style={{ fontWeight: '600' }}>{idx + 1}</td>
                               <td>
                                 <strong style={{ color: 'var(--accent-primary)' }}>{sub.code}</strong> - {sub.name}
                               </td>
@@ -2011,6 +2015,7 @@ const HODDashboard = ({ activeTab, setActiveTab }) => {
             <table className="table">
               <thead>
                 <tr>
+                  <th style={{ width: '60px' }}>S.No</th>
                   <th>Class Name</th>
                   <th>Year</th>
                   <th>Section</th>
@@ -2021,8 +2026,9 @@ const HODDashboard = ({ activeTab, setActiveTab }) => {
                 </tr>
               </thead>
               <tbody>
-                {classes.map(c => (
+                {classes.map((c, idx) => (
                   <tr key={c.id}>
+                    <td style={{ fontWeight: '600' }}>{idx + 1}</td>
                     <td style={{ fontWeight: '600' }}>{c.name}</td>
                     <td>Year {c.year}</td>
                     <td>Section {c.section}</td>
@@ -2088,14 +2094,16 @@ const HODDashboard = ({ activeTab, setActiveTab }) => {
             <table className="table">
               <thead>
                 <tr>
+                  <th style={{ width: '60px' }}>S.No</th>
                   <th>Subject Code</th>
                   <th>Subject Name</th>
                   <th>Actions</th>
                 </tr>
               </thead>
               <tbody>
-                {subjects.map(s => (
+                {subjects.map((s, idx) => (
                   <tr key={s.id}>
+                    <td style={{ fontWeight: '600' }}>{idx + 1}</td>
                     <td style={{ fontWeight: '600', color: 'var(--accent-primary)' }}>{s.code}</td>
                     <td>{s.name}</td>
                     <td>
