@@ -834,6 +834,7 @@ const StaffDashboard = ({ activeTab }) => {
       alert('This period is locked. You cannot modify the attendance.');
       return;
     }
+    if (!window.confirm("Are you sure you want to save the attendance?")) return;
     
     setManualAttLoading(true);
     setManualAttMessage(null);
@@ -940,6 +941,7 @@ const StaffDashboard = ({ activeTab }) => {
 
   const handleSaveAdvisorManualAttendance = async (e) => {
     if (e) e.preventDefault();
+    if (!window.confirm("Are you sure you want to save the attendance?")) return;
     setAdvisorLoading(true);
     setAdvisorError(null);
     setAdvisorSuccess(null);
@@ -1247,7 +1249,7 @@ const StaffDashboard = ({ activeTab }) => {
     }
 
     try {
-      await api.put(`/api/users/${user.id}/`, {
+      await api.patch(`/api/users/${user.id}/`, {
         first_name: firstName,
         last_name: lastName,
         email: email,
@@ -1366,6 +1368,7 @@ const StaffDashboard = ({ activeTab }) => {
                   <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left', fontSize: '13px' }}>
                     <thead>
                       <tr style={{ borderBottom: '2px solid var(--border-color)', color: 'var(--text-muted)' }}>
+                        <th style={{ padding: '8px 12px', width: '60px' }}>S.No</th>
                         <th style={{ padding: '8px 12px' }}>Reg No</th>
                         <th style={{ padding: '8px 12px' }}>Name</th>
                         <th style={{ padding: '8px 12px', textAlign: 'right' }}>Status</th>
@@ -1392,6 +1395,7 @@ const StaffDashboard = ({ activeTab }) => {
 
                           return (
                             <tr key={idx} style={{ borderBottom: '1px solid var(--border-color)' }}>
+                              <td style={{ padding: '8px 12px', fontWeight: '600' }}>{idx + 1}</td>
                               <td style={{ padding: '8px 12px', fontWeight: '600' }}>{student.reg_no}</td>
                               <td style={{ padding: '8px 12px', color: 'var(--text-secondary)' }}>{student.name}</td>
                               <td style={{ padding: '8px 12px', textAlign: 'right' }}>
@@ -1413,7 +1417,7 @@ const StaffDashboard = ({ activeTab }) => {
                         })
                       ) : (
                         <tr>
-                          <td colSpan="3" style={{ textAlign: 'center', padding: '20px', color: 'var(--text-muted)', fontStyle: 'italic' }}>
+                          <td colSpan="4" style={{ textAlign: 'center', padding: '20px', color: 'var(--text-muted)', fontStyle: 'italic' }}>
                             Loading registry details...
                           </td>
                         </tr>
@@ -1999,6 +2003,7 @@ const StaffDashboard = ({ activeTab }) => {
             <table className="table">
               <thead>
                 <tr>
+                  <th style={{ width: '60px' }}>S.No</th>
                   <th>Reg No</th>
                   <th>Name</th>
                   <th>Class Details</th>
@@ -2007,8 +2012,9 @@ const StaffDashboard = ({ activeTab }) => {
                 </tr>
               </thead>
               <tbody>
-                {assignedStudents.map(s => (
+                {assignedStudents.map((s, idx) => (
                   <tr key={s.user.id}>
+                    <td style={{ fontWeight: '600' }}>{idx + 1}</td>
                     <td style={{ fontWeight: '600' }}>{s.reg_no || '-'}</td>
                     <td>
                       <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
@@ -2390,16 +2396,18 @@ const StaffDashboard = ({ activeTab }) => {
                   <table className="table" style={{ width: '100%' }}>
                     <thead>
                       <tr>
+                        <th style={{ width: '60px' }}>S.No</th>
                         <th>Student</th>
                         <th style={{ width: '220px' }}>Overall Status</th>
                         <th style={{ textAlign: 'center' }}>Daily Periods (1-7) <span style={{ fontSize: '11px', color: 'var(--text-secondary)', fontWeight: 'normal' }}>(Hover for subject, click custom to edit)</span></th>
                       </tr>
                     </thead>
                     <tbody>
-                      {advisorStudents.map(s => {
+                      {advisorStudents.map((s, idx) => {
                         const sStatus = advisorStatuses[s.id] || { overall_status: 'Present', periods: {} };
                         return (
                           <tr key={s.id} style={{ borderBottom: '1px solid var(--border-color)' }}>
+                            <td style={{ padding: '12px 8px', fontWeight: '600' }}>{idx + 1}</td>
                             <td style={{ padding: '12px 8px' }}>
                               <strong style={{ color: 'var(--text-primary)', display: 'block', fontSize: '14px' }}>{s.name}</strong>
                               <span style={{ fontSize: '12px', color: 'var(--text-secondary)' }}>Reg No: {s.reg_no}</span>
@@ -2660,6 +2668,7 @@ const StaffDashboard = ({ activeTab }) => {
                   <table className="table" style={{ width: '100%' }}>
                     <thead>
                       <tr>
+                        <th style={{ width: '60px' }}>S.No</th>
                         <th>Student</th>
                         <th style={{ width: '220px', textAlign: 'center' }}>Status Toggle</th>
                       </tr>
@@ -2670,8 +2679,9 @@ const StaffDashboard = ({ activeTab }) => {
                           s.name.toLowerCase().includes(manualSearchQuery.toLowerCase()) ||
                           s.reg_no.toLowerCase().includes(manualSearchQuery.toLowerCase())
                         )
-                        .map(s => (
+                        .map((s, idx) => (
                           <tr key={s.id} style={{ borderBottom: '1px solid var(--border-color)' }}>
+                            <td style={{ padding: '12px 8px', fontWeight: '600' }}>{idx + 1}</td>
                             <td style={{ padding: '12px 8px' }}>
                               <strong style={{ color: 'var(--text-primary)', display: 'block', fontSize: '14px' }}>{s.name}</strong>
                               <span style={{ fontSize: '12px', color: 'var(--text-secondary)' }}>Reg No: {s.reg_no} | Roll No: {s.roll_no || 'N/A'}</span>
@@ -2725,7 +2735,7 @@ const StaffDashboard = ({ activeTab }) => {
                         s.reg_no.toLowerCase().includes(manualSearchQuery.toLowerCase())
                       ).length === 0 && (
                         <tr>
-                          <td colSpan={2} style={{ textAlign: 'center', padding: '24px', color: 'var(--text-muted)' }}>
+                          <td colSpan={3} style={{ textAlign: 'center', padding: '24px', color: 'var(--text-muted)' }}>
                             No students match the search query.
                           </td>
                         </tr>
@@ -2765,6 +2775,7 @@ const StaffDashboard = ({ activeTab }) => {
               <table className="table">
                 <thead>
                   <tr>
+                    <th style={{ width: '60px' }}>S.No</th>
                     <th>Student</th>
                     <th>Date</th>
                     <th>Period / Subject</th>
@@ -2775,6 +2786,7 @@ const StaffDashboard = ({ activeTab }) => {
                 <tbody>
                   {recentlyMarked.map((item, idx) => (
                     <tr key={idx}>
+                      <td style={{ fontWeight: '600' }}>{idx + 1}</td>
                       <td>
                         <strong style={{ color: 'var(--text-primary)' }}>{item.studentName}</strong>
                         <div style={{ fontSize: '12px', color: 'var(--text-secondary)' }}>{item.regNo}</div>
@@ -2856,29 +2868,6 @@ const StaffDashboard = ({ activeTab }) => {
                   <Search size={16} style={{ position: 'absolute', left: '12px', top: '50%', transform: 'translateY(-50%)', color: 'var(--text-muted)' }} />
                 </div>
                 <div style={{ display: 'flex', gap: '12px', alignItems: 'center', flexWrap: 'wrap' }}>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                    <select 
-                      className="input" 
-                      style={{ width: '180px', height: '38px', margin: 0, padding: '6px 10px', fontSize: '13px' }}
-                      value={advSelectedSubject} 
-                      onChange={(e) => setAdvSelectedSubject(e.target.value)}
-                    >
-                      <option value="">-- Choose Subject --</option>
-                      {advClassSubjects.map(sub => (
-                        <option key={sub.id} value={sub.id}>{sub.name} ({sub.code})</option>
-                      ))}
-                    </select>
-                    <button
-                      className="btn btn-secondary"
-                      style={{ display: 'flex', alignItems: 'center', gap: '8px', height: '38px' }}
-                      onClick={handleDownloadAdvisorSubjectCSV}
-                      disabled={!advSelectedSubject}
-                      title="Download class-wide attendance report for selected subject"
-                    >
-                      <Download size={16} />
-                      <span>Download Subject CSV</span>
-                    </button>
-                  </div>
                   <button
                     className="btn btn-secondary"
                     style={{ display: 'flex', alignItems: 'center', gap: '8px', height: '38px' }}
@@ -2917,6 +2906,7 @@ const StaffDashboard = ({ activeTab }) => {
               <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left', fontSize: '13px' }}>
                 <thead>
                   <tr style={{ borderBottom: '2px solid var(--border-color)', color: 'var(--text-secondary)' }}>
+                    <th style={{ padding: '12px 8px', width: '60px' }}>S.No</th>
                     <th style={{ padding: '12px 8px' }}>Reg No</th>
                     <th style={{ padding: '12px 8px' }}>Student Name</th>
                     {advisorLiveData.schedules.map(s => (
@@ -2930,7 +2920,7 @@ const StaffDashboard = ({ activeTab }) => {
                 <tbody>
                   {/* Subject summary row at top */}
                   <tr style={{ backgroundColor: 'var(--bg-tertiary)', fontWeight: '600', borderBottom: '2px solid var(--border-color)' }}>
-                    <td colSpan={2} style={{ padding: '12px 8px', color: 'var(--text-secondary)' }}>Subject Summary (P / A / OD)</td>
+                    <td colSpan={3} style={{ padding: '12px 8px', color: 'var(--text-secondary)' }}>Subject Summary (P / A / OD)</td>
                     {advisorLiveData.columns_summary.map((col, idx) => (
                       <td key={idx} style={{ padding: '12px 8px', textAlign: 'center', fontSize: '11px', lineHeight: '1.4' }}>
                         <div><span style={{ color: 'var(--success)' }}>{col.present}P</span> &bull; <span style={{ color: 'var(--danger)' }}>{col.absent}A</span></div>
@@ -2949,6 +2939,7 @@ const StaffDashboard = ({ activeTab }) => {
                       onMouseEnter={(e) => e.currentTarget.style.backgroundColor = 'var(--bg-tertiary)'}
                       onMouseLeave={(e) => e.currentTarget.style.backgroundColor = 'transparent'}
                     >
+                      <td style={{ padding: '10px 8px', fontWeight: '600' }}>{rIdx + 1}</td>
                       <td style={{ padding: '10px 8px', fontWeight: '600' }}>{row.reg_no}</td>
                       <td style={{ padding: '10px 8px', color: 'var(--text-primary)' }}>{row.name}</td>
                       
@@ -3348,6 +3339,7 @@ const StaffDashboard = ({ activeTab }) => {
                 <thead>
                   {reportMode === 'day' ? (
                     <tr>
+                      <th style={{ width: '60px' }}>S.No</th>
                       <th>Student</th>
                       <th>Class</th>
                       <th>Date</th>
@@ -3355,6 +3347,7 @@ const StaffDashboard = ({ activeTab }) => {
                     </tr>
                   ) : (
                     <tr>
+                      <th style={{ width: '60px' }}>S.No</th>
                       <th>Student</th>
                       <th>Class</th>
                       <th>Subject</th>
@@ -3365,11 +3358,12 @@ const StaffDashboard = ({ activeTab }) => {
                 <tbody>
                   {reportData.length === 0 ? (
                     <tr>
-                      <td colSpan={4} style={{ textAlign: 'center', color: 'var(--text-muted)' }}>No report data loaded. Adjust filters and click Fetch.</td>
+                      <td colSpan={5} style={{ textAlign: 'center', color: 'var(--text-muted)' }}>No report data loaded. Adjust filters and click Fetch.</td>
                     </tr>
                   ) : (
                     reportData.map((r, idx) => (
                       <tr key={idx}>
+                        <td style={{ fontWeight: '600' }}>{idx + 1}</td>
                         <td>{r.student_name} ({r.student_reg_no || r.student_username})</td>
                         <td>{r.class_name}</td>
                         {reportMode === 'day' ? (

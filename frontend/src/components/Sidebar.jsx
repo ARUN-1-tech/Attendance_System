@@ -188,7 +188,7 @@ const Sidebar = ({ activeTab, setActiveTab, mobileOpen, setMobileOpen }) => {
     <nav className={`sidebar ${mobileOpen ? 'mobile-open' : ''}`}>
       <div>
         <div style={{ padding: '0 16px', marginBottom: '24px' }}>
-          <h2 style={{ fontSize: '20px', fontWeight: '700', color: 'var(--accent-primary)' }}>Attendance</h2>
+          <h2 style={{ fontSize: '20px', fontWeight: '700', color: 'var(--accent-primary)' }}>Attendance ERP</h2>
           <span style={{ fontSize: '11px', color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
             {user.role} Portal
           </span>

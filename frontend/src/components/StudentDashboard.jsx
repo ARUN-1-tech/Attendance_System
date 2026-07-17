@@ -256,7 +256,7 @@ const StudentDashboard = ({ activeTab }) => {
     }
 
     try {
-      await api.put(`/api/users/${user.id}/`, {
+      await api.patch(`/api/users/${user.id}/`, {
         first_name: firstName,
         last_name: lastName,
         email: email,
@@ -709,6 +709,7 @@ const StudentDashboard = ({ activeTab }) => {
             <table className="table">
               <thead>
                 <tr>
+                  <th style={{ width: '60px' }}>S.No</th>
                   <th>Subject</th>
                   <th>Attendance Status</th>
                   <th>Periods (Attended/Total)</th>
@@ -719,7 +720,7 @@ const StudentDashboard = ({ activeTab }) => {
               <tbody>
                 {!analysisStats.subjects_breakdown || analysisStats.subjects_breakdown.length === 0 ? (
                   <tr>
-                    <td colSpan={5} style={{ textAlign: 'center', color: 'var(--text-muted)' }}>No subject-wise details available.</td>
+                    <td colSpan={6} style={{ textAlign: 'center', color: 'var(--text-muted)' }}>No subject-wise details available.</td>
                   </tr>
                 ) : (
                   analysisStats.subjects_breakdown.map((sub, idx) => {
@@ -733,6 +734,7 @@ const StudentDashboard = ({ activeTab }) => {
                         onMouseEnter={(e) => e.currentTarget.style.backgroundColor = 'var(--bg-tertiary)'}
                         onMouseLeave={(e) => e.currentTarget.style.backgroundColor = 'transparent'}
                       >
+                        <td style={{ fontWeight: '600' }}>{idx + 1}</td>
                         <td>
                           <div style={{ fontWeight: '600' }}>{sub.name}</div>
                           <div style={{ fontSize: '11px', color: 'var(--text-muted)' }}>{sub.code}</div>
@@ -827,6 +829,7 @@ const StudentDashboard = ({ activeTab }) => {
                     <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '13px' }}>
                       <thead>
                         <tr style={{ backgroundColor: 'var(--bg-secondary)', borderBottom: '1px solid var(--border-color)', position: 'sticky', top: 0 }}>
+                          <th style={{ padding: '10px 12px', textAlign: 'left', fontWeight: '600', width: '60px' }}>S.No</th>
                           <th style={{ padding: '10px 12px', textAlign: 'left', fontWeight: '600' }}>Date</th>
                           <th style={{ padding: '10px 12px', textAlign: 'center', fontWeight: '600' }}>Period</th>
                           <th style={{ padding: '10px 12px', textAlign: 'center', fontWeight: '600' }}>Status</th>
@@ -835,6 +838,7 @@ const StudentDashboard = ({ activeTab }) => {
                       <tbody>
                         {subjectDetailData.records.map((rec, rIdx) => (
                           <tr key={rIdx} style={{ borderBottom: '1px solid var(--border-color)' }}>
+                            <td style={{ padding: '10px 12px', fontWeight: '600' }}>{rIdx + 1}</td>
                             <td style={{ padding: '10px 12px' }}>{rec.date}</td>
                             <td style={{ padding: '10px 12px', textAlign: 'center' }}>Period {rec.period}</td>
                             <td style={{ padding: '10px 12px', textAlign: 'center' }}>
@@ -849,7 +853,7 @@ const StudentDashboard = ({ activeTab }) => {
                         ))}
                         {subjectDetailData.records.length === 0 && (
                           <tr>
-                            <td colSpan={3} style={{ textAlign: 'center', padding: '16px', color: 'var(--text-muted)' }}>No records logged.</td>
+                            <td colSpan={4} style={{ textAlign: 'center', padding: '16px', color: 'var(--text-muted)' }}>No records logged.</td>
                           </tr>
                         )}
                       </tbody>

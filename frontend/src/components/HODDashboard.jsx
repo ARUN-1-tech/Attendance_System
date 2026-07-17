@@ -817,7 +817,7 @@ const HODDashboard = ({ activeTab, setActiveTab }) => {
     }
 
     try {
-      await api.put(`/api/users/${user.id}/`, {
+      await api.patch(`/api/users/${user.id}/`, {
         first_name: firstName,
         last_name: lastName,
         email: email,
@@ -1445,6 +1445,7 @@ const HODDashboard = ({ activeTab, setActiveTab }) => {
                 <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left', fontSize: '13px' }}>
                   <thead>
                     <tr style={{ borderBottom: '2px solid var(--border-color)', color: 'var(--text-secondary)' }}>
+                      <th style={{ padding: '12px 8px', width: '60px' }}>S.No</th>
                       <th style={{ padding: '12px 8px' }}>Reg No</th>
                       <th style={{ padding: '12px 8px' }}>Student Name</th>
                       {classGridData.schedules.map(s => (
@@ -1458,7 +1459,7 @@ const HODDashboard = ({ activeTab, setActiveTab }) => {
                   <tbody>
                     {/* Subject summary row at top */}
                     <tr style={{ backgroundColor: 'var(--bg-tertiary)', fontWeight: '600', borderBottom: '2px solid var(--border-color)' }}>
-                      <td colSpan={2} style={{ padding: '12px 8px', color: 'var(--text-secondary)' }}>Subject Summary (P / A / OD)</td>
+                      <td colSpan={3} style={{ padding: '12px 8px', color: 'var(--text-secondary)' }}>Subject Summary (P / A / OD)</td>
                       {classGridData.columns_summary.map((col, idx) => (
                         <td key={idx} style={{ padding: '12px 8px', textAlign: 'center', fontSize: '11px', lineHeight: '1.4' }}>
                           <div><span style={{ color: 'var(--success)' }}>{col.present}P</span> &bull; <span style={{ color: 'var(--danger)' }}>{col.absent}A</span></div>
@@ -1477,6 +1478,7 @@ const HODDashboard = ({ activeTab, setActiveTab }) => {
                         onMouseEnter={(e) => e.currentTarget.style.backgroundColor = 'var(--bg-tertiary)'}
                         onMouseLeave={(e) => e.currentTarget.style.backgroundColor = 'transparent'}
                       >
+                        <td style={{ padding: '10px 8px', fontWeight: '600' }}>{rIdx + 1}</td>
                         <td style={{ padding: '10px 8px', fontWeight: '600' }}>{row.reg_no}</td>
                         <td style={{ padding: '10px 8px', color: 'var(--text-primary)' }}>{row.name}</td>
                         
@@ -1648,6 +1650,7 @@ const HODDashboard = ({ activeTab, setActiveTab }) => {
                 <table className="table">
                   <thead>
                     <tr>
+                      <th style={{ width: '60px' }}>S.No</th>
                       <th>Roll / Reg No</th>
                       <th>Name</th>
                       <th>Roll No</th>
@@ -1659,13 +1662,14 @@ const HODDashboard = ({ activeTab, setActiveTab }) => {
                   <tbody>
                     {classStudents.length === 0 ? (
                       <tr>
-                        <td colSpan={6} style={{ textAlign: 'center', padding: '20px', color: 'var(--text-muted)' }}>
+                        <td colSpan={7} style={{ textAlign: 'center', padding: '20px', color: 'var(--text-muted)' }}>
                           No students in this class yet.
                         </td>
                       </tr>
                     ) : (
-                      classStudents.map(s => (
+                      classStudents.map((s, idx) => (
                         <tr key={s.user.id}>
+                          <td style={{ fontWeight: '600' }}>{idx + 1}</td>
                           <td style={{ fontWeight: '600' }}>{s.roll_no && s.reg_no ? `${s.roll_no} / ${s.reg_no}` : (s.roll_no || s.reg_no || '-')}</td>
                           <td>
                             <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
@@ -1902,6 +1906,7 @@ const HODDashboard = ({ activeTab, setActiveTab }) => {
                       <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '13px' }}>
                         <thead>
                           <tr style={{ backgroundColor: 'var(--bg-secondary)', borderBottom: '1px solid var(--border-color)', position: 'sticky', top: 0 }}>
+                            <th style={{ padding: '10px 12px', textAlign: 'left', fontWeight: '600', width: '60px' }}>S.No</th>
                             <th style={{ padding: '10px 12px', textAlign: 'left', fontWeight: '600' }}>Date</th>
                             <th style={{ padding: '10px 12px', textAlign: 'center', fontWeight: '600' }}>Period</th>
                             <th style={{ padding: '10px 12px', textAlign: 'center', fontWeight: '600' }}>Status</th>
@@ -1910,6 +1915,7 @@ const HODDashboard = ({ activeTab, setActiveTab }) => {
                         <tbody>
                           {subjectDetailData.records.map((rec, rIdx) => (
                             <tr key={rIdx} style={{ borderBottom: '1px solid var(--border-color)' }}>
+                              <td style={{ padding: '10px 12px', fontWeight: '600' }}>{rIdx + 1}</td>
                               <td style={{ padding: '10px 12px' }}>{rec.date}</td>
                               <td style={{ padding: '10px 12px', textAlign: 'center' }}>Period {rec.period}</td>
                               <td style={{ padding: '10px 12px', textAlign: 'center' }}>
@@ -1924,7 +1930,7 @@ const HODDashboard = ({ activeTab, setActiveTab }) => {
                           ))}
                           {subjectDetailData.records.length === 0 && (
                             <tr>
-                              <td colSpan={3} style={{ textAlign: 'center', padding: '16px', color: 'var(--text-muted)' }}>No records logged.</td>
+                              <td colSpan={4} style={{ textAlign: 'center', padding: '16px', color: 'var(--text-muted)' }}>No records logged.</td>
                             </tr>
                           )}
                         </tbody>
@@ -2328,6 +2334,7 @@ const HODDashboard = ({ activeTab, setActiveTab }) => {
                 <thead>
                   {reportMode === 'day' ? (
                     <tr>
+                      <th style={{ width: '60px' }}>S.No</th>
                       <th>Reg No</th>
                       <th>Student Name</th>
                       <th>Class</th>
@@ -2336,6 +2343,7 @@ const HODDashboard = ({ activeTab, setActiveTab }) => {
                     </tr>
                   ) : (
                     <tr>
+                      <th style={{ width: '60px' }}>S.No</th>
                       <th>Reg No</th>
                       <th>Student Name</th>
                       <th>Class</th>
@@ -2347,13 +2355,14 @@ const HODDashboard = ({ activeTab, setActiveTab }) => {
                 <tbody>
                   {reportData.length === 0 ? (
                     <tr>
-                      <td colSpan={5} style={{ textAlign: 'center', color: 'var(--text-muted)' }}>
+                      <td colSpan={6} style={{ textAlign: 'center', color: 'var(--text-muted)' }}>
                         No report data loaded. Adjust filters and click Fetch.
                       </td>
                     </tr>
                   ) : (
                     reportData.map((r, idx) => (
                       <tr key={idx}>
+                        <td style={{ fontWeight: '600' }}>{idx + 1}</td>
                         <td style={{ fontWeight: '600' }}>{r.student_reg_no || r.student_username}</td>
                         <td>{r.student_name}</td>
                         <td>{r.class_name}</td>
