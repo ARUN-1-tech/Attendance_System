@@ -2,19 +2,16 @@ import React, { useState, useEffect } from 'react';
 import { useAuth } from '../AuthContext';
 import { LogIn, Lock, User, ShieldCheck, Award, GraduationCap, CheckCircle2, Sparkles } from 'lucide-react';
 
-import campusSlide1 from '../assets/ngp_campus1.png';
-import campusSlide2 from '../assets/ngp_campus2.png';
-
 const slides = [
   {
-    image: campusSlide1,
+    image: '/ngp_campus1.png',
     badge: 'State-of-the-Art Infrastructure',
     title: 'Dr. NGP Institute of Technology',
     subtitle: 'Autonomous Institution | Approved by AICTE, Affiliated to Anna University',
     highlight: 'Empowering Future Engineers & Innovators in Coimbatore'
   },
   {
-    image: campusSlide2,
+    image: '/ngp_campus2.png',
     badge: 'Advanced Academic Excellence',
     title: 'Smart ERP & Learning Hub',
     subtitle: 'Real-time Attendance, Analytics & Campus Administration',
@@ -29,11 +26,13 @@ const Login = () => {
   const [error, setError] = useState('');
   const [submitting, setSubmitting] = useState(false);
   const [activeSlideIndex, setActiveSlideIndex] = useState(0);
+  const [imgError, setImgError] = useState(false);
 
   // Auto advance slideshow every 5 seconds
   useEffect(() => {
     const interval = setInterval(() => {
       setActiveSlideIndex((prev) => (prev + 1) % slides.length);
+      setImgError(false);
     }, 5000);
     return () => clearInterval(interval);
   }, []);
@@ -55,19 +54,32 @@ const Login = () => {
     }
   };
 
-  const currentSlide = slides[activeSlideIndex];
+  const currentSlide = slides[activeSlideIndex] || slides[0];
 
   return (
     <div className="login-split-wrapper">
       {/* LEFT COLUMN: College Animated Image Slideshow Showcase */}
       <div className="login-showcase-panel">
         {/* Dynamic Background Image with Smooth Fade */}
-        <img 
-          key={activeSlideIndex}
-          src={currentSlide.image} 
-          alt="Dr. NGP IT Campus" 
-          className="login-slide-media"
-        />
+        {!imgError && currentSlide.image ? (
+          <img 
+            key={activeSlideIndex}
+            src={currentSlide.image} 
+            alt="Dr. NGP IT Campus" 
+            className="login-slide-media"
+            onError={() => setImgError(true)}
+          />
+        ) : (
+          <div style={{
+            position: 'absolute',
+            top: 0,
+            left: 0,
+            width: '100%',
+            height: '100%',
+            background: 'linear-gradient(135deg, #0B2545 0%, #13315C 50%, #1D4ED8 100%)',
+            opacity: 0.95
+          }} />
+        )}
 
         {/* Dark Gradient Backdrop Overlay */}
         <div style={{
@@ -156,7 +168,10 @@ const Login = () => {
             {slides.map((_, index) => (
               <button
                 key={index}
-                onClick={() => setActiveSlideIndex(index)}
+                onClick={() => {
+                  setActiveSlideIndex(index);
+                  setImgError(false);
+                }}
                 style={{
                   width: activeSlideIndex === index ? '32px' : '10px',
                   height: '10px',
