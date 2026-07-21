@@ -3,11 +3,11 @@ import { useAuth } from '../AuthContext';
 import { 
   LayoutDashboard, User, Calendar, FileText, 
   LogOut, Sun, Moon, CheckSquare, Users, Download, Clock,
-  BookOpen
+  BookOpen, Award, ShieldCheck
 } from 'lucide-react';
 
 const Sidebar = ({ activeTab, setActiveTab, mobileOpen, setMobileOpen }) => {
-  const { user, logout, theme, toggleTheme } = useAuth();
+  const { user, logout } = useAuth();
 
   if (!user) return null;
 
@@ -26,30 +26,30 @@ const Sidebar = ({ activeTab, setActiveTab, mobileOpen, setMobileOpen }) => {
             className={`nav-item ${activeTab === 'dashboard' ? 'active' : ''}`}
             onClick={() => handleTabClick('dashboard')}
           >
-            <LayoutDashboard size={20} />
+            <LayoutDashboard size={19} />
             <span>Mark Attendance</span>
           </div>
           <div 
             className={`nav-item ${activeTab === 'leave' ? 'active' : ''}`}
             onClick={() => handleTabClick('leave')}
           >
-            <FileText size={20} />
-            <span>Leave & OD</span>
+            <FileText size={19} />
+            <span>Leave & OD Hub</span>
           </div>
 
           <div 
             className={`nav-item ${activeTab === 'analysis' ? 'active' : ''}`}
             onClick={() => handleTabClick('analysis')}
           >
-            <BookOpen size={20} />
-            <span>Analysis</span>
+            <BookOpen size={19} />
+            <span>Attendance Analysis</span>
           </div>
 
           <div 
             className={`nav-item ${activeTab === 'profile' ? 'active' : ''}`}
             onClick={() => handleTabClick('profile')}
           >
-            <User size={20} />
+            <User size={19} />
             <span>My Profile</span>
           </div>
         </>
@@ -61,14 +61,14 @@ const Sidebar = ({ activeTab, setActiveTab, mobileOpen, setMobileOpen }) => {
             className={`nav-item ${activeTab === 'dashboard' ? 'active' : ''}`}
             onClick={() => handleTabClick('dashboard')}
           >
-            <LayoutDashboard size={20} />
+            <LayoutDashboard size={19} />
             <span>Generate OTP</span>
           </div>
           <div 
             className={`nav-item ${activeTab === 'manual_attendance' ? 'active' : ''}`}
             onClick={() => handleTabClick('manual_attendance')}
           >
-            <CheckSquare size={20} />
+            <CheckSquare size={19} />
             <span>Manual Attendance</span>
           </div>
           {user.staff_details?.staff_type !== 'Normal' && (
@@ -76,7 +76,7 @@ const Sidebar = ({ activeTab, setActiveTab, mobileOpen, setMobileOpen }) => {
               className={`nav-item ${activeTab === 'approvals' ? 'active' : ''}`}
               onClick={() => handleTabClick('approvals')}
             >
-              <CheckSquare size={20} />
+              <CheckSquare size={19} />
               <span>Leave Approvals</span>
             </div>
           )}
@@ -85,7 +85,7 @@ const Sidebar = ({ activeTab, setActiveTab, mobileOpen, setMobileOpen }) => {
               className={`nav-item ${activeTab === 'students' ? 'active' : ''}`}
               onClick={() => handleTabClick('students')}
             >
-              <Users size={20} />
+              <Users size={19} />
               <span>My Students</span>
             </div>
           )}
@@ -94,7 +94,7 @@ const Sidebar = ({ activeTab, setActiveTab, mobileOpen, setMobileOpen }) => {
               className={`nav-item ${activeTab === 'advisor_live' ? 'active' : ''}`}
               onClick={() => handleTabClick('advisor_live')}
             >
-              <Calendar size={20} />
+              <Calendar size={19} />
               <span>Live Class Grid</span>
             </div>
           )}
@@ -103,7 +103,7 @@ const Sidebar = ({ activeTab, setActiveTab, mobileOpen, setMobileOpen }) => {
               className={`nav-item ${activeTab === 'manage_subjects' ? 'active' : ''}`}
               onClick={() => handleTabClick('manage_subjects')}
             >
-              <BookOpen size={20} />
+              <BookOpen size={19} />
               <span>Manage Subjects</span>
             </div>
           )}
@@ -111,14 +111,14 @@ const Sidebar = ({ activeTab, setActiveTab, mobileOpen, setMobileOpen }) => {
             className={`nav-item ${activeTab === 'reports' ? 'active' : ''}`}
             onClick={() => handleTabClick('reports')}
           >
-            <Download size={20} />
+            <Download size={19} />
             <span>Reports</span>
           </div>
           <div 
             className={`nav-item ${activeTab === 'profile' ? 'active' : ''}`}
             onClick={() => handleTabClick('profile')}
           >
-            <User size={20} />
+            <User size={19} />
             <span>Profile</span>
           </div>
         </>
@@ -130,42 +130,42 @@ const Sidebar = ({ activeTab, setActiveTab, mobileOpen, setMobileOpen }) => {
             className={`nav-item ${activeTab === 'dashboard' ? 'active' : ''}`}
             onClick={() => handleTabClick('dashboard')}
           >
-            <LayoutDashboard size={20} />
+            <LayoutDashboard size={19} />
             <span>HOD Dashboard</span>
           </div>
           <div 
             className={`nav-item ${activeTab === 'staff' ? 'active' : ''}`}
             onClick={() => handleTabClick('staff')}
           >
-            <Users size={20} />
+            <Users size={19} />
             <span>Manage Staff</span>
           </div>
           <div 
             className={`nav-item ${activeTab === 'classes' ? 'active' : ''}`}
             onClick={() => handleTabClick('classes')}
           >
-            <Calendar size={20} />
+            <Calendar size={19} />
             <span>Manage Classes</span>
           </div>
           <div 
             className={`nav-item ${activeTab === 'approvals' ? 'active' : ''}`}
             onClick={() => handleTabClick('approvals')}
           >
-            <CheckSquare size={20} />
+            <CheckSquare size={19} />
             <span>Leave Approvals</span>
           </div>
           <div 
             className={`nav-item ${activeTab === 'reports' ? 'active' : ''}`}
             onClick={() => handleTabClick('reports')}
           >
-            <Download size={20} />
+            <Download size={19} />
             <span>Reports</span>
           </div>
           <div 
             className={`nav-item ${activeTab === 'profile' ? 'active' : ''}`}
             onClick={() => handleTabClick('profile')}
           >
-            <User size={20} />
+            <User size={19} />
             <span>Profile</span>
           </div>
         </>
@@ -176,7 +176,7 @@ const Sidebar = ({ activeTab, setActiveTab, mobileOpen, setMobileOpen }) => {
           <div 
             className={`nav-item active`}
           >
-            <LayoutDashboard size={20} />
+            <LayoutDashboard size={19} />
             <span>Admin Console</span>
           </div>
         </>
@@ -187,11 +187,30 @@ const Sidebar = ({ activeTab, setActiveTab, mobileOpen, setMobileOpen }) => {
   return (
     <nav className={`sidebar ${mobileOpen ? 'mobile-open' : ''}`}>
       <div>
-        <div style={{ padding: '0 16px', marginBottom: '24px' }}>
-          <h2 style={{ fontSize: '20px', fontWeight: '700', color: 'var(--accent-primary)' }}>Attendance ERP</h2>
-          <span style={{ fontSize: '11px', color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
-            {user.role} Portal
-          </span>
+        {/* NGP IT Branding Header */}
+        <div style={{ padding: '0 8px', marginBottom: '24px' }}>
+          <div className="ngp-brand-header">
+            <div className="ngp-crest-icon">NGP</div>
+            <div>
+              <div className="ngp-brand-title">Dr. NGP IT</div>
+              <div className="ngp-brand-subtitle">Autonomous Institution</div>
+            </div>
+          </div>
+          <div style={{
+            marginTop: '12px',
+            padding: '4px 10px',
+            backgroundColor: 'rgba(255, 255, 255, 0.06)',
+            borderRadius: '6px',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+            border: '1px solid rgba(255, 255, 255, 0.08)'
+          }}>
+            <span style={{ fontSize: '11px', color: 'var(--ngp-gold)', textTransform: 'uppercase', letterSpacing: '0.06em', fontWeight: '700' }}>
+              {user.role} Portal
+            </span>
+            <ShieldCheck size={13} style={{ color: 'var(--ngp-gold)' }} />
+          </div>
         </div>
         
         <div className="nav-menu">
@@ -200,26 +219,41 @@ const Sidebar = ({ activeTab, setActiveTab, mobileOpen, setMobileOpen }) => {
       </div>
 
       <div>
-        {/* User Card info */}
-        <div style={{ padding: '12px 16px', borderTop: '1px solid var(--border-color)', marginBottom: '16px' }}>
-          <div style={{ fontSize: '14px', fontWeight: '600' }}>
+        {/* User Profile Info Card */}
+        <div style={{
+          padding: '12px 14px',
+          backgroundColor: 'rgba(255, 255, 255, 0.05)',
+          borderRadius: 'var(--radius-sm)',
+          border: '1px solid rgba(255, 255, 255, 0.08)',
+          marginBottom: '16px'
+        }}>
+          <div style={{ fontSize: '13px', fontWeight: '700', color: '#FFFFFF', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
             {user.first_name || user.username} {user.last_name || ''}
           </div>
-          <div style={{ fontSize: '12px', color: 'var(--text-muted)' }}>
-            {user.email}
+          <div style={{ fontSize: '11px', color: 'rgba(255, 255, 255, 0.65)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+            {user.email || user.username}
           </div>
         </div>
 
-        {/* Action controls */}
+        {/* Log Out Control */}
         <div style={{ display: 'flex', gap: '8px' }}>
           {!(user && user.hide_logout) && (
             <button 
               className="btn btn-danger" 
-              style={{ flex: 1, padding: '8px', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px' }} 
+              style={{
+                flex: 1,
+                padding: '10px',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                gap: '8px',
+                fontSize: '13px',
+                fontWeight: '700'
+              }} 
               onClick={logout}
               title="Log Out"
             >
-              <LogOut size={18} />
+              <LogOut size={16} />
               <span>Log Out</span>
             </button>
           )}

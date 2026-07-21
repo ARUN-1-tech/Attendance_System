@@ -5,23 +5,28 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Smart Attendance</title>
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
-    <link rel="stylesheet" href="{% static 'css/style.css' %}?v=5">
+    <title>Dr. NGP IT - Smart Attendance ERP</title>
+    <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="{% static 'css/style.css' %}?v=6">
 </head>
 
 <body>
-    <aside class="sidebar glass-panel">
-        <div class="logo">Smart Attd.</div>
+    <aside class="sidebar">
+        <div class="logo">
+            <div class="logo-crest">NGP</div>
+            <div>
+                <div style="font-size: 1.1rem; font-weight: 800; color: #FFFFFF;">Dr. NGP IT</div>
+                <div style="font-size: 0.65rem; color: #D4AF37; font-weight: 600; text-transform: uppercase; letter-spacing: 0.05em;">Autonomous</div>
+            </div>
+        </div>
         <ul class="nav-links">
             {% if request.user.role == 'student' %}
-            <li><a href="{% url 'student_dashboard' %}" class="{% if request.resolver_match.url_name == 'student_dashboard' %}active{% endif %}">Student Dash</a></li>
+            <li><a href="{% url 'student_dashboard' %}" class="{% if request.resolver_match.url_name == 'student_dashboard' %}active{% endif %}">Student Dashboard</a></li>
             <li><a href="{% url 'leave_od_status' %}" class="{% if request.resolver_match.url_name == 'leave_od_status' %}active{% endif %}">Leave / OD Hub</a></li>
             <li><a href="{% url 'student_attendance_stats' request.user.username %}" class="{% if request.resolver_match.url_name == 'student_attendance_stats' %}active{% endif %}">Attendance Stats</a></li>
-
             <li><a href="{% url 'download_report' %}">My Report</a></li>
             {% elif request.user.role == 'staff' %}
-            <li><a href="{% url 'staff_dashboard' %}" class="{% if request.resolver_match.url_name == 'staff_dashboard' %}active{% endif %}">Staff Dash</a></li>
+            <li><a href="{% url 'staff_dashboard' %}" class="{% if request.resolver_match.url_name == 'staff_dashboard' %}active{% endif %}">Staff Dashboard</a></li>
             {% if request.user.staff.staff_type != 'Normal' %}
             <li><a href="{% url 'staff_students' %}" class="{% if request.resolver_match.url_name == 'staff_students' %}active{% endif %}">Students</a></li>
             <li><a href="{% url 'staff_approvals' %}" class="{% if request.resolver_match.url_name == 'staff_approvals' %}active{% endif %}">Approvals</a></li>
@@ -32,46 +37,46 @@
             <li><a href="{% url 'manual_attendance' %}" class="{% if request.resolver_match.url_name == 'manual_attendance' %}active{% endif %}">Manual Attendance</a></li>
             <li><a href="{% url 'download_report' %}">Class Reports</a></li>
             {% elif request.user.role == 'hod' %}
-            <li><a href="{% url 'hod_dashboard' %}" class="{% if request.resolver_match.url_name == 'hod_dashboard' %}active{% endif %}">HOD Dash</a></li>
-            <li><a href="{% url 'hod_staff' %}" class="{% if request.resolver_match.url_name == 'hod_staff' %}active{% endif %}">Staff</a></li>
-            <li><a href="{% url 'hod_classes' %}" class="{% if request.resolver_match.url_name == 'hod_classes' %}active{% endif %}">Classes</a></li>
-            <li><a href="{% url 'hod_approvals' %}" class="{% if request.resolver_match.url_name == 'hod_approvals' %}active{% endif %}">Approvals</a></li>
-            <li><a href="{% url 'download_report' %}">Dept Reports</a></li>
+            <li><a href="{% url 'hod_dashboard' %}" class="{% if request.resolver_match.url_name == 'hod_dashboard' %}active{% endif %}">HOD Dashboard</a></li>
+            <li><a href="{% url 'hod_staff' %}" class="{% if request.resolver_match.url_name == 'hod_staff' %}active{% endif %}">Staff Management</a></li>
+            <li><a href="{% url 'hod_classes' %}" class="{% if request.resolver_match.url_name == 'hod_classes' %}active{% endif %}">Class Management</a></li>
+            <li><a href="{% url 'hod_approvals' %}" class="{% if request.resolver_match.url_name == 'hod_approvals' %}active{% endif %}">Leave Approvals</a></li>
+            <li><a href="{% url 'download_report' %}">Department Reports</a></li>
             {% elif request.user.role == 'admin' %}
-            <li><a href="{% url 'admin_dashboard' %}" class="{% if request.resolver_match.url_name == 'admin_dashboard' %}active{% endif %}">Admin Dash</a></li>
+            <li><a href="{% url 'admin_dashboard' %}" class="{% if request.resolver_match.url_name == 'admin_dashboard' %}active{% endif %}">Admin Dashboard</a></li>
             <li><a href="{% url 'admin_departments' %}" class="{% if request.resolver_match.url_name == 'admin_departments' %}active{% endif %}">Departments</a></li>
             <li><a href="{% url 'admin_hods' %}" class="{% if request.resolver_match.url_name in 'admin_hods,admin_add_hod,admin_edit_hod' %}active{% endif %}">HODs</a></li>
             <li><a href="{% url 'download_report' %}" class="{% if request.resolver_match.url_name == 'download_report' %}active{% endif %}">All Reports</a></li>
             {% endif %}
             {% if not hide_logout %}
-            <li style="margin-top: auto;"><a href="{% url 'logout' %}" style="color: var(--danger)">Logout</a></li>
+            <li style="margin-top: auto;"><a href="{% url 'logout' %}" style="color: #FCA5A5; font-weight: 700;">Logout</a></li>
             {% endif %}
         </ul>
     </aside>
 
     <main class="main-content">
         <div class="header">
-            <button class="mobile-toggle-btn btn" onclick="toggleMobileSidebar()" style="display: none; padding: 6px 12px; margin-right: 12px; height: 38px; align-items: center; justify-content: center; background: rgba(255, 255, 255, 0.05); border: 1px solid var(--border-overlay);">
+            <button class="mobile-toggle-btn btn" onclick="toggleMobileSidebar()" style="display: none; padding: 6px 12px; margin-right: 12px; height: 38px; align-items: center; justify-content: center; background: #0B2545; color: #FFFFFF; border: 1px solid rgba(255, 255, 255, 0.2);">
                 <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="3" y1="12" x2="21" y2="12"></line><line x1="3" y1="6" x2="21" y2="6"></line><line x1="3" y1="18" x2="21" y2="18"></line></svg>
             </button>
             <h1 style="display: inline-flex; align-items: center; margin: 0; flex: 1;">{% block page_title %}Dashboard{% endblock %}</h1>
             {% if request.user.role == 'hod' %}
-            <a href="{% url 'hod_profile' %}" class="user-profile glass-panel" style="padding: 8px 16px; border-radius: 20px; text-decoration: none; color: inherit; display: flex; align-items: center; gap: 8px;">
+            <a href="{% url 'hod_profile' %}" class="user-profile" style="text-decoration: none; color: inherit;">
                 <span>{% if request.user.first_name %}{{ request.user.first_name }} {{ request.user.last_name }}{% else %}{{ request.user.username }}{% endif %} ({{ request.user.role|title }})</span>
                 <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"></path><circle cx="12" cy="7" r="4"></circle></svg>
             </a>
             {% elif request.user.role == 'student' %}
-            <a href="{% url 'student_profile' %}" class="user-profile glass-panel" style="padding: 8px 16px; border-radius: 20px; text-decoration: none; color: inherit; display: flex; align-items: center; gap: 8px;">
+            <a href="{% url 'student_profile' %}" class="user-profile" style="text-decoration: none; color: inherit;">
                 <span>{% if request.user.first_name %}{{ request.user.first_name }} {{ request.user.last_name }}{% else %}{{ request.user.username }}{% endif %} ({{ request.user.role|title }})</span>
                 <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"></path><circle cx="12" cy="7" r="4"></circle></svg>
             </a>
             {% elif request.user.role == 'staff' %}
-            <a href="{% url 'staff_profile' %}" class="user-profile glass-panel" style="padding: 8px 16px; border-radius: 20px; text-decoration: none; color: inherit; display: flex; align-items: center; gap: 8px;">
+            <a href="{% url 'staff_profile' %}" class="user-profile" style="text-decoration: none; color: inherit;">
                 <span>{% if request.user.first_name %}{{ request.user.first_name }} {{ request.user.last_name }}{% else %}{{ request.user.username }}{% endif %} ({{ request.user.role|title }})</span>
                 <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"></path><circle cx="12" cy="7" r="4"></circle></svg>
             </a>
             {% else %}
-            <div class="user-profile glass-panel" style="padding: 8px 16px; border-radius: 20px; display: flex; align-items: center; gap: 8px;">
+            <div class="user-profile">
                 <span>{% if request.user.first_name %}{{ request.user.first_name }} {{ request.user.last_name }}{% else %}{{ request.user.username }}{% endif %} ({{ request.user.role|title }})</span>
                 <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"></path><circle cx="12" cy="7" r="4"></circle></svg>
             </div>

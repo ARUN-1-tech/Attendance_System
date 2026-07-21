@@ -5,7 +5,7 @@ import Login from './components/Login';
 import StudentDashboard from './components/StudentDashboard';
 import StaffDashboard from './components/StaffDashboard';
 import HODDashboard from './components/HODDashboard';
-import { Menu } from 'lucide-react';
+import { Menu, ShieldAlert, ExternalLink, Award } from 'lucide-react';
 import { api } from './api';
 import './App.css';
 
@@ -41,15 +41,19 @@ const MainPortal = () => {
         flexDirection: 'column',
         gap: '16px'
       }}>
-        <div className="spinner" style={{
-          width: '40px',
-          height: '40px',
-          border: '4px solid var(--border-color)',
-          borderTop: '4px solid var(--accent-primary)',
+        <div style={{
+          width: '50px',
+          height: '50px',
           borderRadius: '50%',
-          animation: 'spin 1s linear infinite'
+          border: '4px solid var(--border-color)',
+          borderTop: '4px solid var(--ngp-navy)',
+          borderRight: '4px solid var(--ngp-gold)',
+          animation: 'spin 0.9s linear infinite'
         }} />
-        <span style={{ fontSize: '14px', fontWeight: '500' }}>Loading Portal...</span>
+        <div style={{ textAlign: 'center' }}>
+          <div style={{ fontSize: '16px', fontWeight: '800', color: 'var(--ngp-navy)' }}>Dr. NGP Institute of Technology</div>
+          <span style={{ fontSize: '13px', fontWeight: '500', color: 'var(--text-muted)' }}>Loading ERP Portal...</span>
+        </div>
         <style dangerouslySetInnerHTML={{__html: `
           @keyframes spin {
             0% { transform: rotate(0deg); }
@@ -74,23 +78,37 @@ const MainPortal = () => {
         return <HODDashboard activeTab={activeTab} setActiveTab={setActiveTab} />;
       case 'admin':
         return (
-          <div className="card" style={{ maxWidth: '600px', marginTop: '40px' }}>
-            <h1 style={{ marginBottom: '16px' }}>Django Admin Console</h1>
-            <p style={{ color: 'var(--text-secondary)', marginBottom: '24px' }}>
-              Welcome back, Administrator. The core configuration database panels are managed directly within the Django Admin administration console.
+          <div className="card" style={{ maxWidth: '640px', marginTop: '20px', padding: '32px' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '16px' }}>
+              <div style={{
+                width: '40px', height: '40px', borderRadius: '10px',
+                backgroundColor: 'rgba(11, 37, 69, 0.1)', color: 'var(--ngp-navy)',
+                display: 'flex', alignItems: 'center', justifyContent: 'center'
+              }}>
+                <ShieldAlert size={24} />
+              </div>
+              <div>
+                <h1 style={{ fontSize: '22px', fontWeight: '800', color: 'var(--ngp-navy)' }}>Django Admin Console</h1>
+                <span className="ngp-header-badge">Dr. NGP IT ERP Administration</span>
+              </div>
+            </div>
+            <p style={{ color: 'var(--text-secondary)', marginBottom: '24px', fontSize: '14px', lineHeight: '1.6' }}>
+              Welcome back, Administrator. System configuration, user permissions, and master database entities are managed directly within the Django Admin administration console.
             </p>
             <a 
               href={`${api.baseUrl}/admin/`} 
               target="_blank" 
               rel="noreferrer" 
               className="btn btn-primary"
+              style={{ display: 'inline-flex', alignItems: 'center', gap: '8px', padding: '12px 24px' }}
             >
-              Go to Django Admin
+              <span>Launch Django Admin Console</span>
+              <ExternalLink size={18} />
             </a>
           </div>
         );
       default:
-        return <div>Unauthorized role: {user.role}</div>;
+        return <div style={{ padding: '24px', fontWeight: '600' }}>Unauthorized role: {user.role}</div>;
     }
   };
 
@@ -102,17 +120,17 @@ const MainPortal = () => {
           onClick={() => setMobileOpen(!mobileOpen)}
           style={{
             position: 'fixed',
-            top: '12px',
-            left: '12px',
+            top: '14px',
+            left: '14px',
             zIndex: 1000,
             display: 'none',
-            padding: '8px',
-            borderRadius: '6px',
-            backgroundColor: 'var(--bg-secondary)',
-            border: '1px solid var(--border-color)',
-            color: 'var(--text-primary)',
+            padding: '10px',
+            borderRadius: '8px',
+            backgroundColor: 'var(--ngp-navy)',
+            border: '1px solid rgba(255, 255, 255, 0.2)',
+            color: '#FFFFFF',
             cursor: 'pointer',
-            boxShadow: 'var(--shadow-sm)',
+            boxShadow: 'var(--shadow-md)',
             alignItems: 'center',
             justifyContent: 'center'
           }}
