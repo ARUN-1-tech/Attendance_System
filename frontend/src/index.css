@@ -141,7 +141,7 @@ h1, h2, h3, h4, h5, h6 {
   background-color: var(--bg-primary);
 }
 
-/* Floating / Card Side Panel (Detached Container Block) */
+/* Floating Card Side Panel */
 .sidebar {
   width: 270px;
   margin: 16px 0 16px 16px;
@@ -579,7 +579,7 @@ h1, h2, h3, h4, h5, h6 {
   text-transform: uppercase;
 }
 
-/* Dual Split-Screen Login Layout */
+/* Dual Split-Screen Login Layout (Strictly 40% photo showcase / 60% login form) */
 .login-split-wrapper {
   display: flex;
   min-height: 100vh;
@@ -589,14 +589,15 @@ h1, h2, h3, h4, h5, h6 {
 }
 
 .login-showcase-panel {
-  flex: 1.25;
+  flex: 0.4;
+  width: 40%;
   position: relative;
   overflow: hidden;
   background: linear-gradient(135deg, #06172E 0%, #0B2545 50%, #1D4ED8 100%);
   display: flex;
   flex-direction: column;
   justify-content: space-between;
-  padding: 48px;
+  padding: 40px;
   color: #FFFFFF;
 }
 
@@ -613,7 +614,8 @@ h1, h2, h3, h4, h5, h6 {
 }
 
 .login-form-panel {
-  flex: 1;
+  flex: 0.6;
+  width: 60%;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -622,15 +624,19 @@ h1, h2, h3, h4, h5, h6 {
   background-image: radial-gradient(circle at 50% 30%, rgba(29, 78, 216, 0.06) 0%, transparent 60%);
 }
 
-@media (max-width: 900px) {
+@media (max-width: 960px) {
   .login-split-wrapper {
     flex-direction: column;
   }
   .login-showcase-panel {
+    flex: none;
+    width: 100%;
     min-height: 280px;
     padding: 28px;
   }
   .login-form-panel {
+    flex: none;
+    width: 100%;
     padding: 28px 16px;
   }
 }

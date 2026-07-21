@@ -1473,8 +1473,14 @@ const StaffDashboard = ({ activeTab }) => {
         ) : (
           /* Generate Form */
           <div className="grid grid-cols-2">
-            <div className="card">
-              <h2 style={{ marginBottom: '24px' }}>Configure Period Session</h2>
+            <div className="card" style={{ borderTop: '3px solid var(--ngp-blue)', boxShadow: 'var(--shadow-md)' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '24px', borderBottom: '1px solid var(--border-color)', paddingBottom: '14px' }}>
+                <div style={{ width: '36px', height: '36px', borderRadius: '10px', backgroundColor: 'var(--ngp-blue-light)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                  <Settings size={20} style={{ color: 'var(--ngp-blue)' }} />
+                </div>
+                <h2 style={{ fontSize: '18px', fontWeight: '800', color: 'var(--ngp-navy-header)', margin: 0 }}>Configure Period Session</h2>
+              </div>
+
               <form onSubmit={handleGenerateOTP}>
                 <div className="form-group">
                   <label className="form-label">Department</label>
@@ -1525,8 +1531,10 @@ const StaffDashboard = ({ activeTab }) => {
                 </div>
 
                 <div className="form-group" style={{ marginBottom: '32px' }}>
-                  <label className="form-label" style={{ marginBottom: '8px', display: 'block' }}>Select Period(s) (Check all that apply for continuous classes)</label>
-                  <div style={{ display: 'flex', flexWrap: 'wrap', gap: '10px' }}>
+                  <label className="form-label" style={{ marginBottom: '10px', display: 'block', fontWeight: '700' }}>
+                    Select Period(s) <span style={{ fontSize: '12px', color: 'var(--text-muted)', fontWeight: 'normal' }}>(Check all that apply for continuous classes)</span>
+                  </label>
+                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '10px' }}>
                     {[1, 2, 3, 4, 5, 6, 7, 8].map(p => {
                       const isLocked = otpLockedPeriods.includes(p);
                       const isChecked = selectedPeriods.includes(p.toString());
@@ -1536,23 +1544,26 @@ const StaffDashboard = ({ activeTab }) => {
                           style={{
                             display: 'flex',
                             alignItems: 'center',
-                            gap: '8px',
-                            padding: '10px 16px',
+                            justifyContent: 'center',
+                            gap: '6px',
+                            padding: '10px 12px',
                             border: isLocked 
-                              ? '1px dashed var(--border-color)' 
-                              : (isChecked ? '1px solid var(--accent-primary)' : '1px solid var(--border-color)'),
+                              ? '1.5px dashed var(--border-color)' 
+                              : (isChecked ? '2px solid var(--ngp-blue)' : '1.5px solid var(--border-color)'),
                             backgroundColor: isLocked 
-                              ? 'rgba(0,0,0,0.05)' 
-                              : (isChecked ? 'var(--accent-light)' : 'var(--bg-secondary)'),
+                              ? 'rgba(0,0,0,0.03)' 
+                              : (isChecked ? 'var(--ngp-blue-light)' : 'var(--bg-secondary)'),
                             borderRadius: 'var(--radius-sm)',
                             cursor: isLocked ? 'not-allowed' : 'pointer',
-                            fontSize: '14px',
-                            fontWeight: '500',
+                            fontSize: '13px',
+                            fontWeight: '700',
                             userSelect: 'none',
-                            transition: 'all 0.2s ease',
+                            transition: 'all 0.22s cubic-bezier(0.16, 1, 0.3, 1)',
                             color: isLocked 
-                              ? '#a0a0a0' 
-                              : (isChecked ? 'var(--accent-primary)' : 'var(--text-primary)'),
+                              ? '#94A3B8' 
+                              : (isChecked ? 'var(--ngp-blue-dark)' : 'var(--text-primary)'),
+                            boxShadow: isChecked ? '0 4px 12px rgba(29, 78, 216, 0.15)' : 'var(--shadow-xs)',
+                            transform: isChecked ? 'translateY(-1px)' : 'none',
                             opacity: isLocked ? 0.6 : 1
                           }}
                           title={isLocked ? 'This period is already marked/locked' : ''}
@@ -1576,31 +1587,57 @@ const StaffDashboard = ({ activeTab }) => {
                               }
                             }}
                           />
-                          Period {p} {isLocked && <span style={{ fontSize: '10px', color: 'var(--danger)', marginLeft: '4px' }}>(Locked)</span>}
+                          <span>P{p}</span> {isLocked && <span style={{ fontSize: '10px', color: 'var(--danger)' }}>(Locked)</span>}
                         </label>
                       );
                     })}
                   </div>
                 </div>
 
-                <button type="submit" className="btn btn-primary" style={{ width: '100%', height: '46px' }} disabled={isGenerating}>
+                <button type="submit" className="btn btn-primary" style={{ width: '100%', height: '48px', fontSize: '15px', fontWeight: '800' }} disabled={isGenerating}>
                   {isGenerating ? 'Accessing GPS location...' : (
                     <>
                       <span>Start Session & Generate OTP</span>
-                      <Play size={16} />
+                      <Play size={18} />
                     </>
                   )}
                 </button>
               </form>
             </div>
 
-            <div className="card">
-              <h2 style={{ marginBottom: '16px' }}>Dashboard Guide</h2>
-              <ul style={{ paddingLeft: '20px', color: 'var(--text-secondary)', fontSize: '14px', display: 'flex', flexDirection: 'column', gap: '12px' }}>
-                <li>Generates a geofenced verification circle centered around your current coordinates.</li>
-                <li><strong>Timer</strong>: OTP code will be valid for 3 minutes. Students must enter the code immediately.</li>
-                <li>Students attempting to mark attendance from outside the 100-meter perimeter will be blocked.</li>
-              </ul>
+            <div className="card" style={{ borderTop: '3px solid var(--ngp-gold)', boxShadow: 'var(--shadow-md)' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '20px', borderBottom: '1px solid var(--border-color)', paddingBottom: '14px' }}>
+                <div style={{ width: '36px', height: '36px', borderRadius: '10px', backgroundColor: 'var(--ngp-gold-light)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                  <HelpCircle size={20} style={{ color: 'var(--ngp-gold-dark)' }} />
+                </div>
+                <h2 style={{ fontSize: '18px', fontWeight: '800', color: 'var(--ngp-navy-header)', margin: 0 }}>Dashboard Guide</h2>
+              </div>
+
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+                <div style={{ display: 'flex', gap: '12px', padding: '14px', backgroundColor: '#F8FAFC', borderRadius: 'var(--radius-sm)', border: '1px solid var(--border-color)' }}>
+                  <MapPin size={20} style={{ color: 'var(--ngp-blue)', flexShrink: 0, marginTop: '2px' }} />
+                  <div style={{ fontSize: '13px', color: 'var(--text-secondary)', lineHeight: '1.5' }}>
+                    <strong style={{ color: 'var(--text-primary)', display: 'block', marginBottom: '2px' }}>Geofenced OTP Perimeter</strong>
+                    Generates a verified GPS radius centered around your current coordinates. Students outside the 100m perimeter will be blocked.
+                  </div>
+                </div>
+
+                <div style={{ display: 'flex', gap: '12px', padding: '14px', backgroundColor: '#F8FAFC', borderRadius: 'var(--radius-sm)', border: '1px solid var(--border-color)' }}>
+                  <Clock size={20} style={{ color: 'var(--ngp-gold-dark)', flexShrink: 0, marginTop: '2px' }} />
+                  <div style={{ fontSize: '13px', color: 'var(--text-secondary)', lineHeight: '1.5' }}>
+                    <strong style={{ color: 'var(--text-primary)', display: 'block', marginBottom: '2px' }}>3-Minute Session Timer</strong>
+                    OTP code remains active for exactly 3 minutes. Students must enter the 6-digit verification pin on their device immediately.
+                  </div>
+                </div>
+
+                <div style={{ display: 'flex', gap: '12px', padding: '14px', backgroundColor: '#F8FAFC', borderRadius: 'var(--radius-sm)', border: '1px solid var(--border-color)' }}>
+                  <ShieldCheck size={20} style={{ color: 'var(--success)', flexShrink: 0, marginTop: '2px' }} />
+                  <div style={{ fontSize: '13px', color: 'var(--text-secondary)', lineHeight: '1.5' }}>
+                    <strong style={{ color: 'var(--text-primary)', display: 'block', marginBottom: '2px' }}>Automated Live Marking</strong>
+                    Attendance records are updated in real-time. Unmarked students will default to Absent unless on approved Leave or OD.
+                  </div>
+                </div>
+              </div>
             </div>
           </div>
         )}
@@ -2356,44 +2393,61 @@ const StaffDashboard = ({ activeTab }) => {
         </div>
 
         {user.staff_details?.staff_type === 'Advisor' && (
-          <div style={{ display: 'flex', gap: '8px', marginBottom: '24px', backgroundColor: 'var(--bg-secondary)', padding: '6px', borderRadius: 'var(--radius-md)', width: 'fit-content', border: '1px solid var(--border-color)' }}>
+          <div style={{
+            display: 'inline-flex',
+            gap: '6px',
+            marginBottom: '24px',
+            backgroundColor: '#F1F5F9',
+            padding: '6px',
+            borderRadius: '16px',
+            border: '1px solid var(--border-color)',
+            boxShadow: 'var(--shadow-xs)'
+          }}>
             <button 
               type="button"
-              className="btn"
               onClick={() => setManualMode('subject')}
               style={{
-                padding: '8px 16px',
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: '8px',
+                padding: '10px 20px',
                 fontSize: '14px',
-                fontWeight: '600',
-                borderRadius: 'var(--radius-sm)',
-                backgroundColor: manualMode === 'subject' ? 'var(--accent-primary)' : 'transparent',
-                color: manualMode === 'subject' ? 'white' : 'var(--text-secondary)',
-                border: 'none',
-                boxShadow: manualMode === 'subject' ? '0 2px 8px rgba(79, 70, 229, 0.25)' : 'none',
+                fontWeight: '700',
+                borderRadius: '12px',
+                backgroundColor: manualMode === 'subject' ? 'var(--ngp-blue)' : 'transparent',
+                backgroundImage: manualMode === 'subject' ? 'linear-gradient(180deg, #2563EB 0%, #1D4ED8 100%)' : 'none',
+                color: manualMode === 'subject' ? '#FFFFFF' : 'var(--text-secondary)',
+                border: manualMode === 'subject' ? '1px solid #60A5FA' : '1px solid transparent',
+                boxShadow: manualMode === 'subject' ? '0 4px 14px rgba(29, 78, 216, 0.3)' : 'none',
                 cursor: 'pointer',
-                transition: 'all 0.2s ease'
+                transition: 'all 0.22s cubic-bezier(0.16, 1, 0.3, 1)'
               }}
             >
-              Subject-wise Manual Attendance
+              {manualMode === 'subject' && <CheckCircle size={16} style={{ color: '#FCD34D' }} />}
+              <span>Subject-wise Manual Attendance</span>
             </button>
             <button 
               type="button"
-              className="btn"
               onClick={() => setManualMode('wholeday')}
               style={{
-                padding: '8px 16px',
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: '8px',
+                padding: '10px 20px',
                 fontSize: '14px',
-                fontWeight: '600',
-                borderRadius: 'var(--radius-sm)',
-                backgroundColor: manualMode === 'wholeday' ? 'var(--accent-primary)' : 'transparent',
-                color: manualMode === 'wholeday' ? 'white' : 'var(--text-secondary)',
-                border: 'none',
-                boxShadow: manualMode === 'wholeday' ? '0 2px 8px rgba(79, 70, 229, 0.25)' : 'none',
+                fontWeight: '700',
+                borderRadius: '12px',
+                backgroundColor: manualMode === 'wholeday' ? 'var(--ngp-blue)' : 'transparent',
+                backgroundImage: manualMode === 'wholeday' ? 'linear-gradient(180deg, #2563EB 0%, #1D4ED8 100%)' : 'none',
+                color: manualMode === 'wholeday' ? '#FFFFFF' : 'var(--text-secondary)',
+                border: manualMode === 'wholeday' ? '1px solid #60A5FA' : '1px solid transparent',
+                boxShadow: manualMode === 'wholeday' ? '0 4px 14px rgba(29, 78, 216, 0.3)' : 'none',
                 cursor: 'pointer',
-                transition: 'all 0.2s ease'
+                transition: 'all 0.22s cubic-bezier(0.16, 1, 0.3, 1)'
               }}
             >
-              Full Day Manual Attendance
+              {manualMode === 'wholeday' && <CheckCircle size={16} style={{ color: '#FCD34D' }} />}
+              <span>Full Day Manual Attendance</span>
             </button>
           </div>
         )}
