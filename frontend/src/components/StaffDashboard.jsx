@@ -4,7 +4,8 @@ import { useAuth } from '../AuthContext';
 import { 
   Play, Check, X, ShieldAlert, Award, FileSpreadsheet, 
   Trash2, Plus, Calendar, User, Eye, Edit,
-  Search, Download, ArrowLeft
+  Search, Download, ArrowLeft, Settings, HelpCircle,
+  MapPin, Clock, ShieldCheck, CheckCircle, CheckCircle2
 } from 'lucide-react';
 
 const StaffDashboard = ({ activeTab }) => {
