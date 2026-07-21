@@ -95,25 +95,72 @@ const MainPortal = () => {
         backgroundColor: 'var(--bg-primary)',
         color: 'var(--text-primary)',
         flexDirection: 'column',
-        gap: '16px'
+        gap: '20px'
       }}>
-        <div style={{
-          width: '50px',
-          height: '50px',
-          borderRadius: '50%',
-          border: '4px solid var(--border-color)',
-          borderTop: '4px solid var(--ngp-blue)',
-          borderRight: '4px solid var(--ngp-gold)',
-          animation: 'spin 0.9s linear infinite'
-        }} />
-        <div style={{ textAlign: 'center' }}>
-          <div style={{ fontSize: '16px', fontWeight: '800', color: 'var(--ngp-navy-header)' }}>Dr. NGP Institute of Technology</div>
-          <span style={{ fontSize: '13px', fontWeight: '500', color: 'var(--text-muted)' }}>Loading ERP Portal...</span>
+        {/* Dual Non-Joining Counter-Rotating Orbital Spinner */}
+        <div style={{ position: 'relative', width: '76px', height: '76px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+          {/* Outer Clockwise Sapphire Blue Arc */}
+          <div style={{
+            position: 'absolute',
+            width: '76px',
+            height: '76px',
+            borderRadius: '50%',
+            border: '4px solid transparent',
+            borderTop: '4px solid #1D4ED8',
+            borderRight: '4px solid #1D4ED8',
+            filter: 'drop-shadow(0 0 8px rgba(29, 78, 216, 0.4))',
+            animation: 'spinClockwise 1.1s cubic-bezier(0.5, 0.1, 0.5, 0.9) infinite'
+          }} />
+
+          {/* Inner Counter-Clockwise Amber Gold Arc */}
+          <div style={{
+            position: 'absolute',
+            width: '52px',
+            height: '52px',
+            borderRadius: '50%',
+            border: '4px solid transparent',
+            borderBottom: '4px solid #F59E0B',
+            borderLeft: '4px solid #F59E0B',
+            filter: 'drop-shadow(0 0 8px rgba(245, 158, 11, 0.5))',
+            animation: 'spinCounterClockwise 0.85s cubic-bezier(0.5, 0.1, 0.5, 0.9) infinite'
+          }} />
+
+          {/* Center Pulsing NGP IT Emblem Core */}
+          <div style={{
+            width: '28px',
+            height: '28px',
+            borderRadius: '8px',
+            background: 'linear-gradient(135deg, #1D4ED8 0%, #0F2537 100%)',
+            color: '#F59E0B',
+            fontWeight: '900',
+            fontSize: '10px',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            boxShadow: '0 0 12px rgba(29, 78, 216, 0.3)',
+            animation: 'pulseCore 1.8s ease-in-out infinite'
+          }}>
+            NGP
+          </div>
         </div>
+
+        <div style={{ textAlign: 'center' }}>
+          <div style={{ fontSize: '17px', fontWeight: '800', color: 'var(--ngp-navy-header)', letterSpacing: '-0.02em' }}>Dr. NGP Institute of Technology</div>
+          <span style={{ fontSize: '13px', fontWeight: '600', color: 'var(--text-muted)' }}>Loading ERP Portal...</span>
+        </div>
+
         <style dangerouslySetInnerHTML={{__html: `
-          @keyframes spin {
+          @keyframes spinClockwise {
             0% { transform: rotate(0deg); }
             100% { transform: rotate(360deg); }
+          }
+          @keyframes spinCounterClockwise {
+            0% { transform: rotate(360deg); }
+            100% { transform: rotate(0deg); }
+          }
+          @keyframes pulseCore {
+            0%, 100% { transform: scale(1); opacity: 0.95; }
+            50% { transform: scale(1.1); opacity: 1; filter: drop-shadow(0 0 8px rgba(245, 158, 11, 0.7)); }
           }
         `}} />
       </div>
