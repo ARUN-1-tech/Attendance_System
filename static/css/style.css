@@ -1,4 +1,4 @@
-/* Dr. NGP Institute of Technology - Bright Django Templates Stylesheet */
+/* Dr. NGP Institute of Technology - Floating Sidebar & Bright Django Templates Stylesheet */
 @import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800&display=swap');
 
 :root {
@@ -86,10 +86,12 @@ body {
     transform: translateY(-2px);
 }
 
-/* Bright Side Panel */
+/* Floating Card Side Panel (Detached Container Block) */
 .sidebar {
     width: var(--sidebar-w);
-    height: 100vh;
+    margin: 16px 0 16px 16px;
+    height: calc(100vh - 32px);
+    border-radius: 20px;
     position: fixed;
     top: 0;
     left: 0;
@@ -98,9 +100,10 @@ body {
     flex-direction: column;
     z-index: 100;
     background: #FFFFFF;
-    border-right: 1px solid var(--border-overlay);
-    box-shadow: 4px 0 24px rgba(29, 78, 216, 0.05);
+    border: 1px solid var(--border-overlay);
+    box-shadow: 0 12px 36px -4px rgba(29, 78, 216, 0.14), 0 4px 12px -2px rgba(15, 23, 42, 0.05);
     color: var(--text-primary);
+    overflow-y: auto;
 }
 
 .sidebar .logo {
@@ -164,9 +167,9 @@ body {
     font-weight: 700;
 }
 
-/* Main Content */
+/* Main Content Offset for Floating Sidebar */
 .main-content {
-    margin-left: var(--sidebar-w);
+    margin-left: calc(var(--sidebar-w) + 16px);
     flex: 1;
     padding: 2.25rem 2.75rem;
     min-height: 100vh;
@@ -348,10 +351,11 @@ tr:hover td {
 
 @media (max-width: 768px) {
     .sidebar {
-        transform: translateX(-100%);
+        transform: translateX(-110%);
         transition: transform 0.3s cubic-bezier(0.16, 1, 0.3, 1);
         position: fixed !important;
-        height: 100vh;
+        height: calc(100vh - 24px);
+        margin: 12px;
         width: var(--sidebar-w);
         background: #FFFFFF;
     }

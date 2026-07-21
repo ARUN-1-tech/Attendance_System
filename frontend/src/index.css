@@ -3,23 +3,23 @@
 :root {
   --font-sans: 'Plus Jakarta Sans', 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
   
-  /* Dr. NGP Institute of Technology Bright & Vibrant Palette */
+  /* Dr. NGP Institute of Technology Palette */
   --ngp-blue: #1D4ED8;            /* Vibrant Royal Sapphire Blue */
   --ngp-blue-dark: #1E40AF;       /* Deep Sapphire */
   --ngp-blue-light: #EFF6FF;      /* Soft Ice Blue Accent */
   --ngp-blue-glow: rgba(29, 78, 216, 0.2);
   
-  --ngp-gold: #F59E0B;            /* Bright Vibrant Amber Gold */
+  --ngp-gold: #F59E0B;            /* Bright Amber Gold */
   --ngp-gold-dark: #D97706;       /* Deep Gold */
   --ngp-gold-light: #FEF3C7;      /* Warm Honey Light */
   --ngp-gold-glow: rgba(245, 158, 11, 0.25);
   
   --ngp-navy-header: #0F2537;     /* High Contrast Text Navy */
   
-  /* Surface & Backgrounds (Bright Theme) */
+  /* Surface & Backgrounds */
   --bg-primary: #F8FAFC;          /* Crisp Bright Canvas */
   --bg-secondary: #FFFFFF;        /* Pure White Elevated Surfaces */
-  --bg-sidebar: #FFFFFF;          /* Bright White Side Panel */
+  --bg-sidebar: #FFFFFF;          /* Floating Card Side Panel */
   --bg-tertiary: #F1F5F9;        /* Soft Slate */
   
   /* Text colors */
@@ -48,11 +48,13 @@
   --shadow-sm: 0 2px 8px -2px rgba(29, 78, 216, 0.08);
   --shadow-md: 0 8px 24px -4px rgba(29, 78, 216, 0.12), 0 2px 6px -1px rgba(15, 23, 42, 0.04);
   --shadow-lg: 0 16px 36px -6px rgba(29, 78, 216, 0.16), 0 6px 12px -2px rgba(15, 23, 42, 0.06);
+  --shadow-floating: 0 12px 36px -4px rgba(29, 78, 216, 0.14), 0 4px 12px -2px rgba(15, 23, 42, 0.05);
   --shadow-gold: 0 4px 16px 0 rgba(245, 158, 11, 0.3);
   
   --radius-sm: 10px;
   --radius-md: 14px;
   --radius-lg: 20px;
+  --radius-card-sidebar: 20px;
   --radius-pill: 9999px;
   
   --transition-fast: all 0.18s cubic-bezier(0.16, 1, 0.3, 1);
@@ -75,8 +77,7 @@ body {
   -webkit-font-smoothing: antialiased;
   background-image: 
     radial-gradient(circle at 5% 10%, rgba(29, 78, 216, 0.04) 0%, transparent 35%),
-    radial-gradient(circle at 95% 85%, rgba(245, 158, 11, 0.05) 0%, transparent 40%),
-    radial-gradient(circle at 50% 50%, rgba(248, 250, 252, 1) 0%, rgba(241, 245, 249, 0.5) 100%);
+    radial-gradient(circle at 95% 85%, rgba(245, 158, 11, 0.05) 0%, transparent 40%);
   background-attachment: fixed;
 }
 
@@ -111,10 +112,10 @@ h1, h2, h3, h4, h5, h6 {
   }
 }
 
-@keyframes pulseGlow {
-  0% { box-shadow: 0 0 0 0 rgba(29, 78, 216, 0.4); }
-  70% { box-shadow: 0 0 0 8px rgba(29, 78, 216, 0); }
-  100% { box-shadow: 0 0 0 0 rgba(29, 78, 216, 0); }
+@keyframes kenBurns {
+  0% { transform: scale(1); }
+  50% { transform: scale(1.08); }
+  100% { transform: scale(1); }
 }
 
 @keyframes pulseGold {
@@ -123,7 +124,7 @@ h1, h2, h3, h4, h5, h6 {
   100% { box-shadow: 0 0 0 0 rgba(245, 158, 11, 0); }
 }
 
-/* Tab & Content Wrapper Animations */
+/* Tab & Content Animations */
 .animated-tab-content {
   animation: fadeInUp 0.32s cubic-bezier(0.16, 1, 0.3, 1) forwards;
 }
@@ -136,24 +137,29 @@ h1, h2, h3, h4, h5, h6 {
 .app-container {
   display: flex;
   min-height: 100vh;
+  position: relative;
+  background-color: var(--bg-primary);
 }
 
-/* Bright Side Panel */
+/* Floating / Card Side Panel (Detached Container Block) */
 .sidebar {
   width: 270px;
+  margin: 16px 0 16px 16px;
+  height: calc(100vh - 32px);
+  border-radius: var(--radius-card-sidebar);
   background-color: var(--bg-sidebar);
-  border-right: 1px solid var(--border-color);
+  border: 1px solid var(--border-color);
+  box-shadow: var(--shadow-floating);
   padding: 24px 16px;
   display: flex;
   flex-direction: column;
   justify-content: space-between;
-  height: 100vh;
   position: sticky;
-  top: 0;
+  top: 16px;
   transition: var(--transition-smooth);
   color: var(--text-primary);
-  box-shadow: 4px 0 24px rgba(29, 78, 216, 0.05);
   z-index: 100;
+  overflow-y: auto;
 }
 
 .main-content {
@@ -189,7 +195,7 @@ h1, h2, h3, h4, h5, h6 {
   text-transform: uppercase;
 }
 
-/* UI Cards with High Contrast & Smooth Float */
+/* UI Cards */
 .card {
   background-color: var(--bg-secondary);
   border: 1px solid var(--border-color);
@@ -242,12 +248,13 @@ h1, h2, h3, h4, h5, h6 {
 
   .sidebar {
     position: fixed;
-    top: 0;
-    left: 0;
+    top: 12px;
+    left: 12px;
+    margin: 0;
     width: 280px;
-    height: 100vh;
+    height: calc(100vh - 24px);
     z-index: 999;
-    transform: translateX(-100%);
+    transform: translateX(-110%);
     box-shadow: var(--shadow-lg);
   }
 
@@ -276,7 +283,7 @@ h1, h2, h3, h4, h5, h6 {
   }
 }
 
-/* Navigation Menu - Bright Theme */
+/* Navigation Menu */
 .nav-menu {
   list-style: none;
   margin-top: 24px;
@@ -317,7 +324,7 @@ h1, h2, h3, h4, h5, h6 {
   color: var(--ngp-blue);
 }
 
-/* Buttons with Smooth Active Feedback */
+/* Buttons */
 .btn {
   display: inline-flex;
   align-items: center;
@@ -382,17 +389,6 @@ h1, h2, h3, h4, h5, h6 {
 .btn-danger:hover {
   background-color: #B91C1C;
   transform: translateY(-2px);
-}
-
-.btn-outline {
-  background-color: transparent;
-  border-color: var(--border-color);
-  color: var(--text-secondary);
-}
-.btn-outline:hover {
-  background-color: var(--ngp-blue-light);
-  color: var(--ngp-blue);
-  border-color: var(--ngp-blue);
 }
 
 /* Forms & Inputs */
@@ -542,7 +538,7 @@ h1, h2, h3, h4, h5, h6 {
   font-style: italic;
 }
 
-/* NGP IT Brand Crest / Header Component */
+/* NGP IT Brand Crest Header Component */
 .ngp-brand-header {
   display: flex;
   align-items: center;
@@ -581,6 +577,62 @@ h1, h2, h3, h4, h5, h6 {
   font-weight: 700;
   letter-spacing: 0.05em;
   text-transform: uppercase;
+}
+
+/* Dual Split-Screen Login Layout */
+.login-split-wrapper {
+  display: flex;
+  min-height: 100vh;
+  width: 100vw;
+  background-color: var(--bg-primary);
+  overflow: hidden;
+}
+
+.login-showcase-panel {
+  flex: 1.25;
+  position: relative;
+  overflow: hidden;
+  background: linear-gradient(135deg, #06172E 0%, #0B2545 50%, #1D4ED8 100%);
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  padding: 48px;
+  color: #FFFFFF;
+}
+
+.login-slide-media {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  opacity: 0.38;
+  animation: kenBurns 12s infinite ease-in-out;
+  transition: opacity 1s ease-in-out;
+}
+
+.login-form-panel {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 48px 32px;
+  background-color: var(--bg-primary);
+  background-image: radial-gradient(circle at 50% 30%, rgba(29, 78, 216, 0.06) 0%, transparent 60%);
+}
+
+@media (max-width: 900px) {
+  .login-split-wrapper {
+    flex-direction: column;
+  }
+  .login-showcase-panel {
+    min-height: 280px;
+    padding: 28px;
+  }
+  .login-form-panel {
+    padding: 28px 16px;
+  }
 }
 
 @media print {
