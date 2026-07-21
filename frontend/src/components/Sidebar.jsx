@@ -2,8 +2,8 @@ import React from 'react';
 import { useAuth } from '../AuthContext';
 import { 
   LayoutDashboard, User, Calendar, FileText, 
-  LogOut, Sun, Moon, CheckSquare, Users, Download, Clock,
-  BookOpen, Award, ShieldCheck
+  LogOut, CheckSquare, Users, Download, 
+  BookOpen, ShieldCheck
 } from 'lucide-react';
 
 const Sidebar = ({ activeTab, setActiveTab, mobileOpen, setMobileOpen }) => {
@@ -188,7 +188,7 @@ const Sidebar = ({ activeTab, setActiveTab, mobileOpen, setMobileOpen }) => {
     <nav className={`sidebar ${mobileOpen ? 'mobile-open' : ''}`}>
       <div>
         {/* NGP IT Branding Header */}
-        <div style={{ padding: '0 8px', marginBottom: '24px' }}>
+        <div style={{ padding: '0 4px', marginBottom: '24px' }}>
           <div className="ngp-brand-header">
             <div className="ngp-crest-icon">NGP</div>
             <div>
@@ -197,19 +197,19 @@ const Sidebar = ({ activeTab, setActiveTab, mobileOpen, setMobileOpen }) => {
             </div>
           </div>
           <div style={{
-            marginTop: '12px',
-            padding: '4px 10px',
-            backgroundColor: 'rgba(255, 255, 255, 0.06)',
-            borderRadius: '6px',
+            marginTop: '14px',
+            padding: '6px 12px',
+            backgroundColor: 'var(--ngp-blue-light)',
+            borderRadius: 'var(--radius-pill)',
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'space-between',
-            border: '1px solid rgba(255, 255, 255, 0.08)'
+            border: '1px solid rgba(29, 78, 216, 0.15)'
           }}>
-            <span style={{ fontSize: '11px', color: 'var(--ngp-gold)', textTransform: 'uppercase', letterSpacing: '0.06em', fontWeight: '700' }}>
+            <span style={{ fontSize: '11px', color: 'var(--ngp-blue-dark)', textTransform: 'uppercase', letterSpacing: '0.06em', fontWeight: '800' }}>
               {user.role} Portal
             </span>
-            <ShieldCheck size={13} style={{ color: 'var(--ngp-gold)' }} />
+            <ShieldCheck size={14} style={{ color: 'var(--ngp-gold-dark)' }} />
           </div>
         </div>
         
@@ -222,15 +222,16 @@ const Sidebar = ({ activeTab, setActiveTab, mobileOpen, setMobileOpen }) => {
         {/* User Profile Info Card */}
         <div style={{
           padding: '12px 14px',
-          backgroundColor: 'rgba(255, 255, 255, 0.05)',
+          backgroundColor: '#F8FAFC',
           borderRadius: 'var(--radius-sm)',
-          border: '1px solid rgba(255, 255, 255, 0.08)',
-          marginBottom: '16px'
+          border: '1px solid var(--border-color)',
+          marginBottom: '16px',
+          boxShadow: 'var(--shadow-xs)'
         }}>
-          <div style={{ fontSize: '13px', fontWeight: '700', color: '#FFFFFF', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+          <div style={{ fontSize: '13px', fontWeight: '800', color: 'var(--text-primary)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
             {user.first_name || user.username} {user.last_name || ''}
           </div>
-          <div style={{ fontSize: '11px', color: 'rgba(255, 255, 255, 0.65)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+          <div style={{ fontSize: '11px', color: 'var(--text-muted)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', fontWeight: '500' }}>
             {user.email || user.username}
           </div>
         </div>

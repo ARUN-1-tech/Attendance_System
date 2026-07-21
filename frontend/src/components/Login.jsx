@@ -33,43 +33,44 @@ const Login = () => {
       justifyContent: 'center',
       minHeight: '100vh',
       backgroundColor: 'var(--bg-primary)',
-      backgroundImage: 'radial-gradient(circle at 50% 30%, rgba(11, 37, 69, 0.08) 0%, transparent 60%), radial-gradient(circle at 80% 80%, rgba(212, 175, 55, 0.06) 0%, transparent 50%)',
+      backgroundImage: 'radial-gradient(circle at 15% 20%, rgba(29, 78, 216, 0.08) 0%, transparent 45%), radial-gradient(circle at 85% 80%, rgba(245, 158, 11, 0.08) 0%, transparent 50%)',
       padding: '24px'
     }}>
-      <div className="card" style={{
+      <div className="card animated-card" style={{
         width: '100%',
         maxWidth: '440px',
-        padding: '36px 32px',
+        padding: '38px 34px',
         boxShadow: 'var(--shadow-lg)',
         border: '1px solid var(--border-color)',
-        borderRadius: 'var(--radius-lg)'
+        borderRadius: 'var(--radius-lg)',
+        backgroundColor: '#FFFFFF'
       }}>
         {/* NGP IT Institutional Crest & Header */}
         <div style={{ textAlign: 'center', marginBottom: '28px' }}>
           <div style={{
-            width: '56px',
-            height: '56px',
-            borderRadius: '16px',
-            background: 'linear-gradient(135deg, #0B2545 0%, #06172E 100%)',
-            border: '2px solid #D4AF37',
+            width: '60px',
+            height: '60px',
+            borderRadius: '18px',
+            background: 'linear-gradient(135deg, #2563EB 0%, #1D4ED8 100%)',
+            border: '2.5px solid #F59E0B',
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'center',
             margin: '0 auto 16px auto',
-            boxShadow: '0 6px 16px rgba(11, 37, 69, 0.25)'
+            boxShadow: '0 8px 20px rgba(29, 78, 216, 0.3)'
           }}>
-            <span style={{ color: '#D4AF37', fontWeight: '900', fontSize: '24px', letterSpacing: '-1px' }}>NGP</span>
+            <span style={{ color: '#FFFFFF', fontWeight: '900', fontSize: '24px', letterSpacing: '-1px' }}>NGP</span>
           </div>
 
           <span className="ngp-header-badge" style={{ marginBottom: '10px' }}>
-            <Award size={13} style={{ color: '#D4AF37' }} />
+            <Award size={13} style={{ color: '#D97706' }} />
             Autonomous Institution
           </span>
 
-          <h1 style={{ fontSize: '22px', fontWeight: '800', color: 'var(--ngp-navy)', marginTop: '4px', marginBottom: '4px', letterSpacing: '-0.02em' }}>
+          <h1 style={{ fontSize: '22px', fontWeight: '800', color: 'var(--ngp-navy-header)', marginTop: '4px', marginBottom: '4px', letterSpacing: '-0.02em' }}>
             Dr. NGP Institute of Technology
           </h1>
-          <p style={{ color: 'var(--text-muted)', fontSize: '13px', fontWeight: '500' }}>
+          <p style={{ color: 'var(--text-muted)', fontSize: '13px', fontWeight: '600' }}>
             Smart Attendance ERP & Academic Portal
           </p>
         </div>
@@ -168,9 +169,10 @@ const Login = () => {
           display: 'flex',
           alignItems: 'center',
           justifyContent: 'center',
-          gap: '6px'
+          gap: '6px',
+          fontWeight: '500'
         }}>
-          <ShieldCheck size={14} style={{ color: 'var(--ngp-gold)' }} />
+          <ShieldCheck size={14} style={{ color: 'var(--ngp-gold-dark)' }} />
           <span>Coimbatore - Approved by AICTE, Affiliated to Anna University</span>
         </div>
       </div>
