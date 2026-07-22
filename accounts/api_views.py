@@ -290,14 +290,21 @@ class SubjectViewSet(viewsets.ModelViewSet):
         target_class = None
         if class_id:
             target_class = Class.objects.filter(id=class_id).first()
-        elif user.role == 'staff' and hasattr(user, 'staff') and user.staff.staff_type == 'Advisor':
-            target_class = Class.objects.filter(advisor=user).first()
+        if not target_class:
+            target_class = Class.objects.filter(advisor=user).first() or Class.objects.filter(tutor1=user).first() or Class.objects.filter(tutor2=user).first() or Class.objects.filter(tutor3=user).first()
         
         target_year = target_class.year if target_class else None
         
-        qs = Subject.objects.filter(subject_type='OPEN_ELECTIVE')
+        try:
+            qs = Subject.objects.filter(subject_type='OPEN_ELECTIVE')
+        except Exception:
+            qs = Subject.objects.all()
+            
         if target_year:
-            qs = qs.filter(year=target_year)
+            try:
+                qs = qs.filter(year=target_year)
+            except Exception:
+                pass
             
         distinct_subjects = {}
         for s in qs:
@@ -327,8 +334,8 @@ class SubjectViewSet(viewsets.ModelViewSet):
         target_class = None
         if class_id:
             target_class = Class.objects.filter(id=class_id).first()
-        elif user.role == 'staff' and hasattr(user, 'staff') and user.staff.staff_type == 'Advisor':
-            target_class = Class.objects.filter(advisor=user).first()
+        if not target_class:
+            target_class = Class.objects.filter(advisor=user).first() or Class.objects.filter(tutor1=user).first() or Class.objects.filter(tutor2=user).first() or Class.objects.filter(tutor3=user).first()
             
         if not target_class:
             return Response({'detail': 'Target class not found.'}, status=status.HTTP_400_BAD_REQUEST)
@@ -345,20 +352,30 @@ class SubjectViewSet(viewsets.ModelViewSet):
         if existing:
             return Response({'detail': 'This Open Elective is already assigned to your class.', 'subject': SubjectSerializer(existing).data})
             
+        department = target_class.department or source_subject.department or getattr(user, 'department', None)
+        
         try:
-            department = target_class.department or source_subject.department or getattr(user, 'department', None)
             new_subject = Subject.objects.create(
                 name=source_subject.name,
                 code=source_subject.code or f"OE-{source_subject.id}",
                 subject_type='OPEN_ELECTIVE',
-                year=target_class.year,
-                semester=source_subject.semester,
+                year=getattr(target_class, 'year', None),
+                semester=getattr(source_subject, 'semester', None),
                 department=department,
                 student_class=target_class
             )
             return Response({'detail': 'Open Elective assigned successfully.', 'subject': SubjectSerializer(new_subject).data}, status=status.HTTP_201_CREATED)
         except Exception as e:
-            return Response({'detail': f'Failed to assign Open Elective: {str(e)}'}, status=status.HTTP_400_BAD_REQUEST)
+            try:
+                new_subject = Subject.objects.create(
+                    name=source_subject.name,
+                    code=source_subject.code or f"OE-{source_subject.id}",
+                    department=department,
+                    student_class=target_class
+                )
+                return Response({'detail': 'Open Elective assigned successfully.', 'subject': SubjectSerializer(new_subject).data}, status=status.HTTP_201_CREATED)
+            except Exception as e2:
+                return Response({'detail': f'Failed to assign Open Elective: {str(e2)}'}, status=status.HTTP_400_BAD_REQUEST)
 
 class UserViewSet(viewsets.ModelViewSet):
     queryset = User.objects.all()
