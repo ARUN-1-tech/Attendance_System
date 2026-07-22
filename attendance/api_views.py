@@ -203,7 +203,7 @@ def api_verify_otp(request):
                 
                 if distance > allowed_limit:
                     return Response({
-                        'detail': f'You are too far from the classroom (Distance: {distance:.1f}m > limit {allowed_limit:.1f}m).'
+                        'detail': f"You are too far from the teacher's session location (Distance: {distance:.1f}m > limit {allowed_limit:.1f}m)."
                     }, status=status.HTTP_400_BAD_REQUEST)
             
             try:

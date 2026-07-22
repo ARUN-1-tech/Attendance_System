@@ -172,7 +172,7 @@ const StudentDashboard = ({ activeTab }) => {
         setOtpError('Failed to get location. Please enable location permissions.');
         setOtpSubmitting(false);
       },
-      { enableHighAccuracy: true, timeout: 10000 }
+      { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 }
     );
   };
 

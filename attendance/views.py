@@ -170,7 +170,7 @@ def verify_otp(request):
                     allowed_limit = 100.0 + inaccuracy_buffer
                     
                     if distance > allowed_limit:
-                        messages.error(request, f"You are too far from the classroom to mark attendance (Distance: {distance:.1f}m > limit {allowed_limit:.1f}m).")
+                        messages.error(request, f"You are too far from the teacher's session location to mark attendance (Distance: {distance:.1f}m > limit {allowed_limit:.1f}m).")
                         return redirect('student_dashboard')
                 
                 try:

@@ -37,7 +37,7 @@
                     alert("Location access is required to mark attendance.");
                     btn.innerText = 'Submit';
                     btn.disabled = false;
-                }, { timeout: 10000 });
+                }, { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 });
             } else {
                 alert("Geolocation is not supported by this browser.");
                 btn.innerText = 'Submit';

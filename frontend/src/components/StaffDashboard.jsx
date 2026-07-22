@@ -1025,43 +1025,71 @@ const StaffDashboard = ({ activeTab }) => {
   };
 
   // 1. Generate OTP (dashboard tab)
-  const handleGenerateOTP = (e) => {
+  const getTeacherHighAccuracyLocation = (desiredAccuracy = 20, maxTimeout = 7000) => {
+    return new Promise((resolve, reject) => {
+      if (!navigator.geolocation) {
+        reject(new Error('Geolocation is not supported by your browser.'));
+        return;
+      }
+      let bestPosition = null;
+      let watchId = null;
+      let timer = null;
+
+      const cleanup = () => {
+        if (watchId !== null) navigator.geolocation.clearWatch(watchId);
+        if (timer !== null) clearTimeout(timer);
+      };
+
+      timer = setTimeout(() => {
+        cleanup();
+        if (bestPosition) {
+          resolve(bestPosition);
+        } else {
+          reject(new Error('Failed to obtain teacher GPS location. Please enable location permissions and retry.'));
+        }
+      }, maxTimeout);
+
+      watchId = navigator.geolocation.watchPosition(
+        (position) => {
+          if (!bestPosition || position.coords.accuracy < bestPosition.coords.accuracy) {
+            bestPosition = position;
+          }
+          if (position.coords.accuracy <= desiredAccuracy) {
+            cleanup();
+            resolve(position);
+          }
+        },
+        (error) => {
+          // Handled by timer fallback or final reject
+        },
+        { enableHighAccuracy: true, timeout: maxTimeout, maximumAge: 0 }
+      );
+    });
+  };
+
+  const handleGenerateOTP = async (e) => {
     e.preventDefault();
     setIsGenerating(true);
 
-    if (!navigator.geolocation) {
-      alert('Geolocation is not supported by your browser.');
+    try {
+      const position = await getTeacherHighAccuracyLocation(20, 7000);
+      const res = await api.post('/api/attendance/generate-otp/', {
+        department_name: selectedDepartment,
+        class_name: selectedClassName,
+        subject_name: selectedSubjectName,
+        period: selectedPeriods,
+        latitude: position.coords.latitude,
+        longitude: position.coords.longitude,
+        accuracy: position.coords.accuracy
+      });
+
+      setActiveSession(res);
+      startStatsPolling(res.otp_id);
+    } catch (err) {
+      alert(err.message || 'Failed to generate teacher-centered geofenced OTP.');
+    } finally {
       setIsGenerating(false);
-      return;
     }
-
-    navigator.geolocation.getCurrentPosition(
-      async (position) => {
-        try {
-          const res = await api.post('/api/attendance/generate-otp/', {
-            department_name: selectedDepartment,
-            class_name: selectedClassName,
-            subject_name: selectedSubjectName,
-            period: selectedPeriods,
-            latitude: position.coords.latitude,
-            longitude: position.coords.longitude,
-            accuracy: position.coords.accuracy
-          });
-
-          setActiveSession(res);
-          startStatsPolling(res.otp_id);
-        } catch (err) {
-          alert(err.message || 'Failed to generate OTP.');
-        } finally {
-          setIsGenerating(false);
-        }
-      },
-      (error) => {
-        alert('Failed to get location. Please enable location permissions to generate geofenced OTP.');
-        setIsGenerating(false);
-      },
-      { enableHighAccuracy: true }
-    );
   };
 
   const startStatsPolling = (otpId) => {

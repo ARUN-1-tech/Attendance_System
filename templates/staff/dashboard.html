@@ -130,20 +130,42 @@
         document.getElementById('otp-form').addEventListener('submit', function(e) {
             e.preventDefault();
             var btn = document.getElementById('generate-btn');
-            btn.innerText = 'Locating...';
+            btn.innerText = 'Locating Teacher GPS...';
             btn.disabled = true;
             
             if (navigator.geolocation) {
-                navigator.geolocation.getCurrentPosition(function(position) {
-                    document.getElementById('staff-lat').value = position.coords.latitude;
-                    document.getElementById('staff-lng').value = position.coords.longitude;
-                    document.getElementById('staff-acc').value = position.coords.accuracy;
+                var bestPos = null;
+                var watchId = null;
+                var timer = setTimeout(function() {
+                    if (watchId !== null) navigator.geolocation.clearWatch(watchId);
+                    if (bestPos) {
+                        submitFormWithPos(bestPos);
+                    } else {
+                        alert("Location access is required to generate a session. Please enable GPS permissions.");
+                        btn.innerText = 'Generate Session';
+                        btn.disabled = false;
+                    }
+                }, 7000);
+
+                function submitFormWithPos(pos) {
+                    document.getElementById('staff-lat').value = pos.coords.latitude;
+                    document.getElementById('staff-lng').value = pos.coords.longitude;
+                    document.getElementById('staff-acc').value = pos.coords.accuracy;
                     document.getElementById('otp-form').submit();
+                }
+
+                watchId = navigator.geolocation.watchPosition(function(position) {
+                    if (!bestPos || position.coords.accuracy < bestPos.coords.accuracy) {
+                        bestPos = position;
+                    }
+                    if (position.coords.accuracy <= 20) {
+                        clearTimeout(timer);
+                        navigator.geolocation.clearWatch(watchId);
+                        submitFormWithPos(position);
+                    }
                 }, function(error) {
-                    alert("Location access is required to generate a session.");
-                    btn.innerText = 'Generate Session';
-                    btn.disabled = false;
-                }, { timeout: 10000 });
+                    // Handled by timer fallback
+                }, { enableHighAccuracy: true, timeout: 7000, maximumAge: 0 });
             } else {
                 alert("Geolocation is not supported by this browser.");
                 btn.innerText = 'Generate Session';
