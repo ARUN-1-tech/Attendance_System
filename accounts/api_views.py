@@ -282,6 +282,74 @@ class SubjectViewSet(viewsets.ModelViewSet):
         except Exception as e:
             return Response({'detail': f'Error during import: {str(e)}'}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
+    @action(detail=False, methods=['get'], url_path='available-open-electives')
+    def available_open_electives(self, request):
+        user = request.user
+        from accounts.models import Class
+        class_id = request.query_params.get('class_id')
+        target_class = None
+        if class_id:
+            target_class = Class.objects.filter(id=class_id).first()
+        elif user.role == 'staff' and hasattr(user, 'staff') and user.staff.staff_type == 'Advisor':
+            target_class = Class.objects.filter(advisor=user).first()
+        
+        target_year = target_class.year if target_class else None
+        
+        qs = Subject.objects.filter(subject_type='OPEN_ELECTIVE')
+        if target_year:
+            qs = qs.filter(year=target_year)
+            
+        distinct_subjects = {}
+        for s in qs:
+            key = (s.code or s.name).upper()
+            if key not in distinct_subjects:
+                distinct_subjects[key] = s
+
+        assigned_codes = []
+        if target_class:
+            assigned_codes = list(Subject.objects.filter(student_class=target_class).values_list('code', flat=True))
+            assigned_codes = [c.upper() for c in assigned_codes if c]
+
+        available = [
+            SubjectSerializer(s).data
+            for key, s in distinct_subjects.items()
+            if key not in assigned_codes
+        ]
+        return Response(available)
+
+    @action(detail=False, methods=['post'], url_path='assign-open-elective')
+    def assign_open_elective(self, request):
+        user = request.user
+        subject_id = request.data.get('subject_id')
+        class_id = request.data.get('class_id')
+        
+        from accounts.models import Class
+        target_class = None
+        if class_id:
+            target_class = Class.objects.filter(id=class_id).first()
+        elif user.role == 'staff' and hasattr(user, 'staff') and user.staff.staff_type == 'Advisor':
+            target_class = Class.objects.filter(advisor=user).first()
+            
+        if not target_class:
+            return Response({'detail': 'Target class not found.'}, status=status.HTTP_400_BAD_REQUEST)
+            
+        source_subject = get_object_or_404(Subject, id=subject_id)
+        
+        existing = Subject.objects.filter(student_class=target_class, code=source_subject.code).first()
+        if existing:
+            return Response({'detail': 'This Open Elective is already assigned to your class.', 'subject': SubjectSerializer(existing).data})
+            
+        new_subject = Subject.objects.create(
+            name=source_subject.name,
+            code=source_subject.code,
+            subject_type='OPEN_ELECTIVE',
+            year=target_class.year,
+            semester=source_subject.semester,
+            department=target_class.department,
+            student_class=target_class
+        )
+        return Response({'detail': 'Open Elective assigned successfully.', 'subject': SubjectSerializer(new_subject).data}, status=status.HTTP_201_CREATED)
+
 class UserViewSet(viewsets.ModelViewSet):
     queryset = User.objects.all()
     serializer_class = UserSerializer

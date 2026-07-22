@@ -141,12 +141,46 @@ const StaffDashboard = ({ activeTab }) => {
     }
   };
 
+  const [subjectType, setSubjectType] = useState('REGULAR');
+  const [availableOpenElectives, setAvailableOpenElectives] = useState([]);
+  const [openElectivesLoading, setOpenElectivesLoading] = useState(false);
+
+  const fetchAvailableOpenElectives = async (classId) => {
+    setOpenElectivesLoading(true);
+    try {
+      const url = classId ? `/api/subjects/available-open-electives/?class_id=${classId}` : '/api/subjects/available-open-electives/';
+      const data = await api.get(url);
+      setAvailableOpenElectives(data);
+    } catch (err) {
+      console.error(err);
+    } finally {
+      setOpenElectivesLoading(false);
+    }
+  };
+
+  const handleAssignOpenElective = async (subjectId) => {
+    try {
+      await api.post('/api/subjects/assign-open-elective/', {
+        subject_id: subjectId,
+        class_id: advisedClass?.id
+      });
+      alert('Open Elective assigned to your class successfully!');
+      if (advisedClass) {
+        fetchAdvisedSubjects(advisedClass.id);
+        fetchAvailableOpenElectives(advisedClass.id);
+      }
+    } catch (err) {
+      alert(err.message || 'Failed to assign Open Elective.');
+    }
+  };
+
   useEffect(() => {
     if (activeTab === 'manage_subjects') {
       const myAdvisedClass = classes.find(c => c.advisor === user.id);
       if (myAdvisedClass) {
         setAdvisedClass(myAdvisedClass);
         fetchAdvisedSubjects(myAdvisedClass.id);
+        fetchAvailableOpenElectives(myAdvisedClass.id);
       } else {
         setAdvisedClass(null);
         setAdvisedSubjectsLoading(false);
@@ -163,6 +197,7 @@ const StaffDashboard = ({ activeTab }) => {
     const payload = {
       name: subjectName,
       code: subjectCode,
+      subject_type: subjectType,
       student_class: advisedClass?.id
     };
     try {
@@ -177,7 +212,11 @@ const StaffDashboard = ({ activeTab }) => {
       setEditingSubject(null);
       setSubjectName('');
       setSubjectCode('');
-      fetchAdvisedSubjects(advisedClass.id);
+      setSubjectType('REGULAR');
+      if (advisedClass) {
+        fetchAdvisedSubjects(advisedClass.id);
+        fetchAvailableOpenElectives(advisedClass.id);
+      }
     } catch (err) {
       console.error(err);
       alert("Error saving subject. Make sure code is unique if applicable.");
@@ -188,6 +227,7 @@ const StaffDashboard = ({ activeTab }) => {
     setEditingSubject(sub);
     setSubjectName(sub.name);
     setSubjectCode(sub.code);
+    setSubjectType(sub.subject_type || 'REGULAR');
     setSubjectFormOpen(true);
   };
 
@@ -3225,26 +3265,35 @@ const StaffDashboard = ({ activeTab }) => {
         ) : (
           <div>
             {subjectFormOpen && (
-              <div className="card" style={{ marginBottom: '24px', maxWidth: '600px' }}>
+              <div className="card" style={{ marginBottom: '24px', maxWidth: '650px' }}>
                 <h2>{editingSubject ? 'Edit Subject' : 'Add New Subject'}</h2>
                 <form onSubmit={handleSaveSubject} style={{ marginTop: '16px' }}>
-                  <div className="form-group" style={{ marginBottom: '16px' }}>
-                    <label className="form-label">Subject Name</label>
-                    <input 
-                      type="text" 
-                      className="input" 
-                      placeholder="e.g. Mathematics" 
-                      value={subjectName} 
-                      onChange={(e) => setSubjectName(e.target.value)} 
-                      required 
-                    />
+                  <div className="grid grid-cols-2" style={{ marginBottom: '16px' }}>
+                    <div className="form-group">
+                      <label className="form-label">Subject Name</label>
+                      <input 
+                        type="text" 
+                        className="input" 
+                        placeholder="e.g. Cloud Computing" 
+                        value={subjectName} 
+                        onChange={(e) => setSubjectName(e.target.value)} 
+                        required 
+                      />
+                    </div>
+                    <div className="form-group">
+                      <label className="form-label">Subject Type</label>
+                      <select className="input" value={subjectType} onChange={(e) => setSubjectType(e.target.value)}>
+                        <option value="REGULAR">Regular Subject</option>
+                        <option value="OPEN_ELECTIVE">Open Elective Subject</option>
+                      </select>
+                    </div>
                   </div>
                   <div className="form-group" style={{ marginBottom: '24px' }}>
                     <label className="form-label">Subject Code</label>
                     <input 
                       type="text" 
                       className="input" 
-                      placeholder="e.g. MAT101" 
+                      placeholder="e.g. OE401" 
                       value={subjectCode} 
                       onChange={(e) => setSubjectCode(e.target.value)} 
                       required 
@@ -3262,12 +3311,42 @@ const StaffDashboard = ({ activeTab }) => {
                         setEditingSubject(null);
                         setSubjectName('');
                         setSubjectCode('');
+                        setSubjectType('REGULAR');
                       }}
                     >
                       Cancel
                     </button>
                   </div>
                 </form>
+              </div>
+            )}
+
+            {/* Available Open Electives Catalog for Advisor's Academic Year */}
+            {availableOpenElectives.length > 0 && (
+              <div className="card" style={{ marginBottom: '24px', backgroundColor: 'var(--primary-light)', border: '1px solid rgba(79, 70, 229, 0.2)' }}>
+                <h3 style={{ fontSize: '16px', fontWeight: '700', color: 'var(--primary)', marginBottom: '4px' }}>
+                  Available Open Electives (Academic Year {advisedClass?.year})
+                </h3>
+                <p style={{ fontSize: '13px', color: 'var(--text-muted)', marginBottom: '14px' }}>
+                  The following Open Electives are registered for Year {advisedClass?.year}. Click "Add to My Class" to assign them to your class.
+                </p>
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(260px, 1fr))', gap: '12px' }}>
+                  {availableOpenElectives.map(oe => (
+                    <div key={oe.id} style={{ backgroundColor: '#FFFFFF', padding: '14px', borderRadius: 'var(--radius-sm)', border: '1px solid var(--border-color)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                      <div>
+                        <strong style={{ fontSize: '14px', color: 'var(--text-primary)', display: 'block' }}>{oe.name}</strong>
+                        <span className="badge badge-secondary" style={{ marginTop: '2px', fontSize: '11px' }}>{oe.code}</span>
+                      </div>
+                      <button
+                        className="btn btn-primary btn-sm"
+                        style={{ padding: '6px 12px', fontSize: '12px' }}
+                        onClick={() => handleAssignOpenElective(oe.id)}
+                      >
+                        Add to My Class
+                      </button>
+                    </div>
+                  ))}
+                </div>
               </div>
             )}
 
@@ -3308,6 +3387,11 @@ const StaffDashboard = ({ activeTab }) => {
                               onMouseLeave={(e) => e.currentTarget.style.textDecoration = 'none'}
                             >
                               {sub.name}
+                              {sub.subject_type === 'OPEN_ELECTIVE' && (
+                                <span className="badge badge-secondary" style={{ marginLeft: '8px', fontSize: '10px' }}>
+                                  Open Elective
+                                </span>
+                              )}
                             </td>
                             <td><span className="badge badge-secondary">{sub.code}</span></td>
                             <td style={{ textAlign: 'right' }}>

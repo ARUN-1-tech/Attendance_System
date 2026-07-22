@@ -90,13 +90,26 @@ class Class(models.Model):
         Staff.objects.exclude(user_id__in=list(advisors) + list(all_tutors)).update(staff_type='Normal')
 
 class Subject(models.Model):
+    SUBJECT_TYPE_CHOICES = (
+        ('REGULAR', 'Regular'),
+        ('OPEN_ELECTIVE', 'Open Elective'),
+    )
     name = models.CharField(max_length=100)
     code = models.CharField(max_length=20, null=True, blank=True)
     department = models.ForeignKey(Department, on_delete=models.CASCADE, null=True, blank=True)
     student_class = models.ForeignKey(Class, on_delete=models.CASCADE, null=True, blank=True, related_name='subjects')
+    subject_type = models.CharField(max_length=20, choices=SUBJECT_TYPE_CHOICES, default='REGULAR')
+    year = models.IntegerField(null=True, blank=True)
+    semester = models.IntegerField(null=True, blank=True)
 
     def __str__(self):
-        return f"{self.name} ({self.code})"
+        prefix = "[OE] " if self.subject_type == 'OPEN_ELECTIVE' else ""
+        return f"{prefix}{self.name} ({self.code})"
+
+    def save(self, *args, **kwargs):
+        if self.student_class and not self.year:
+            self.year = self.student_class.year
+        super().save(*args, **kwargs)
 
 class Student(models.Model):
     user = models.OneToOneField(User, on_delete=models.CASCADE, primary_key=True, limit_choices_to={'role': 'student'})

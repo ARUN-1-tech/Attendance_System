@@ -91,6 +91,7 @@ const HODDashboard = ({ activeTab, setActiveTab }) => {
   const [editingSubject, setEditingSubject] = useState(null);
   const [subjectName, setSubjectName] = useState('');
   const [subjectCode, setSubjectCode] = useState('');
+  const [subjectType, setSubjectType] = useState('REGULAR');
 
   // Approvals states
   const [leaves, setLeaves] = useState([]);
@@ -730,6 +731,7 @@ const HODDashboard = ({ activeTab, setActiveTab }) => {
     const payload = {
       name: subjectName,
       code: subjectCode,
+      subject_type: subjectType,
     };
 
     try {
@@ -753,6 +755,7 @@ const HODDashboard = ({ activeTab, setActiveTab }) => {
     setEditingSubject(s);
     setSubjectName(s.name);
     setSubjectCode(s.code);
+    setSubjectType(s.subject_type || 'REGULAR');
     setSubjectFormOpen(true);
   };
 
@@ -770,6 +773,7 @@ const HODDashboard = ({ activeTab, setActiveTab }) => {
   const clearSubjectForm = () => {
     setSubjectName('');
     setSubjectCode('');
+    setSubjectType('REGULAR');
   };
 
   // HOD Approvals
@@ -2134,13 +2138,22 @@ const HODDashboard = ({ activeTab, setActiveTab }) => {
           <div className="card" style={{ marginBottom: '24px' }}>
             <h2>{editingSubject ? 'Edit Subject Parameters' : 'Create New Subject'}</h2>
             <form onSubmit={handleSaveSubject} style={{ marginTop: '16px' }}>
-              <div className="form-group">
-                <label className="form-label">Subject Code</label>
-                <input type="text" className="input" placeholder="e.g. CS301" required value={subjectCode} onChange={(e) => setSubjectCode(e.target.value)} />
+              <div className="grid grid-cols-2">
+                <div className="form-group">
+                  <label className="form-label">Subject Code</label>
+                  <input type="text" className="input" placeholder="e.g. CS301 / OE401" required value={subjectCode} onChange={(e) => setSubjectCode(e.target.value)} />
+                </div>
+                <div className="form-group">
+                  <label className="form-label">Subject Type</label>
+                  <select className="input" value={subjectType} onChange={(e) => setSubjectType(e.target.value)}>
+                    <option value="REGULAR">Regular Subject</option>
+                    <option value="OPEN_ELECTIVE">Open Elective Subject</option>
+                  </select>
+                </div>
               </div>
               <div className="form-group" style={{ marginBottom: '24px' }}>
                 <label className="form-label">Subject Name</label>
-                <input type="text" className="input" placeholder="e.g. Data Structures" required value={subjectName} onChange={(e) => setSubjectName(e.target.value)} />
+                <input type="text" className="input" placeholder="e.g. Cloud Computing" required value={subjectName} onChange={(e) => setSubjectName(e.target.value)} />
               </div>
 
               <div style={{ display: 'flex', gap: '12px' }}>
@@ -2167,7 +2180,14 @@ const HODDashboard = ({ activeTab, setActiveTab }) => {
                   <tr key={s.id}>
                     <td style={{ fontWeight: '600' }}>{idx + 1}</td>
                     <td style={{ fontWeight: '600', color: 'var(--accent-primary)' }}>{s.code}</td>
-                    <td>{s.name}</td>
+                    <td>
+                      {s.name}
+                      {s.subject_type === 'OPEN_ELECTIVE' && (
+                        <span className="badge badge-secondary" style={{ marginLeft: '8px', fontSize: '10px' }}>
+                          Open Elective
+                        </span>
+                      )}
+                    </td>
                     <td>
                       <div style={{ display: 'flex', gap: '8px' }}>
                         <button className="btn btn-outline" style={{ padding: '6px', color: 'var(--accent-primary)' }} onClick={() => handleEditSubjectClick(s)}><Edit size={14} /></button>
