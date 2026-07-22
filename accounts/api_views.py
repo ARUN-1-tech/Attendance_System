@@ -335,20 +335,30 @@ class SubjectViewSet(viewsets.ModelViewSet):
             
         source_subject = get_object_or_404(Subject, id=subject_id)
         
-        existing = Subject.objects.filter(student_class=target_class, code=source_subject.code).first()
+        # Check if already assigned by code or name
+        existing = None
+        if source_subject.code:
+            existing = Subject.objects.filter(student_class=target_class, code=source_subject.code).first()
+        if not existing:
+            existing = Subject.objects.filter(student_class=target_class, name__iexact=source_subject.name).first()
+            
         if existing:
             return Response({'detail': 'This Open Elective is already assigned to your class.', 'subject': SubjectSerializer(existing).data})
             
-        new_subject = Subject.objects.create(
-            name=source_subject.name,
-            code=source_subject.code,
-            subject_type='OPEN_ELECTIVE',
-            year=target_class.year,
-            semester=source_subject.semester,
-            department=target_class.department,
-            student_class=target_class
-        )
-        return Response({'detail': 'Open Elective assigned successfully.', 'subject': SubjectSerializer(new_subject).data}, status=status.HTTP_201_CREATED)
+        try:
+            department = target_class.department or source_subject.department or getattr(user, 'department', None)
+            new_subject = Subject.objects.create(
+                name=source_subject.name,
+                code=source_subject.code or f"OE-{source_subject.id}",
+                subject_type='OPEN_ELECTIVE',
+                year=target_class.year,
+                semester=source_subject.semester,
+                department=department,
+                student_class=target_class
+            )
+            return Response({'detail': 'Open Elective assigned successfully.', 'subject': SubjectSerializer(new_subject).data}, status=status.HTTP_201_CREATED)
+        except Exception as e:
+            return Response({'detail': f'Failed to assign Open Elective: {str(e)}'}, status=status.HTTP_400_BAD_REQUEST)
 
 class UserViewSet(viewsets.ModelViewSet):
     queryset = User.objects.all()

@@ -996,25 +996,21 @@ class AttendanceViewSet(viewsets.ModelViewSet):
     def advisor_subject_report(self, request):
         user = self.request.user
         if user.role not in ['staff', 'hod']:
-            return Response({'detail': 'Only staff and HOD members can access manual attendance.'}, status=status.HTTP_403_FORBIDDEN)
-            
-        from accounts.models import Class
-        advised_class = Class.objects.filter(advisor=user).first()
-        is_advisor = (hasattr(user, 'staff') and user.staff.staff_type == 'Advisor') or advised_class is not None
-        if not is_advisor:
-            return Response({'detail': 'Only Advisors can access class-wide reports.'}, status=status.HTTP_403_FORBIDDEN)
-            
-        if not advised_class:
-            return Response({'detail': 'You are not assigned as an advisor to any class.'}, status=status.HTTP_400_BAD_REQUEST)
+            return Response({'detail': 'Only staff and HOD members can access subject reports.'}, status=status.HTTP_403_FORBIDDEN)
             
         subject_id = request.query_params.get('subject_id')
         if not subject_id:
             return Response({'detail': 'subject_id is required.'}, status=status.HTTP_400_BAD_REQUEST)
             
-        from accounts.models import Subject, Student
+        from accounts.models import Subject, Student, Class
         subject = get_object_or_404(Subject, id=subject_id)
+        advised_class = Class.objects.filter(advisor=user).first()
         target_class = subject.student_class or advised_class
-        students = target_class.get_students().select_related('user').order_by('reg_no', 'user__username')
+        
+        if target_class:
+            students = target_class.get_students().select_related('user').order_by('reg_no', 'user__username')
+        else:
+            students = Student.objects.none()
         
         from timetable.models import Schedule
         schedules = Schedule.objects.filter(subject=subject)
@@ -1095,25 +1091,21 @@ class AttendanceViewSet(viewsets.ModelViewSet):
     def advisor_subject_report_json(self, request):
         user = self.request.user
         if user.role not in ['staff', 'hod']:
-            return Response({'detail': 'Only staff and HOD members can access manual attendance.'}, status=status.HTTP_403_FORBIDDEN)
-            
-        from accounts.models import Class
-        advised_class = Class.objects.filter(advisor=user).first()
-        is_advisor = (hasattr(user, 'staff') and user.staff.staff_type == 'Advisor') or advised_class is not None
-        if not is_advisor:
-            return Response({'detail': 'Only Advisors can access class-wide reports.'}, status=status.HTTP_403_FORBIDDEN)
-            
-        if not advised_class:
-            return Response({'detail': 'You are not assigned as an advisor to any class.'}, status=status.HTTP_400_BAD_REQUEST)
+            return Response({'detail': 'Only staff and HOD members can access subject details.'}, status=status.HTTP_403_FORBIDDEN)
             
         subject_id = request.query_params.get('subject_id')
         if not subject_id:
             return Response({'detail': 'subject_id is required.'}, status=status.HTTP_400_BAD_REQUEST)
             
-        from accounts.models import Subject, Student
+        from accounts.models import Subject, Student, Class
         subject = get_object_or_404(Subject, id=subject_id)
+        advised_class = Class.objects.filter(advisor=user).first()
         target_class = subject.student_class or advised_class
-        students = target_class.get_students().select_related('user').order_by('reg_no', 'user__username')
+        
+        if target_class:
+            students = target_class.get_students().select_related('user').order_by('reg_no', 'user__username')
+        else:
+            students = Student.objects.none()
         
         records = Attendance.objects.filter(
             schedule__subject=subject,

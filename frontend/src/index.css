@@ -622,49 +622,62 @@ h1, h2, h3, h4, h5, h6 {
 /* Split Showcase Login Screen */
 .login-split-wrapper {
   display: flex;
-  min-height: 100vh;
+  height: 100vh;
+  max-height: 100vh;
   width: 100vw;
   background-color: var(--bg-primary);
   overflow: hidden;
+  position: fixed;
+  top: 0;
+  left: 0;
+  z-index: 9999;
 }
 
 .login-showcase-panel {
-  flex: 0.42;
-  width: 42%;
+  flex: 0.45;
+  width: 45%;
+  height: 100%;
   position: relative;
   overflow: hidden;
-  background: linear-gradient(135deg, #0F172A 0%, #1E1B4B 50%, #312E81 100%);
+  background: linear-gradient(135deg, #090D16 0%, #111827 50%, #1E1B4B 100%);
   display: flex;
   flex-direction: column;
   justify-content: space-between;
-  padding: 48px;
+  padding: 40px;
   color: #FFFFFF;
 }
 
 .login-form-panel {
-  flex: 0.58;
-  width: 58%;
+  flex: 0.55;
+  width: 55%;
+  height: 100%;
   display: flex;
   align-items: center;
   justify-content: center;
-  padding: 48px 32px;
-  background-color: var(--bg-primary);
-  background-image: radial-gradient(circle at 50% 30%, rgba(79, 70, 229, 0.08) 0%, transparent 60%);
+  padding: 32px;
+  background-color: #F8FAFC;
+  background-image: 
+    radial-gradient(circle at 100% 0%, rgba(99, 102, 241, 0.08) 0%, transparent 50%),
+    radial-gradient(circle at 0% 100%, rgba(245, 158, 11, 0.05) 0%, transparent 50%);
 }
 
 @media (max-width: 960px) {
   .login-split-wrapper {
     flex-direction: column;
+    position: relative;
+    height: auto;
+    max-height: none;
+    overflow-y: auto;
   }
   .login-showcase-panel {
     flex: none;
     width: 100%;
-    min-height: 260px;
-    padding: 28px;
+    min-height: 240px;
+    padding: 24px;
   }
   .login-form-panel {
     flex: none;
     width: 100%;
-    padding: 32px 20px;
+    padding: 24px 16px;
   }
 }

@@ -29,7 +29,6 @@ const Login = () => {
   const [activeSlideIndex, setActiveSlideIndex] = useState(0);
   const [imgError, setImgError] = useState(false);
 
-  // Auto advance slideshow every 5 seconds
   useEffect(() => {
     const interval = setInterval(() => {
       setActiveSlideIndex((prev) => (prev + 1) % slides.length);
@@ -59,9 +58,8 @@ const Login = () => {
 
   return (
     <div className="login-split-wrapper">
-      {/* LEFT COLUMN: College Animated Image Slideshow Showcase */}
+      {/* LEFT COLUMN: Premium Institutional Ambient Panel */}
       <div className="login-showcase-panel">
-        {/* Dynamic Background Image with Smooth Fade */}
         {!imgError && currentSlide.image ? (
           <img 
             key={activeSlideIndex}
@@ -77,43 +75,42 @@ const Login = () => {
             left: 0,
             width: '100%',
             height: '100%',
-            background: 'linear-gradient(135deg, #0F172A 0%, #1E1B4B 50%, #312E81 100%)',
-            opacity: 0.95
+            background: 'radial-gradient(circle at 20% 20%, #312E81 0%, #1E1B4B 40%, #0F172A 100%)'
           }} />
         )}
 
-        {/* Dark Gradient Backdrop Overlay */}
+        {/* Ambient Dark Mesh Overlay */}
         <div style={{
           position: 'absolute',
           top: 0,
           left: 0,
           width: '100%',
           height: '100%',
-          background: 'linear-gradient(180deg, rgba(15, 23, 42, 0.82) 0%, rgba(30, 27, 75, 0.72) 50%, rgba(15, 23, 42, 0.94) 100%)',
+          background: 'linear-gradient(180deg, rgba(15, 23, 42, 0.85) 0%, rgba(15, 23, 42, 0.75) 40%, rgba(15, 23, 42, 0.96) 100%)',
           zIndex: 1
         }} />
 
-        {/* Top Header Badge */}
+        {/* Header Branding */}
         <div style={{ position: 'relative', zIndex: 2, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '14px' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
             <div style={{
-              width: '46px',
-              height: '46px',
-              borderRadius: '14px',
+              width: '42px',
+              height: '42px',
+              borderRadius: '12px',
               background: 'linear-gradient(135deg, #F59E0B 0%, #D97706 100%)',
               color: '#0F172A',
               fontWeight: '900',
-              fontSize: '20px',
+              fontSize: '18px',
               display: 'flex',
               alignItems: 'center',
               justifyContent: 'center',
-              boxShadow: '0 4px 20px rgba(245, 158, 11, 0.4)'
+              boxShadow: '0 4px 16px rgba(245, 158, 11, 0.35)'
             }}>
               NGP
             </div>
             <div>
-              <div style={{ fontSize: '20px', fontWeight: '800', color: '#FFFFFF', letterSpacing: '-0.02em' }}>Dr. NGP IT</div>
-              <div style={{ fontSize: '11px', color: '#FCD34D', fontWeight: '700', textTransform: 'uppercase', letterSpacing: '0.06em' }}>Coimbatore</div>
+              <div style={{ fontSize: '18px', fontWeight: '800', color: '#FFFFFF', letterSpacing: '-0.02em', lineHeight: '1.2' }}>Dr. NGP IT</div>
+              <div style={{ fontSize: '10px', color: '#FCD34D', fontWeight: '700', textTransform: 'uppercase', letterSpacing: '0.06em' }}>Autonomous ERP</div>
             </div>
           </div>
 
@@ -121,51 +118,51 @@ const Login = () => {
             display: 'inline-flex',
             alignItems: 'center',
             gap: '6px',
-            padding: '6px 14px',
-            backgroundColor: 'rgba(255, 255, 255, 0.12)',
-            backdropFilter: 'blur(10px)',
+            padding: '5px 12px',
+            backgroundColor: 'rgba(255, 255, 255, 0.1)',
+            backdropFilter: 'blur(12px)',
             borderRadius: 'var(--radius-pill)',
-            border: '1px solid rgba(255, 255, 255, 0.2)',
-            fontSize: '12px',
+            border: '1px solid rgba(255, 255, 255, 0.18)',
+            fontSize: '11px',
             fontWeight: '700',
             color: '#FDE68A'
           }}>
-            <Award size={14} style={{ color: '#F59E0B' }} />
+            <Award size={13} style={{ color: '#F59E0B' }} />
             {currentSlide.badge}
           </span>
         </div>
 
-        {/* Center Animated Slide Content */}
-        <div style={{ position: 'relative', zIndex: 2, maxWidth: '560px', marginTop: 'auto', marginBottom: 'auto', padding: '24px 0' }}>
+        {/* Center Showcase Details */}
+        <div style={{ position: 'relative', zIndex: 2, maxWidth: '480px', margin: 'auto 0', padding: '16px 0' }}>
           <div key={`content-${activeSlideIndex}`} className="animated-tab-content">
-            <h1 style={{ fontSize: '36px', fontWeight: '800', color: '#FFFFFF', lineHeight: '1.2', marginBottom: '14px', letterSpacing: '-0.03em' }}>
+            <h1 style={{ fontSize: '32px', fontWeight: '800', color: '#FFFFFF', lineHeight: '1.25', marginBottom: '12px', letterSpacing: '-0.03em' }}>
               {currentSlide.title}
             </h1>
-            <p style={{ fontSize: '16px', color: '#E2E8F0', fontWeight: '500', marginBottom: '22px', lineHeight: '1.6' }}>
+            <p style={{ fontSize: '15px', color: '#CBD5E1', fontWeight: '400', marginBottom: '20px', lineHeight: '1.55' }}>
               {currentSlide.subtitle}
             </p>
             <div style={{
               display: 'inline-flex',
               alignItems: 'center',
-              gap: '10px',
-              padding: '12px 20px',
-              backgroundColor: 'rgba(79, 70, 229, 0.35)',
-              border: '1px solid rgba(255, 255, 255, 0.2)',
+              gap: '8px',
+              padding: '10px 16px',
+              backgroundColor: 'rgba(79, 70, 229, 0.25)',
+              border: '1px solid rgba(255, 255, 255, 0.18)',
               borderRadius: 'var(--radius-md)',
-              backdropFilter: 'blur(12px)',
+              backdropFilter: 'blur(10px)',
               color: '#FFFFFF',
-              fontSize: '14px',
+              fontSize: '13px',
               fontWeight: '600'
             }}>
-              <Sparkles size={18} style={{ color: '#F59E0B' }} />
+              <Sparkles size={16} style={{ color: '#F59E0B' }} />
               <span>{currentSlide.highlight}</span>
             </div>
           </div>
         </div>
 
-        {/* Bottom Carousel Navigation Dots & Features */}
+        {/* Bottom Carousel Controls & Accreditation */}
         <div style={{ position: 'relative', zIndex: 2, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-          <div style={{ display: 'flex', gap: '8px' }}>
+          <div style={{ display: 'flex', gap: '6px' }}>
             {slides.map((_, index) => (
               <button
                 key={index}
@@ -174,10 +171,10 @@ const Login = () => {
                   setImgError(false);
                 }}
                 style={{
-                  width: activeSlideIndex === index ? '36px' : '10px',
-                  height: '10px',
+                  width: activeSlideIndex === index ? '30px' : '8px',
+                  height: '8px',
                   borderRadius: 'var(--radius-pill)',
-                  backgroundColor: activeSlideIndex === index ? '#F59E0B' : 'rgba(255, 255, 255, 0.3)',
+                  backgroundColor: activeSlideIndex === index ? '#F59E0B' : 'rgba(255, 255, 255, 0.25)',
                   border: 'none',
                   cursor: 'pointer',
                   transition: 'all 0.3s cubic-bezier(0.16, 1, 0.3, 1)'
@@ -187,75 +184,74 @@ const Login = () => {
             ))}
           </div>
 
-          <div style={{ display: 'flex', gap: '16px', fontSize: '12px', color: '#94A3B8', fontWeight: '600' }}>
+          <div style={{ display: 'flex', gap: '14px', fontSize: '11px', color: '#94A3B8', fontWeight: '600' }}>
             <span style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
-              <CheckCircle2 size={14} style={{ color: '#10B981' }} /> AICTE Approved
+              <CheckCircle2 size={13} style={{ color: '#10B981' }} /> AICTE Approved
             </span>
             <span style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
-              <GraduationCap size={14} style={{ color: '#F59E0B' }} /> Anna University Affiliated
+              <GraduationCap size={13} style={{ color: '#F59E0B' }} /> Anna Univ Affiliated
             </span>
           </div>
         </div>
       </div>
 
-      {/* RIGHT COLUMN: Sign In Form Container */}
+      {/* RIGHT COLUMN: Ultra-Clean Form */}
       <div className="login-form-panel">
         <div className="card animated-card" style={{
           width: '100%',
-          maxWidth: '440px',
-          padding: '40px 36px',
-          boxShadow: 'var(--shadow-lg)',
-          border: '1px solid var(--border-color)',
-          borderRadius: 'var(--radius-lg)',
+          maxWidth: '420px',
+          padding: '36px 32px',
+          boxShadow: '0 20px 40px rgba(15, 23, 42, 0.08), 0 1px 3px rgba(0, 0, 0, 0.05)',
+          border: '1px solid rgba(226, 232, 240, 0.8)',
+          borderRadius: '20px',
           backgroundColor: '#FFFFFF'
         }}>
-          <div style={{ textAlign: 'center', marginBottom: '30px' }}>
-            <span className="ngp-header-badge" style={{ marginBottom: '12px' }}>
-              <ShieldCheck size={14} style={{ color: '#D97706' }} />
+          <div style={{ textAlign: 'center', marginBottom: '24px' }}>
+            <span className="ngp-header-badge" style={{ marginBottom: '10px', display: 'inline-flex' }}>
+              <ShieldCheck size={13} style={{ color: '#D97706' }} />
               Official ERP Portal
             </span>
-            <h2 style={{ fontSize: '26px', fontWeight: '800', color: 'var(--navy-header)', marginTop: '6px', marginBottom: '6px', letterSpacing: '-0.02em' }}>
+            <h2 style={{ fontSize: '24px', fontWeight: '800', color: 'var(--navy-header)', marginTop: '4px', marginBottom: '4px', letterSpacing: '-0.02em' }}>
               Portal Sign In
             </h2>
-            <p style={{ color: 'var(--text-muted)', fontSize: '14px', fontWeight: '500' }}>
-              Enter your credentials to access your dashboard
+            <p style={{ color: 'var(--text-muted)', fontSize: '13.5px', fontWeight: '500' }}>
+              Access Student, Faculty & Management Dashboards
             </p>
           </div>
 
           {error && (
             <div style={{
-              backgroundColor: 'var(--danger-light)',
-              color: 'var(--danger)',
-              padding: '14px 18px',
+              backgroundColor: '#FEF2F2',
+              color: '#DC2626',
+              padding: '12px 16px',
               borderRadius: 'var(--radius-sm)',
               fontSize: '13px',
               fontWeight: '600',
-              marginBottom: '24px',
-              borderLeft: '4px solid var(--danger)',
-              boxShadow: 'var(--shadow-xs)',
-              animation: 'shakeError 0.4s ease-in-out'
+              marginBottom: '20px',
+              borderLeft: '4px solid #DC2626',
+              boxShadow: 'var(--shadow-xs)'
             }}>
               {error}
             </div>
           )}
 
           <form onSubmit={handleSubmit}>
-            <div className="form-group">
-              <label className="form-label" htmlFor="username">Username / Register No</label>
+            <div className="form-group" style={{ marginBottom: '18px' }}>
+              <label className="form-label" htmlFor="username" style={{ fontSize: '13px', fontWeight: '700' }}>Username / Register No</label>
               <div style={{ position: 'relative' }}>
                 <User size={18} style={{
                   position: 'absolute',
                   left: '14px',
                   top: '50%',
                   transform: 'translateY(-50%)',
-                  color: 'var(--text-muted)'
+                  color: '#94A3B8'
                 }} />
                 <input
                   id="username"
                   type="text"
                   className="input"
-                  style={{ paddingLeft: '44px', height: '48px' }}
-                  placeholder="Staff ID / Student Register No"
+                  style={{ paddingLeft: '44px', height: '46px', fontSize: '14px' }}
+                  placeholder="Staff ID / Student Reg No"
                   value={username}
                   onChange={(e) => setUsername(e.target.value)}
                   disabled={submitting}
@@ -263,21 +259,21 @@ const Login = () => {
               </div>
             </div>
 
-            <div className="form-group" style={{ marginBottom: '30px' }}>
-              <label className="form-label" htmlFor="password">Password</label>
+            <div className="form-group" style={{ marginBottom: '26px' }}>
+              <label className="form-label" htmlFor="password" style={{ fontSize: '13px', fontWeight: '700' }}>Password</label>
               <div style={{ position: 'relative' }}>
                 <Lock size={18} style={{
                   position: 'absolute',
                   left: '14px',
                   top: '50%',
                   transform: 'translateY(-50%)',
-                  color: 'var(--text-muted)'
+                  color: '#94A3B8'
                 }} />
                 <input
                   id="password"
                   type={showPassword ? 'text' : 'password'}
                   className="input"
-                  style={{ paddingLeft: '44px', paddingRight: '44px', height: '48px' }}
+                  style={{ paddingLeft: '44px', paddingRight: '44px', height: '46px', fontSize: '14px' }}
                   placeholder="••••••••"
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
@@ -293,7 +289,7 @@ const Login = () => {
                     transform: 'translateY(-50%)',
                     background: 'none',
                     border: 'none',
-                    color: 'var(--text-muted)',
+                    color: '#94A3B8',
                     cursor: 'pointer',
                     padding: '4px'
                   }}
@@ -309,32 +305,33 @@ const Login = () => {
               className="btn btn-primary"
               style={{
                 width: '100%',
-                height: '50px',
-                fontSize: '15px',
+                height: '48px',
+                fontSize: '14.5px',
                 fontWeight: '700',
-                borderRadius: 'var(--radius-sm)'
+                borderRadius: 'var(--radius-sm)',
+                boxShadow: '0 4px 14px rgba(79, 70, 229, 0.35)'
               }}
               disabled={submitting}
             >
               {submitting ? 'Authenticating...' : (
                 <>
                   <span>Sign In to Dashboard</span>
-                  <LogIn size={18} />
+                  <LogIn size={17} />
                 </>
               )}
             </button>
           </form>
 
           <div style={{
-            marginTop: '30px',
-            paddingTop: '18px',
+            marginTop: '24px',
+            paddingTop: '16px',
             borderTop: '1px solid var(--border-color)',
             textAlign: 'center',
-            fontSize: '12px',
+            fontSize: '11.5px',
             color: 'var(--text-muted)',
             fontWeight: '600'
           }}>
-            Dr. NGP Institute of Technology - ERP System
+            Dr. NGP Institute of Technology - Autonomous Campus ERP
           </div>
         </div>
       </div>
