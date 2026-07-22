@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useAuth } from '../AuthContext';
-import { LogIn, Lock, User, ShieldCheck, Award, GraduationCap, CheckCircle2, Sparkles } from 'lucide-react';
+import { LogIn, Lock, User, ShieldCheck, Award, GraduationCap, CheckCircle2, Sparkles, Eye, EyeOff } from 'lucide-react';
 
 const slides = [
   {
@@ -23,6 +23,7 @@ const Login = () => {
   const { login } = useAuth();
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
+  const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState('');
   const [submitting, setSubmitting] = useState(false);
   const [activeSlideIndex, setActiveSlideIndex] = useState(0);
@@ -76,7 +77,7 @@ const Login = () => {
             left: 0,
             width: '100%',
             height: '100%',
-            background: 'linear-gradient(135deg, #0B2545 0%, #13315C 50%, #1D4ED8 100%)',
+            background: 'linear-gradient(135deg, #0F172A 0%, #1E1B4B 50%, #312E81 100%)',
             opacity: 0.95
           }} />
         )}
@@ -88,31 +89,31 @@ const Login = () => {
           left: 0,
           width: '100%',
           height: '100%',
-          background: 'linear-gradient(180deg, rgba(6, 23, 46, 0.75) 0%, rgba(11, 37, 69, 0.65) 50%, rgba(6, 23, 46, 0.92) 100%)',
+          background: 'linear-gradient(180deg, rgba(15, 23, 42, 0.82) 0%, rgba(30, 27, 75, 0.72) 50%, rgba(15, 23, 42, 0.94) 100%)',
           zIndex: 1
         }} />
 
         {/* Top Header Badge */}
         <div style={{ position: 'relative', zIndex: 2, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '14px' }}>
             <div style={{
-              width: '44px',
-              height: '44px',
-              borderRadius: '12px',
+              width: '46px',
+              height: '46px',
+              borderRadius: '14px',
               background: 'linear-gradient(135deg, #F59E0B 0%, #D97706 100%)',
               color: '#0F172A',
               fontWeight: '900',
-              fontSize: '18px',
+              fontSize: '20px',
               display: 'flex',
               alignItems: 'center',
               justifyContent: 'center',
-              boxShadow: '0 4px 16px rgba(245, 158, 11, 0.4)'
+              boxShadow: '0 4px 20px rgba(245, 158, 11, 0.4)'
             }}>
               NGP
             </div>
             <div>
-              <div style={{ fontSize: '18px', fontWeight: '800', color: '#FFFFFF', letterSpacing: '-0.02em' }}>Dr. NGP IT</div>
-              <div style={{ fontSize: '11px', color: '#FCD34D', fontWeight: '700', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Coimbatore</div>
+              <div style={{ fontSize: '20px', fontWeight: '800', color: '#FFFFFF', letterSpacing: '-0.02em' }}>Dr. NGP IT</div>
+              <div style={{ fontSize: '11px', color: '#FCD34D', fontWeight: '700', textTransform: 'uppercase', letterSpacing: '0.06em' }}>Coimbatore</div>
             </div>
           </div>
 
@@ -122,12 +123,12 @@ const Login = () => {
             gap: '6px',
             padding: '6px 14px',
             backgroundColor: 'rgba(255, 255, 255, 0.12)',
-            backdropFilter: 'blur(8px)',
-            borderRadius: '9999px',
+            backdropFilter: 'blur(10px)',
+            borderRadius: 'var(--radius-pill)',
             border: '1px solid rgba(255, 255, 255, 0.2)',
             fontSize: '12px',
             fontWeight: '700',
-            color: '#FEE685'
+            color: '#FDE68A'
           }}>
             <Award size={14} style={{ color: '#F59E0B' }} />
             {currentSlide.badge}
@@ -137,26 +138,26 @@ const Login = () => {
         {/* Center Animated Slide Content */}
         <div style={{ position: 'relative', zIndex: 2, maxWidth: '560px', marginTop: 'auto', marginBottom: 'auto', padding: '24px 0' }}>
           <div key={`content-${activeSlideIndex}`} className="animated-tab-content">
-            <h1 style={{ fontSize: '34px', fontWeight: '800', color: '#FFFFFF', lineHeight: '1.2', marginBottom: '12px', letterSpacing: '-0.03em' }}>
+            <h1 style={{ fontSize: '36px', fontWeight: '800', color: '#FFFFFF', lineHeight: '1.2', marginBottom: '14px', letterSpacing: '-0.03em' }}>
               {currentSlide.title}
             </h1>
-            <p style={{ fontSize: '15px', color: '#CBD5E1', fontWeight: '500', marginBottom: '20px', lineHeight: '1.6' }}>
+            <p style={{ fontSize: '16px', color: '#E2E8F0', fontWeight: '500', marginBottom: '22px', lineHeight: '1.6' }}>
               {currentSlide.subtitle}
             </p>
             <div style={{
               display: 'inline-flex',
               alignItems: 'center',
               gap: '10px',
-              padding: '10px 18px',
-              backgroundColor: 'rgba(29, 78, 216, 0.35)',
-              border: '1px solid rgba(255, 255, 255, 0.15)',
-              borderRadius: '12px',
-              backdropFilter: 'blur(10px)',
+              padding: '12px 20px',
+              backgroundColor: 'rgba(79, 70, 229, 0.35)',
+              border: '1px solid rgba(255, 255, 255, 0.2)',
+              borderRadius: 'var(--radius-md)',
+              backdropFilter: 'blur(12px)',
               color: '#FFFFFF',
-              fontSize: '13px',
+              fontSize: '14px',
               fontWeight: '600'
             }}>
-              <Sparkles size={16} style={{ color: '#F59E0B' }} />
+              <Sparkles size={18} style={{ color: '#F59E0B' }} />
               <span>{currentSlide.highlight}</span>
             </div>
           </div>
@@ -173,9 +174,9 @@ const Login = () => {
                   setImgError(false);
                 }}
                 style={{
-                  width: activeSlideIndex === index ? '32px' : '10px',
+                  width: activeSlideIndex === index ? '36px' : '10px',
                   height: '10px',
-                  borderRadius: '9999px',
+                  borderRadius: 'var(--radius-pill)',
                   backgroundColor: activeSlideIndex === index ? '#F59E0B' : 'rgba(255, 255, 255, 0.3)',
                   border: 'none',
                   cursor: 'pointer',
@@ -201,22 +202,22 @@ const Login = () => {
       <div className="login-form-panel">
         <div className="card animated-card" style={{
           width: '100%',
-          maxWidth: '430px',
-          padding: '38px 34px',
+          maxWidth: '440px',
+          padding: '40px 36px',
           boxShadow: 'var(--shadow-lg)',
           border: '1px solid var(--border-color)',
           borderRadius: 'var(--radius-lg)',
           backgroundColor: '#FFFFFF'
         }}>
-          <div style={{ textAlign: 'center', marginBottom: '28px' }}>
-            <span className="ngp-header-badge" style={{ marginBottom: '10px' }}>
-              <ShieldCheck size={13} style={{ color: '#D97706' }} />
+          <div style={{ textAlign: 'center', marginBottom: '30px' }}>
+            <span className="ngp-header-badge" style={{ marginBottom: '12px' }}>
+              <ShieldCheck size={14} style={{ color: '#D97706' }} />
               Official ERP Portal
             </span>
-            <h2 style={{ fontSize: '24px', fontWeight: '800', color: 'var(--ngp-navy-header)', marginTop: '4px', marginBottom: '6px', letterSpacing: '-0.02em' }}>
+            <h2 style={{ fontSize: '26px', fontWeight: '800', color: 'var(--navy-header)', marginTop: '6px', marginBottom: '6px', letterSpacing: '-0.02em' }}>
               Portal Sign In
             </h2>
-            <p style={{ color: 'var(--text-muted)', fontSize: '13px', fontWeight: '600' }}>
+            <p style={{ color: 'var(--text-muted)', fontSize: '14px', fontWeight: '500' }}>
               Enter your credentials to access your dashboard
             </p>
           </div>
@@ -225,13 +226,14 @@ const Login = () => {
             <div style={{
               backgroundColor: 'var(--danger-light)',
               color: 'var(--danger)',
-              padding: '12px 16px',
+              padding: '14px 18px',
               borderRadius: 'var(--radius-sm)',
               fontSize: '13px',
               fontWeight: '600',
-              marginBottom: '22px',
+              marginBottom: '24px',
               borderLeft: '4px solid var(--danger)',
-              boxShadow: 'var(--shadow-xs)'
+              boxShadow: 'var(--shadow-xs)',
+              animation: 'shakeError 0.4s ease-in-out'
             }}>
               {error}
             </div>
@@ -252,7 +254,7 @@ const Login = () => {
                   id="username"
                   type="text"
                   className="input"
-                  style={{ paddingLeft: '42px', height: '46px' }}
+                  style={{ paddingLeft: '44px', height: '48px' }}
                   placeholder="Staff ID / Student Register No"
                   value={username}
                   onChange={(e) => setUsername(e.target.value)}
@@ -261,7 +263,7 @@ const Login = () => {
               </div>
             </div>
 
-            <div className="form-group" style={{ marginBottom: '28px' }}>
+            <div className="form-group" style={{ marginBottom: '30px' }}>
               <label className="form-label" htmlFor="password">Password</label>
               <div style={{ position: 'relative' }}>
                 <Lock size={18} style={{
@@ -273,14 +275,32 @@ const Login = () => {
                 }} />
                 <input
                   id="password"
-                  type="password"
+                  type={showPassword ? 'text' : 'password'}
                   className="input"
-                  style={{ paddingLeft: '42px', height: '46px' }}
+                  style={{ paddingLeft: '44px', paddingRight: '44px', height: '48px' }}
                   placeholder="••••••••"
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
                   disabled={submitting}
                 />
+                <button
+                  type="button"
+                  onClick={() => setShowPassword(!showPassword)}
+                  style={{
+                    position: 'absolute',
+                    right: '12px',
+                    top: '50%',
+                    transform: 'translateY(-50%)',
+                    background: 'none',
+                    border: 'none',
+                    color: 'var(--text-muted)',
+                    cursor: 'pointer',
+                    padding: '4px'
+                  }}
+                  title={showPassword ? "Hide password" : "Show password"}
+                >
+                  {showPassword ? <EyeOff size={18} /> : <Eye size={18} />}
+                </button>
               </div>
             </div>
 
@@ -289,7 +309,7 @@ const Login = () => {
               className="btn btn-primary"
               style={{
                 width: '100%',
-                height: '48px',
+                height: '50px',
                 fontSize: '15px',
                 fontWeight: '700',
                 borderRadius: 'var(--radius-sm)'
@@ -306,8 +326,8 @@ const Login = () => {
           </form>
 
           <div style={{
-            marginTop: '28px',
-            paddingTop: '16px',
+            marginTop: '30px',
+            paddingTop: '18px',
             borderTop: '1px solid var(--border-color)',
             textAlign: 'center',
             fontSize: '12px',
