@@ -1,6 +1,7 @@
 from rest_framework import viewsets, status, permissions
 from rest_framework.decorators import api_view, permission_classes, action
 from rest_framework.response import Response
+from django.shortcuts import get_object_or_404
 from django.contrib.auth import authenticate, login, logout, update_session_auth_hash
 from django.db.models import Q
 from .models import User, Department, Class, Subject, Student, Staff
@@ -337,10 +338,12 @@ class SubjectViewSet(viewsets.ModelViewSet):
         if not target_class:
             target_class = Class.objects.filter(advisor=user).first() or Class.objects.filter(tutor1=user).first() or Class.objects.filter(tutor2=user).first() or Class.objects.filter(tutor3=user).first()
             
-        if not target_class:
-            return Response({'detail': 'Target class not found.'}, status=status.HTTP_400_BAD_REQUEST)
+        if not subject_id:
+            return Response({'detail': 'subject_id parameter is required.'}, status=status.HTTP_400_BAD_REQUEST)
             
-        source_subject = get_object_or_404(Subject, id=subject_id)
+        source_subject = Subject.objects.filter(id=subject_id).first()
+        if not source_subject:
+            return Response({'detail': 'Source Open Elective subject not found.'}, status=status.HTTP_404_NOT_FOUND)
         
         # Check if already assigned by code or name
         existing = None
