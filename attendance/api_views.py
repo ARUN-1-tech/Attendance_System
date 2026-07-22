@@ -142,7 +142,7 @@ def api_generate_otp(request):
         otps_created.append(otp)
         
         # Pre-mark all students
-        students = Student.objects.filter(student_class=schedule.student_class)
+        students = schedule.student_class.get_students()
         for student in students:
             # Check for approved leave/od
             approved_leave = Leave.objects.filter(student=student, date=today, final_status='Approved').first()
@@ -209,6 +209,13 @@ def api_verify_otp(request):
             try:
                 student = request.user.student
                 today = timezone.localdate()
+                
+                is_enrolled = (
+                    student.student_class == otp.schedule.student_class or
+                    otp.schedule.student_class.elective_students.filter(pk=student.pk).exists()
+                )
+                if not is_enrolled:
+                    return Response({'detail': 'You are not enrolled in this class session.'}, status=status.HTTP_400_BAD_REQUEST)
                 
                 # Check if student has approved Leave/OD today
                 from leave.models import Leave
@@ -1005,15 +1012,16 @@ class AttendanceViewSet(viewsets.ModelViewSet):
             return Response({'detail': 'subject_id is required.'}, status=status.HTTP_400_BAD_REQUEST)
             
         from accounts.models import Subject, Student
-        subject = get_object_or_404(Subject, id=subject_id, student_class=advised_class)
-        students = Student.objects.filter(student_class=advised_class).select_related('user').order_by('reg_no', 'user__username')
+        subject = get_object_or_404(Subject, id=subject_id)
+        target_class = subject.student_class or advised_class
+        students = target_class.get_students().select_related('user').order_by('reg_no', 'user__username')
         
         from timetable.models import Schedule
         schedules = Schedule.objects.filter(subject=subject)
         
         records = Attendance.objects.filter(
-            student__student_class=advised_class,
-            schedule__subject=subject
+            schedule__subject=subject,
+            student__in=students
         ).select_related('student__user', 'schedule').order_by('date', 'schedule__period')
         
         date_periods = sorted(list(set((r.date, r.schedule.period) for r in records)))
@@ -1103,12 +1111,13 @@ class AttendanceViewSet(viewsets.ModelViewSet):
             return Response({'detail': 'subject_id is required.'}, status=status.HTTP_400_BAD_REQUEST)
             
         from accounts.models import Subject, Student
-        subject = get_object_or_404(Subject, id=subject_id, student_class=advised_class)
-        students = Student.objects.filter(student_class=advised_class).select_related('user').order_by('reg_no', 'user__username')
+        subject = get_object_or_404(Subject, id=subject_id)
+        target_class = subject.student_class or advised_class
+        students = target_class.get_students().select_related('user').order_by('reg_no', 'user__username')
         
         records = Attendance.objects.filter(
-            student__student_class=advised_class,
-            schedule__subject=subject
+            schedule__subject=subject,
+            student__in=students
         ).select_related('student__user', 'schedule')
         
         from .models import filter_active_attendance

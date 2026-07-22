@@ -79,6 +79,8 @@ const HODDashboard = ({ activeTab, setActiveTab }) => {
   const [className, setClassName] = useState('');
   const [classYear, setClassYear] = useState('');
   const [classSection, setClassSection] = useState('');
+  const [classType, setClassType] = useState('REGULAR');
+  const [selectedElectiveStudentIds, setSelectedElectiveStudentIds] = useState([]);
   const [classTutor1Id, setClassTutor1Id] = useState('');
   const [classTutor2Id, setClassTutor2Id] = useState('');
   const [classTutor3Id, setClassTutor3Id] = useState('');
@@ -662,6 +664,8 @@ const HODDashboard = ({ activeTab, setActiveTab }) => {
       name: className,
       year: parseInt(classYear),
       section: classSection,
+      class_type: classType,
+      elective_student_ids: classType === 'OPEN_ELECTIVE' ? selectedElectiveStudentIds : [],
       tutor1: classTutor1Id ? parseInt(classTutor1Id) : null,
       tutor2: classTutor2Id ? parseInt(classTutor2Id) : null,
       tutor3: classTutor3Id ? parseInt(classTutor3Id) : null,
@@ -690,6 +694,8 @@ const HODDashboard = ({ activeTab, setActiveTab }) => {
     setClassName(c.name);
     setClassYear(c.year.toString());
     setClassSection(c.section);
+    setClassType(c.class_type || 'REGULAR');
+    setSelectedElectiveStudentIds(c.elective_student_ids || c.elective_students || []);
     setClassTutor1Id(c.tutor1?.toString() || '');
     setClassTutor2Id(c.tutor2?.toString() || '');
     setClassTutor3Id(c.tutor3?.toString() || '');
@@ -711,6 +717,8 @@ const HODDashboard = ({ activeTab, setActiveTab }) => {
     setClassName('');
     setClassYear('');
     setClassSection('');
+    setClassType('REGULAR');
+    setSelectedElectiveStudentIds([]);
     setClassTutor1Id('');
     setClassTutor2Id('');
     setClassTutor3Id('');
@@ -1970,10 +1978,17 @@ const HODDashboard = ({ activeTab, setActiveTab }) => {
           <div className="card" style={{ marginBottom: '24px' }}>
             <h2>{editingClass ? 'Edit Class Parameters' : 'Create New Class'}</h2>
             <form onSubmit={handleSaveClass} style={{ marginTop: '16px' }}>
-              <div className="grid grid-cols-3">
+              <div className="grid grid-cols-4">
                 <div className="form-group">
                   <label className="form-label">Class Name</label>
-                  <input type="text" className="input" placeholder="e.g. B.Tech CS" required value={className} onChange={(e) => setClassName(e.target.value)} />
+                  <input type="text" className="input" placeholder="e.g. B.Tech CS / Cloud Computing" required value={className} onChange={(e) => setClassName(e.target.value)} />
+                </div>
+                <div className="form-group">
+                  <label className="form-label">Class Type</label>
+                  <select className="input" value={classType} onChange={(e) => setClassType(e.target.value)}>
+                    <option value="REGULAR">Regular Class</option>
+                    <option value="OPEN_ELECTIVE">Open Elective Class</option>
+                  </select>
                 </div>
                 <div className="form-group">
                   <label className="form-label">Academic Year</label>
@@ -1984,6 +1999,39 @@ const HODDashboard = ({ activeTab, setActiveTab }) => {
                   <input type="text" className="input" placeholder="e.g. A" required value={classSection} onChange={(e) => setClassSection(e.target.value)} />
                 </div>
               </div>
+
+              {classType === 'OPEN_ELECTIVE' && (
+                <div className="form-group" style={{ marginBottom: '20px', padding: '16px', backgroundColor: 'var(--bg-tertiary)', borderRadius: 'var(--radius-sm)', border: '1px solid var(--border-color)' }}>
+                  <label className="form-label" style={{ fontWeight: '700', marginBottom: '8px', display: 'block' }}>
+                    Select Enrolled Students for Open Elective (from all Regular Classes)
+                  </label>
+                  <div style={{ maxHeight: '180px', overflowY: 'auto', display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(220px, 1fr))', gap: '8px', backgroundColor: '#FFFFFF', padding: '12px', borderRadius: 'var(--radius-sm)', border: '1px solid var(--border-color)' }}>
+                    {students.map(s => {
+                      const sid = s.user?.id || s.id;
+                      const isChecked = selectedElectiveStudentIds.includes(sid);
+                      return (
+                        <label key={sid} style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '13px', cursor: 'pointer', padding: '4px' }}>
+                          <input
+                            type="checkbox"
+                            checked={isChecked}
+                            onChange={(e) => {
+                              if (e.target.checked) {
+                                setSelectedElectiveStudentIds([...selectedElectiveStudentIds, sid]);
+                              } else {
+                                setSelectedElectiveStudentIds(selectedElectiveStudentIds.filter(id => id !== sid));
+                              }
+                            }}
+                          />
+                          <span>{s.user?.first_name || s.user?.username} ({s.reg_no || s.roll_no || s.user?.username})</span>
+                        </label>
+                      );
+                    })}
+                  </div>
+                  <span style={{ fontSize: '12px', color: 'var(--text-muted)', marginTop: '6px', display: 'block' }}>
+                    Selected: {selectedElectiveStudentIds.length} students
+                  </span>
+                </div>
+              )}
 
               <div className="grid grid-cols-3">
                 <div className="form-group">
@@ -2036,7 +2084,14 @@ const HODDashboard = ({ activeTab, setActiveTab }) => {
                 {classes.map((c, idx) => (
                   <tr key={c.id}>
                     <td style={{ fontWeight: '600' }}>{idx + 1}</td>
-                    <td style={{ fontWeight: '600' }}>{c.name}</td>
+                    <td style={{ fontWeight: '600' }}>
+                      {c.name}
+                      {c.class_type === 'OPEN_ELECTIVE' && (
+                        <span className="badge badge-secondary" style={{ marginLeft: '8px', fontSize: '10px' }}>
+                          Open Elective
+                        </span>
+                      )}
+                    </td>
                     <td>Year {c.year}</td>
                     <td>Section {c.section}</td>
                     <td>{c.tutor1_name || '-'}</td>

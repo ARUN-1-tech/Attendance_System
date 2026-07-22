@@ -21,20 +21,32 @@ class User(AbstractUser):
     profile_photo = models.TextField(null=True, blank=True)
 
 class Class(models.Model):
+    CLASS_TYPE_CHOICES = (
+        ('REGULAR', 'Regular'),
+        ('OPEN_ELECTIVE', 'Open Elective'),
+    )
     name = models.CharField(max_length=100)
     year = models.IntegerField()
     section = models.CharField(max_length=10)
     department = models.ForeignKey(Department, on_delete=models.CASCADE)
+    class_type = models.CharField(max_length=20, choices=CLASS_TYPE_CHOICES, default='REGULAR')
+    elective_students = models.ManyToManyField('Student', related_name='elective_classes', blank=True)
     tutor1 = models.ForeignKey(User, related_name='tutor1_classes', on_delete=models.SET_NULL, null=True, blank=True, limit_choices_to={'role': 'staff'})
     tutor2 = models.ForeignKey(User, related_name='tutor2_classes', on_delete=models.SET_NULL, null=True, blank=True, limit_choices_to={'role': 'staff'})
     tutor3 = models.ForeignKey(User, related_name='tutor3_classes', on_delete=models.SET_NULL, null=True, blank=True, limit_choices_to={'role': 'staff'})
     advisor = models.ForeignKey(User, related_name='advisor_classes', on_delete=models.SET_NULL, null=True, blank=True, limit_choices_to={'role': 'staff'})
 
     def __str__(self):
-        return f"{self.name} - {self.year} - {self.section}"
+        prefix = "[Elective] " if self.class_type == 'OPEN_ELECTIVE' else ""
+        return f"{prefix}{self.name} - {self.year} - {self.section}"
+
+    def get_students(self):
+        if self.class_type == 'OPEN_ELECTIVE':
+            return self.elective_students.all()
+        return self.student_set.all()
 
     def auto_assign_tutors(self, force=False):
-        students = list(self.student_set.all().order_by('reg_no', 'user__username'))
+        students = list(self.get_students().order_by('reg_no', 'user__username'))
         N = len(students)
         if N == 0:
             return
