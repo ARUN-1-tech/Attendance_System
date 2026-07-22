@@ -352,52 +352,59 @@ def api_student_stats(request, username):
     else:
         class_subjects = Subject.objects.none()
 
-    attendances = Attendance.objects.filter(student=student, schedule__subject__in=class_subjects)
+    attendances_qs = Attendance.objects.filter(student=student, schedule__subject__in=class_subjects).select_related('schedule__subject')
     from .models import filter_active_attendance
-    attendances = filter_active_attendance(attendances)
+    attendances_qs = filter_active_attendance(attendances_qs)
     
     is_today = request.query_params.get('today') == 'true'
     if is_today:
         today_date = timezone.localtime(timezone.now()).date()
-        attendances = attendances.filter(date=today_date)
+        attendances_qs = attendances_qs.filter(date=today_date)
         
-    total_periods = attendances.count()
-    present_periods = attendances.filter(status='Present').count()
-    absent_periods = attendances.filter(status='Absent').count()
-    od_periods = attendances.filter(status='OD').count()
-    leave_periods = attendances.filter(status='Leave').count()
+    attendances = list(attendances_qs)
+    total_periods = len(attendances)
+    present_periods = sum(1 for a in attendances if a.status == 'Present')
+    absent_periods = sum(1 for a in attendances if a.status == 'Absent')
+    od_periods = sum(1 for a in attendances if a.status == 'OD')
+    leave_periods = sum(1 for a in attendances if a.status == 'Leave')
     
     # Find verified ODs
     from leave.models import Leave
-    verified_ods = Leave.objects.filter(
+    verified_ods_qs = Leave.objects.filter(
         student=student, 
         leave_type='OD', 
         final_status='Approved', 
         certificate_verified=True
     )
     if is_today:
-        verified_ods = verified_ods.filter(date=today_date)
-    verified_ods = verified_ods.values_list('date', flat=True)
+        verified_ods_qs = verified_ods_qs.filter(date=today_date)
+    verified_ods = set(verified_ods_qs.values_list('date', flat=True))
     
-    verified_od_count = attendances.filter(status='OD', date__in=verified_ods).count()
+    verified_od_count = sum(1 for a in attendances if a.status == 'OD' and a.date in verified_ods)
     
     effective_present = present_periods + verified_od_count
     overall_percentage = (effective_present / total_periods * 100) if total_periods > 0 else 0
     
-    # Calculate Days
-    dates = list(attendances.values_list('date', flat=True).distinct())
+    # Calculate Days using in-memory aggregation
+    att_by_date = {}
+    for a in attendances:
+        if a.date not in att_by_date:
+            att_by_date[a.date] = {'Present': 0, 'OD': 0, 'Absent': 0, 'Leave': 0}
+        if a.status in att_by_date[a.date]:
+            att_by_date[a.date][a.status] += 1
+
+    dates = list(att_by_date.keys())
     total_days = len(dates)
     present_days = 0
     absent_days = 0
     od_days = 0
     leave_days = 0
     
-    for dt in dates:
-        day_att = attendances.filter(date=dt)
-        P = day_att.filter(status='Present').count()
-        O = day_att.filter(status='OD').count()
-        A = day_att.filter(status='Absent').count()
-        L = day_att.filter(status='Leave').count()
+    for dt, counts in att_by_date.items():
+        P = counts['Present']
+        O = counts['OD']
+        A = counts['Absent']
+        L = counts['Leave']
         T = P + O + A + L
         
         is_verified_od_day = (dt in verified_ods)
@@ -423,18 +430,25 @@ def api_student_stats(request, username):
                 else:
                     absent_days += 1
 
-    # Subject-wise breakdown
+    # Subject-wise breakdown using in-memory aggregation
     subjects_breakdown = []
     if student.student_class:
+        att_by_subject = {}
+        for a in attendances:
+            sub_id = a.schedule.subject_id
+            if sub_id not in att_by_subject:
+                att_by_subject[sub_id] = []
+            att_by_subject[sub_id].append(a)
+
         for sub in class_subjects:
-            sub_att = attendances.filter(schedule__subject=sub)
-            sub_total = sub_att.count()
-            sub_present = sub_att.filter(status='Present').count()
-            sub_absent = sub_att.filter(status='Absent').count()
-            sub_od = sub_att.filter(status='OD').count()
-            sub_leave = sub_att.filter(status='Leave').count()
+            sub_att = att_by_subject.get(sub.id, [])
+            sub_total = len(sub_att)
+            sub_present = sum(1 for a in sub_att if a.status == 'Present')
+            sub_absent = sum(1 for a in sub_att if a.status == 'Absent')
+            sub_od = sum(1 for a in sub_att if a.status == 'OD')
+            sub_leave = sum(1 for a in sub_att if a.status == 'Leave')
             
-            sub_verified_od = sub_att.filter(status='OD', date__in=verified_ods).count()
+            sub_verified_od = sum(1 for a in sub_att if a.status == 'OD' and a.date in verified_ods)
             sub_effective_present = sub_present + sub_verified_od
             sub_percentage = (sub_effective_present / sub_total * 100) if sub_total > 0 else 100.0
             
@@ -768,24 +782,26 @@ class AttendanceViewSet(viewsets.ModelViewSet):
                 weekday = target_date.strftime('%A')
                 
                 if selected_student.student_class:
-                    schedules = Schedule.objects.filter(
+                    schedules = list(Schedule.objects.filter(
                         student_class=selected_student.student_class,
                         day=weekday
-                    ).order_by('period')
+                    ).select_related('subject').order_by('period'))
+                    
+                    atts = Attendance.objects.filter(
+                        student=selected_student,
+                        schedule__in=schedules,
+                        date=target_date
+                    )
+                    att_dict = {a.schedule_id: a.status for a in atts}
                     
                     for sched in schedules:
-                        att = Attendance.objects.filter(
-                            student=selected_student,
-                            schedule=sched,
-                            date=target_date
-                        ).first()
-                        
+                        status_val = att_dict.get(sched.id, 'Absent')
                         schedules_data.append({
                             'schedule_id': sched.id,
                             'subject_name': sched.subject.name,
                             'subject_code': sched.subject.code,
                             'period': sched.period,
-                            'status': att.status if att else 'Absent'
+                            'status': status_val
                         })
                 else:
                     error_message = "Selected student has no assigned class."

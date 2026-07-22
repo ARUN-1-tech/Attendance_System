@@ -91,14 +91,18 @@ class Student(models.Model):
     student_class = models.ForeignKey(Class, on_delete=models.SET_NULL, null=True)
     tutor = models.ForeignKey(User, related_name='tutored_students', on_delete=models.SET_NULL, null=True, blank=True, limit_choices_to={'role__in': ['staff', 'hod']})
     advisor = models.ForeignKey(User, related_name='advised_students', on_delete=models.SET_NULL, null=True, blank=True, limit_choices_to={'role__in': ['staff', 'hod']})
-    roll_no = models.CharField(max_length=50, null=True, blank=True)
-    reg_no = models.CharField(max_length=50, null=True, blank=True)
+    roll_no = models.CharField(max_length=50, null=True, blank=True, db_index=True)
+    reg_no = models.CharField(max_length=50, null=True, blank=True, db_index=True)
 
     def __str__(self):
         return self.user.username
 
     class Meta:
         ordering = ['reg_no', 'user__username']
+        indexes = [
+            models.Index(fields=['reg_no']),
+        ]
+
 
     def save(self, *args, **kwargs):
         skip_auto_assign = kwargs.pop('skip_auto_assign', False)

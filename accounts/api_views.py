@@ -966,15 +966,23 @@ def api_hod_morning_attendance(request):
     today = datetime.date.today()
     classes = Class.objects.filter(department=request.user.department).select_related('advisor')
     
+    student_counts = Student.objects.filter(student_class__in=classes).values('student_class_id').annotate(count=Count('user_id'))
+    att_counts = Attendance.objects.filter(student__student_class__in=classes, date=today, schedule__period=1).values('student__student_class_id', 'status').annotate(count=Count('id'))
+    
+    student_count_map = {item['student_class_id']: item['count'] for item in student_counts}
+    att_count_map = {}
+    for item in att_counts:
+        cls_id = item['student__student_class_id']
+        st = item['status']
+        if cls_id not in att_count_map:
+            att_count_map[cls_id] = {'Present': 0, 'Absent': 0, 'OD': 0}
+        if st in att_count_map[cls_id]:
+            att_count_map[cls_id][st] = item['count']
+
     result = []
     for c in classes:
-        cls_students = Student.objects.filter(student_class=c)
-        total_students = cls_students.count()
-        
-        present_count = Attendance.objects.filter(student__in=cls_students, date=today, schedule__period=1, status='Present').count()
-        absent_count = Attendance.objects.filter(student__in=cls_students, date=today, schedule__period=1, status='Absent').count()
-        od_count = Attendance.objects.filter(student__in=cls_students, date=today, schedule__period=1, status='OD').count()
-        
+        total_students = student_count_map.get(c.id, 0)
+        c_att = att_count_map.get(c.id, {'Present': 0, 'Absent': 0, 'OD': 0})
         advisor_name = f"{c.advisor.first_name} {c.advisor.last_name}".strip() if c.advisor else "Not Assigned"
         result.append({
             'class_id': c.id,
@@ -982,9 +990,9 @@ def api_hod_morning_attendance(request):
             'year': c.year,
             'section': c.section,
             'total_students': total_students,
-            'present_count': present_count,
-            'absent_count': absent_count,
-            'od_count': od_count,
+            'present_count': c_att.get('Present', 0),
+            'absent_count': c_att.get('Absent', 0),
+            'od_count': c_att.get('OD', 0),
             'advisor_name': advisor_name
         })
         

@@ -75,12 +75,12 @@ const MainPortal = () => {
     setActiveTab('dashboard');
   }, [user?.username]);
 
-  // Poll auth details every 5 seconds for students to update logout availability dynamically
+  // Poll auth details every 15 seconds for students to update logout availability dynamically
   useEffect(() => {
     if (user && user.role === 'student') {
       const interval = setInterval(() => {
         checkAuth();
-      }, 5000);
+      }, 15000);
       return () => clearInterval(interval);
     }
   }, [user, checkAuth]);

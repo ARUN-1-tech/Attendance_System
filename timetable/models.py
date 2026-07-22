@@ -11,12 +11,18 @@ class Schedule(models.Model):
         ('Saturday', 'Saturday'),
         ('Sunday', 'Sunday'),
     )
-    day = models.CharField(max_length=15, choices=DAY_CHOICES)
-    period = models.IntegerField()
+    day = models.CharField(max_length=15, choices=DAY_CHOICES, db_index=True)
+    period = models.IntegerField(db_index=True)
     subject = models.ForeignKey(Subject, on_delete=models.CASCADE)
     student_class = models.ForeignKey(Class, on_delete=models.CASCADE)
     start_time = models.TimeField()
     end_time = models.TimeField()
 
+    class Meta:
+        indexes = [
+            models.Index(fields=['student_class', 'day', 'period']),
+        ]
+
     def __str__(self):
         return f"{self.student_class} - {self.day} Period {self.period}"
+

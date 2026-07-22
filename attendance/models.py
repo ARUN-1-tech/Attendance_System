@@ -10,8 +10,8 @@ def filter_active_attendance(queryset):
 class OTP(models.Model):
     code = models.CharField(max_length=6)
     schedule = models.ForeignKey(Schedule, on_delete=models.CASCADE)
-    created_at = models.DateTimeField(auto_now_add=True)
-    is_active = models.BooleanField(default=True)
+    created_at = models.DateTimeField(auto_now_add=True, db_index=True)
+    is_active = models.BooleanField(default=True, db_index=True)
     staff_latitude = models.FloatField(null=True, blank=True)
     staff_longitude = models.FloatField(null=True, blank=True)
     staff_accuracy = models.FloatField(null=True, blank=True, default=10.0)
@@ -29,11 +29,16 @@ class Attendance(models.Model):
     )
     student = models.ForeignKey(Student, on_delete=models.CASCADE)
     schedule = models.ForeignKey(Schedule, on_delete=models.CASCADE)
-    date = models.DateField()
-    status = models.CharField(max_length=20, choices=STATUS_CHOICES, default='Absent')
+    date = models.DateField(db_index=True)
+    status = models.CharField(max_length=20, choices=STATUS_CHOICES, default='Absent', db_index=True)
 
     class Meta:
         unique_together = ('student', 'schedule', 'date')
+        indexes = [
+            models.Index(fields=['student', 'date']),
+            models.Index(fields=['schedule', 'date']),
+            models.Index(fields=['date', 'status']),
+        ]
 
     def __str__(self):
         return f"{self.student} - {self.date} - {self.status}"
@@ -41,13 +46,17 @@ class Attendance(models.Model):
 
 class PeriodLock(models.Model):
     student_class = models.ForeignKey('accounts.Class', on_delete=models.CASCADE)
-    date = models.DateField()
+    date = models.DateField(db_index=True)
     period = models.IntegerField()
     staff = models.ForeignKey('accounts.User', on_delete=models.CASCADE)
 
     class Meta:
         unique_together = ('student_class', 'date', 'period')
+        indexes = [
+            models.Index(fields=['student_class', 'date', 'period']),
+        ]
 
     def __str__(self):
         return f"{self.student_class} - {self.date} Period {self.period} locked by {self.staff}"
+
 
