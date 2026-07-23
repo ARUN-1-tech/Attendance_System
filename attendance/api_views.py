@@ -210,10 +210,7 @@ def api_verify_otp(request):
                 student = request.user.student
                 today = timezone.localdate()
                 
-                is_enrolled = (
-                    student.student_class == otp.schedule.student_class or
-                    otp.schedule.student_class.elective_students.filter(pk=student.pk).exists()
-                )
+                is_enrolled = (student.student_class == otp.schedule.student_class)
                 if not is_enrolled:
                     return Response({'detail': 'You are not enrolled in this class session.'}, status=status.HTTP_400_BAD_REQUEST)
                 

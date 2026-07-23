@@ -142,35 +142,32 @@ const StaffDashboard = ({ activeTab }) => {
   };
 
   const [subjectType, setSubjectType] = useState('REGULAR');
-  const [availableOpenElectives, setAvailableOpenElectives] = useState([]);
-  const [openElectivesLoading, setOpenElectivesLoading] = useState(false);
+  const [studentsListLoading, setStudentsListLoading] = useState(false);
+  const [advisorClassStudents, setAdvisorClassStudents] = useState([]);
 
-  const fetchAvailableOpenElectives = async (classId) => {
-    setOpenElectivesLoading(true);
+  const fetchAdvisorStudents = async () => {
+    setStudentsListLoading(true);
     try {
-      const url = classId ? `/api/subjects/available-open-electives/?class_id=${classId}` : '/api/subjects/available-open-electives/';
-      const data = await api.get(url);
-      setAvailableOpenElectives(data);
+      const data = await api.get('/api/students/');
+      setAdvisorClassStudents(Array.isArray(data) ? data : (data.results || []));
     } catch (err) {
-      console.error(err);
+      console.error('Failed to fetch students:', err);
     } finally {
-      setOpenElectivesLoading(false);
+      setStudentsListLoading(false);
     }
   };
 
-  const handleAssignOpenElective = async (subjectId) => {
+  const handleDeleteAllStudents = async () => {
+    if (!window.confirm("ARE YOU SURE YOU WANT TO DELETE ALL STUDENTS? This action is permanent and will remove all student accounts and attendance records!")) {
+      return;
+    }
     try {
-      await api.post('/api/subjects/assign-open-elective/', {
-        subject_id: subjectId,
-        class_id: advisedClass?.id
-      });
-      alert('Open Elective assigned to your class successfully!');
-      if (advisedClass) {
-        fetchAdvisedSubjects(advisedClass.id);
-        fetchAvailableOpenElectives(advisedClass.id);
-      }
+      const res = await api.post('/api/students/delete_all/');
+      alert(res.detail || "All students deleted successfully.");
+      setAdvisorClassStudents([]);
     } catch (err) {
-      alert(err.message || 'Failed to assign Open Elective.');
+      console.error(err);
+      alert(err.message || "Failed to delete all students.");
     }
   };
 
@@ -180,11 +177,16 @@ const StaffDashboard = ({ activeTab }) => {
       if (myAdvisedClass) {
         setAdvisedClass(myAdvisedClass);
         fetchAdvisedSubjects(myAdvisedClass.id);
-        fetchAvailableOpenElectives(myAdvisedClass.id);
       } else {
         setAdvisedClass(null);
         setAdvisedSubjectsLoading(false);
       }
+    } else if (activeTab === 'students') {
+      const myAdvisedClass = classes.find(c => c.advisor === user.id);
+      if (myAdvisedClass) {
+        setAdvisedClass(myAdvisedClass);
+      }
+      fetchAdvisorStudents();
     }
   }, [activeTab, classes]);
 
@@ -197,7 +199,7 @@ const StaffDashboard = ({ activeTab }) => {
     const payload = {
       name: subjectName,
       code: subjectCode,
-      subject_type: subjectType,
+      subject_type: 'REGULAR',
       student_class: advisedClass?.id
     };
     try {
@@ -215,7 +217,6 @@ const StaffDashboard = ({ activeTab }) => {
       setSubjectType('REGULAR');
       if (advisedClass) {
         fetchAdvisedSubjects(advisedClass.id);
-        fetchAvailableOpenElectives(advisedClass.id);
       }
     } catch (err) {
       console.error(err);
@@ -3281,23 +3282,16 @@ const StaffDashboard = ({ activeTab }) => {
                       />
                     </div>
                     <div className="form-group">
-                      <label className="form-label">Subject Type</label>
-                      <select className="input" value={subjectType} onChange={(e) => setSubjectType(e.target.value)}>
-                        <option value="REGULAR">Regular Subject</option>
-                        <option value="OPEN_ELECTIVE">Open Elective Subject</option>
-                      </select>
+                      <label className="form-label">Subject Code</label>
+                      <input 
+                        type="text" 
+                        className="input" 
+                        placeholder="e.g. CS301" 
+                        value={subjectCode} 
+                        onChange={(e) => setSubjectCode(e.target.value)} 
+                        required 
+                      />
                     </div>
-                  </div>
-                  <div className="form-group" style={{ marginBottom: '24px' }}>
-                    <label className="form-label">Subject Code</label>
-                    <input 
-                      type="text" 
-                      className="input" 
-                      placeholder="e.g. OE401" 
-                      value={subjectCode} 
-                      onChange={(e) => setSubjectCode(e.target.value)} 
-                      required 
-                    />
                   </div>
                   <div style={{ display: 'flex', gap: '8px' }}>
                     <button type="submit" className="btn btn-primary">
@@ -3318,35 +3312,6 @@ const StaffDashboard = ({ activeTab }) => {
                     </button>
                   </div>
                 </form>
-              </div>
-            )}
-
-            {/* Available Open Electives Catalog for Advisor's Academic Year */}
-            {availableOpenElectives.length > 0 && (
-              <div className="card" style={{ marginBottom: '24px', backgroundColor: 'var(--primary-light)', border: '1px solid rgba(79, 70, 229, 0.2)' }}>
-                <h3 style={{ fontSize: '16px', fontWeight: '700', color: 'var(--primary)', marginBottom: '4px' }}>
-                  Available Open Electives (Academic Year {advisedClass?.year})
-                </h3>
-                <p style={{ fontSize: '13px', color: 'var(--text-muted)', marginBottom: '14px' }}>
-                  The following Open Electives are registered for Year {advisedClass?.year}. Click "Add to My Class" to assign them to your class.
-                </p>
-                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(260px, 1fr))', gap: '12px' }}>
-                  {availableOpenElectives.map(oe => (
-                    <div key={oe.id} style={{ backgroundColor: '#FFFFFF', padding: '14px', borderRadius: 'var(--radius-sm)', border: '1px solid var(--border-color)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                      <div>
-                        <strong style={{ fontSize: '14px', color: 'var(--text-primary)', display: 'block' }}>{oe.name}</strong>
-                        <span className="badge badge-secondary" style={{ marginTop: '2px', fontSize: '11px' }}>{oe.code}</span>
-                      </div>
-                      <button
-                        className="btn btn-primary btn-sm"
-                        style={{ padding: '6px 12px', fontSize: '12px' }}
-                        onClick={() => handleAssignOpenElective(oe.id)}
-                      >
-                        Add to My Class
-                      </button>
-                    </div>
-                  ))}
-                </div>
               </div>
             )}
 
@@ -3387,11 +3352,6 @@ const StaffDashboard = ({ activeTab }) => {
                               onMouseLeave={(e) => e.currentTarget.style.textDecoration = 'none'}
                             >
                               {sub.name}
-                              {sub.subject_type === 'OPEN_ELECTIVE' && (
-                                <span className="badge badge-secondary" style={{ marginLeft: '8px', fontSize: '10px' }}>
-                                  Open Elective
-                                </span>
-                              )}
                             </td>
                             <td><span className="badge badge-secondary">{sub.code}</span></td>
                             <td style={{ textAlign: 'right' }}>
@@ -3511,6 +3471,98 @@ const StaffDashboard = ({ activeTab }) => {
             </div>
           </div>
         )}
+      </div>
+    );
+  }
+
+  if (activeTab === 'students') {
+    return (
+      <div>
+        <div className="header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+          <div>
+            <h1>My Students</h1>
+            {advisedClass && (
+              <p style={{ color: 'var(--text-muted)', fontSize: '14px', marginTop: '4px' }}>
+                Advised Class: <strong style={{ color: 'var(--accent-primary)' }}>{advisedClass.name} - Year {advisedClass.year} ({advisedClass.section})</strong>
+              </p>
+            )}
+          </div>
+          {user.staff_details?.staff_type === 'Advisor' && (
+            <div style={{ display: 'flex', gap: '8px' }}>
+              <button 
+                className="btn" 
+                style={{ backgroundColor: '#DC2626', color: '#FFFFFF', display: 'flex', alignItems: 'center', gap: '6px', fontWeight: '600' }}
+                onClick={handleDeleteAllStudents}
+              >
+                <Trash2 size={16} />
+                <span>Delete All Students</span>
+              </button>
+            </div>
+          )}
+        </div>
+
+        <div className="card">
+          {studentsListLoading ? (
+            <div style={{ textAlign: 'center', padding: '40px' }}>
+              <div className="spinner" style={{ display: 'inline-block', width: '30px', height: '30px', border: '3px solid var(--border-color)', borderTop: '3px solid var(--accent-primary)', borderRadius: '50%', animation: 'spin 1s linear infinite' }} />
+              <p style={{ marginTop: '12px', color: 'var(--text-secondary)' }}>Loading students...</p>
+            </div>
+          ) : (
+            <div className="table-container">
+              <table className="table">
+                <thead>
+                  <tr>
+                    <th style={{ width: '60px' }}>S.No</th>
+                    <th>Reg No</th>
+                    <th>Roll No</th>
+                    <th>Student Name</th>
+                    <th>Class</th>
+                    <th style={{ textAlign: 'right' }}>Actions</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {advisorClassStudents.length === 0 ? (
+                    <tr>
+                      <td colSpan={6} style={{ textAlign: 'center', color: 'var(--text-muted)', padding: '24px' }}>
+                        No students found.
+                      </td>
+                    </tr>
+                  ) : (
+                    advisorClassStudents.map((stud, idx) => (
+                      <tr key={stud.user?.id || stud.user?.pk || idx}>
+                        <td style={{ fontWeight: '600' }}>{idx + 1}</td>
+                        <td style={{ fontWeight: '600' }}>{stud.reg_no || '-'}</td>
+                        <td>{stud.roll_no || '-'}</td>
+                        <td>{stud.user?.first_name || stud.user?.username} {stud.user?.last_name || ''}</td>
+                        <td>{stud.class_name || '-'}</td>
+                        <td style={{ textAlign: 'right' }}>
+                          <button 
+                            className="btn btn-secondary btn-sm"
+                            style={{ color: 'var(--danger)', display: 'inline-flex', alignItems: 'center', gap: '4px', padding: '4px 8px' }}
+                            onClick={async () => {
+                              if (window.confirm(`Are you sure you want to delete student ${stud.user?.first_name || stud.user?.username}?`)) {
+                                try {
+                                  await api.delete(`/api/students/${stud.user?.id}/`);
+                                  alert('Student deleted.');
+                                  fetchAdvisorStudents();
+                                } catch (err) {
+                                  alert(err.message || 'Failed to delete student.');
+                                }
+                              }
+                            }}
+                          >
+                            <Trash2 size={14} />
+                            <span>Delete</span>
+                          </button>
+                        </td>
+                      </tr>
+                    ))
+                  )}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </div>
       </div>
     );
   }

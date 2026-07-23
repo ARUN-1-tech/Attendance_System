@@ -516,6 +516,22 @@ def delete_student(request, user_id):
 
 @login_required
 @advisor_required
+def delete_all_students(request):
+    if request.method == 'POST':
+        department = request.user.department
+        advised_class = Class.objects.filter(advisor=request.user).first()
+        if advised_class:
+            students_qs = Student.objects.filter(student_class=advised_class)
+        else:
+            students_qs = Student.objects.filter(user__department=department)
+            
+        student_user_ids = list(students_qs.values_list('user_id', flat=True))
+        deleted_count = User.objects.filter(id__in=student_user_ids, role='student').delete()[0]
+        messages.success(request, f'Successfully deleted all {deleted_count} students.')
+    return redirect('staff_students')
+
+@login_required
+@advisor_required
 def bulk_add_students(request):
     if request.method == 'POST':
         file_obj = request.FILES.get('csv_file')

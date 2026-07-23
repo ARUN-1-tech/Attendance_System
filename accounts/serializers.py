@@ -43,7 +43,6 @@ class ClassSerializer(serializers.ModelSerializer):
     tutor2_name = serializers.CharField(source='tutor2.username', read_only=True)
     tutor3_name = serializers.CharField(source='tutor3.username', read_only=True)
     advisor_name = serializers.CharField(source='advisor.username', read_only=True)
-    elective_student_ids = serializers.PrimaryKeyRelatedField(source='elective_students', many=True, queryset=Student.objects.all(), required=False)
 
     class Meta:
         model = Class
@@ -51,20 +50,6 @@ class ClassSerializer(serializers.ModelSerializer):
         extra_kwargs = {
             'department': {'required': False}
         }
-
-    def create(self, validated_data):
-        elective_students = validated_data.pop('elective_students', [])
-        instance = super().create(validated_data)
-        if elective_students:
-            instance.elective_students.set(elective_students)
-        return instance
-
-    def update(self, instance, validated_data):
-        elective_students = validated_data.pop('elective_students', None)
-        instance = super().update(instance, validated_data)
-        if elective_students is not None:
-            instance.elective_students.set(elective_students)
-        return instance
 
 class SubjectSerializer(serializers.ModelSerializer):
     department_name = serializers.CharField(source='department.name', read_only=True)

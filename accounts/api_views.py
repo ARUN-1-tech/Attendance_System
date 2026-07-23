@@ -283,103 +283,6 @@ class SubjectViewSet(viewsets.ModelViewSet):
         except Exception as e:
             return Response({'detail': f'Error during import: {str(e)}'}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
-    @action(detail=False, methods=['get'], url_path='available-open-electives')
-    def available_open_electives(self, request):
-        user = request.user
-        from accounts.models import Class
-        class_id = request.query_params.get('class_id')
-        target_class = None
-        if class_id:
-            target_class = Class.objects.filter(id=class_id).first()
-        if not target_class:
-            target_class = Class.objects.filter(advisor=user).first() or Class.objects.filter(tutor1=user).first() or Class.objects.filter(tutor2=user).first() or Class.objects.filter(tutor3=user).first()
-        
-        target_year = target_class.year if target_class else None
-        
-        try:
-            qs = Subject.objects.filter(subject_type='OPEN_ELECTIVE')
-        except Exception:
-            qs = Subject.objects.all()
-            
-        if target_year:
-            try:
-                qs = qs.filter(year=target_year)
-            except Exception:
-                pass
-            
-        distinct_subjects = {}
-        for s in qs:
-            key = (s.code or s.name).upper()
-            if key not in distinct_subjects:
-                distinct_subjects[key] = s
-
-        assigned_codes = []
-        if target_class:
-            assigned_codes = list(Subject.objects.filter(student_class=target_class).values_list('code', flat=True))
-            assigned_codes = [c.upper() for c in assigned_codes if c]
-
-        available = [
-            SubjectSerializer(s).data
-            for key, s in distinct_subjects.items()
-            if key not in assigned_codes
-        ]
-        return Response(available)
-
-    @action(detail=False, methods=['post'], url_path='assign-open-elective')
-    def assign_open_elective(self, request):
-        user = request.user
-        subject_id = request.data.get('subject_id')
-        class_id = request.data.get('class_id')
-        
-        from accounts.models import Class
-        target_class = None
-        if class_id:
-            target_class = Class.objects.filter(id=class_id).first()
-        if not target_class:
-            target_class = Class.objects.filter(advisor=user).first() or Class.objects.filter(tutor1=user).first() or Class.objects.filter(tutor2=user).first() or Class.objects.filter(tutor3=user).first()
-            
-        if not subject_id:
-            return Response({'detail': 'subject_id parameter is required.'}, status=status.HTTP_400_BAD_REQUEST)
-            
-        source_subject = Subject.objects.filter(id=subject_id).first()
-        if not source_subject:
-            return Response({'detail': 'Source Open Elective subject not found.'}, status=status.HTTP_404_NOT_FOUND)
-        
-        # Check if already assigned by code or name
-        existing = None
-        if source_subject.code:
-            existing = Subject.objects.filter(student_class=target_class, code=source_subject.code).first()
-        if not existing:
-            existing = Subject.objects.filter(student_class=target_class, name__iexact=source_subject.name).first()
-            
-        if existing:
-            return Response({'detail': 'This Open Elective is already assigned to your class.', 'subject': SubjectSerializer(existing).data})
-            
-        department = target_class.department or source_subject.department or getattr(user, 'department', None)
-        
-        try:
-            new_subject = Subject.objects.create(
-                name=source_subject.name,
-                code=source_subject.code or f"OE-{source_subject.id}",
-                subject_type='OPEN_ELECTIVE',
-                year=getattr(target_class, 'year', None),
-                semester=getattr(source_subject, 'semester', None),
-                department=department,
-                student_class=target_class
-            )
-            return Response({'detail': 'Open Elective assigned successfully.', 'subject': SubjectSerializer(new_subject).data}, status=status.HTTP_201_CREATED)
-        except Exception as e:
-            try:
-                new_subject = Subject.objects.create(
-                    name=source_subject.name,
-                    code=source_subject.code or f"OE-{source_subject.id}",
-                    department=department,
-                    student_class=target_class
-                )
-                return Response({'detail': 'Open Elective assigned successfully.', 'subject': SubjectSerializer(new_subject).data}, status=status.HTTP_201_CREATED)
-            except Exception as e2:
-                return Response({'detail': f'Failed to assign Open Elective: {str(e2)}'}, status=status.HTTP_400_BAD_REQUEST)
-
 class UserViewSet(viewsets.ModelViewSet):
     queryset = User.objects.all()
     serializer_class = UserSerializer
@@ -890,6 +793,31 @@ class StaffViewSet(viewsets.ModelViewSet):
 
     def perform_destroy(self, instance):
         instance.user.delete()
+
+    @action(detail=False, methods=['POST', 'DELETE'], url_path='delete_all')
+    def delete_all(self, request):
+        user = request.user
+        is_advisor = (user.role == 'staff' and hasattr(user, 'staff') and user.staff.staff_type == 'Advisor')
+        if user.role != 'hod' and not is_advisor:
+            return Response({'detail': 'Only Advisors and HODs can bulk delete students.'}, status=status.HTTP_403_FORBIDDEN)
+
+        if not user.department:
+            return Response({'detail': 'User has no department assigned.'}, status=status.HTTP_400_BAD_REQUEST)
+
+        from accounts.models import Class
+        advised_class = Class.objects.filter(advisor=user).first()
+        if advised_class:
+            students_qs = Student.objects.filter(student_class=advised_class)
+        else:
+            students_qs = Student.objects.filter(user__department=user.department)
+
+        student_user_ids = list(students_qs.values_list('user_id', flat=True))
+        deleted_count = User.objects.filter(id__in=student_user_ids, role='student').delete()[0]
+
+        return Response({
+            'detail': f'Successfully deleted {deleted_count} students.',
+            'deleted_count': deleted_count
+        }, status=status.HTTP_200_OK)
 
 @api_view(['GET'])
 @permission_classes([permissions.IsAuthenticated])

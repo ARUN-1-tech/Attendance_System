@@ -23,7 +23,6 @@ class User(AbstractUser):
 class Class(models.Model):
     CLASS_TYPE_CHOICES = (
         ('REGULAR', 'Regular'),
-        ('OPEN_ELECTIVE', 'Open Elective'),
     )
     name = models.CharField(max_length=100)
     year = models.IntegerField()
@@ -37,12 +36,9 @@ class Class(models.Model):
     advisor = models.ForeignKey(User, related_name='advisor_classes', on_delete=models.SET_NULL, null=True, blank=True, limit_choices_to={'role': 'staff'})
 
     def __str__(self):
-        prefix = "[Elective] " if self.class_type == 'OPEN_ELECTIVE' else ""
-        return f"{prefix}{self.name} - {self.year} - {self.section}"
+        return f"{self.name} - {self.year} - {self.section}"
 
     def get_students(self):
-        if self.class_type == 'OPEN_ELECTIVE':
-            return self.elective_students.all()
         return self.student_set.all()
 
     def auto_assign_tutors(self, force=False):
@@ -92,7 +88,6 @@ class Class(models.Model):
 class Subject(models.Model):
     SUBJECT_TYPE_CHOICES = (
         ('REGULAR', 'Regular'),
-        ('OPEN_ELECTIVE', 'Open Elective'),
     )
     name = models.CharField(max_length=100)
     code = models.CharField(max_length=20, null=True, blank=True)
@@ -103,8 +98,7 @@ class Subject(models.Model):
     semester = models.IntegerField(null=True, blank=True)
 
     def __str__(self):
-        prefix = "[OE] " if self.subject_type == 'OPEN_ELECTIVE' else ""
-        return f"{prefix}{self.name} ({self.code})"
+        return f"{self.name} ({self.code})" if self.code else self.name
 
     def save(self, *args, **kwargs):
         if self.student_class and not self.year:

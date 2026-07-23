@@ -15,6 +15,10 @@
             <div style="display: flex; gap: 8px;">
                 <a href="{% url 'staff_bulk_add_students' %}" class="btn" style="background-color: var(--accent-light); color: var(--accent-primary);">Bulk Import Students</a>
                 <a href="{% url 'staff_add_student' %}" class="btn btn-success">Add Student</a>
+                <form method="POST" action="{% url 'staff_delete_all_students' %}" style="display:inline;">
+                    {% csrf_token %}
+                    <button type="submit" class="btn" style="background-color: #dc2626; color: white;" onclick="return confirm('ARE YOU SURE YOU WANT TO DELETE ALL STUDENTS? This action will permanently remove all student accounts and their attendance records!');">Delete All Students</button>
+                </form>
             </div>
             {% endif %}
         </div>
