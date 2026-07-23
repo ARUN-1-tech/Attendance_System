@@ -774,26 +774,6 @@ class StudentViewSet(viewsets.ModelViewSet):
                 
         return None
 
-class StaffViewSet(viewsets.ModelViewSet):
-    queryset = Staff.objects.all()
-    serializer_class = StaffSerializer
-    permission_classes = [permissions.IsAuthenticated]
-
-    def get_queryset(self):
-        queryset = Staff.objects.all()
-        # HOD can only see staff in their department
-        if self.request.user.role == 'hod' and self.request.user.department:
-            queryset = queryset.filter(user__department=self.request.user.department)
-        return queryset
-
-    def perform_create(self, serializer):
-        if self.request.user.role == 'hod' and self.request.user.department:
-            serializer.validated_data['user']['department'] = self.request.user.department
-        serializer.save()
-
-    def perform_destroy(self, instance):
-        instance.user.delete()
-
     @action(detail=False, methods=['post', 'delete'], url_path='delete_all')
     def delete_all(self, request):
         user = request.user
@@ -818,6 +798,26 @@ class StaffViewSet(viewsets.ModelViewSet):
             'detail': f'Successfully deleted {deleted_count} students.',
             'deleted_count': deleted_count
         }, status=status.HTTP_200_OK)
+
+class StaffViewSet(viewsets.ModelViewSet):
+    queryset = Staff.objects.all()
+    serializer_class = StaffSerializer
+    permission_classes = [permissions.IsAuthenticated]
+
+    def get_queryset(self):
+        queryset = Staff.objects.all()
+        # HOD can only see staff in their department
+        if self.request.user.role == 'hod' and self.request.user.department:
+            queryset = queryset.filter(user__department=self.request.user.department)
+        return queryset
+
+    def perform_create(self, serializer):
+        if self.request.user.role == 'hod' and self.request.user.department:
+            serializer.validated_data['user']['department'] = self.request.user.department
+        serializer.save()
+
+    def perform_destroy(self, instance):
+        instance.user.delete()
 
 @api_view(['GET'])
 @permission_classes([permissions.IsAuthenticated])
