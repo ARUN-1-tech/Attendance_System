@@ -388,7 +388,7 @@ class StudentViewSet(viewsets.ModelViewSet):
             
         return super().update(request, *args, **kwargs)
 
-    @action(detail=False, methods=['POST'], url_path='bulk_create')
+    @action(detail=False, methods=['post'], url_path='bulk_create')
     def bulk_create(self, request):
         user = request.user
         is_advisor = (user.role == 'staff' and hasattr(user, 'staff') and user.staff.staff_type == 'Advisor')
@@ -794,7 +794,7 @@ class StaffViewSet(viewsets.ModelViewSet):
     def perform_destroy(self, instance):
         instance.user.delete()
 
-    @action(detail=False, methods=['POST', 'DELETE'], url_path='delete_all')
+    @action(detail=False, methods=['post', 'delete'], url_path='delete_all')
     def delete_all(self, request):
         user = request.user
         is_advisor = (user.role == 'staff' and hasattr(user, 'staff') and user.staff.staff_type == 'Advisor')
