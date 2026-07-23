@@ -164,7 +164,7 @@ const StaffDashboard = ({ activeTab }) => {
     try {
       const res = await api.post('/api/students/delete_all/');
       alert(res.detail || "All students deleted successfully.");
-      setAdvisorClassStudents([]);
+      fetchStudents();
     } catch (err) {
       console.error(err);
       alert(err.message || "Failed to delete all students.");
@@ -1962,6 +1962,14 @@ const StaffDashboard = ({ activeTab }) => {
                 <Plus size={16} />
                 <span>Add Student</span>
               </button>
+              <button 
+                className="btn btn-danger" 
+                style={{ backgroundColor: '#DC2626', color: '#FFFFFF', display: 'flex', alignItems: 'center', gap: '6px', fontWeight: '600' }}
+                onClick={handleDeleteAllStudents}
+              >
+                <Trash2 size={16} />
+                <span>Delete All Students</span>
+              </button>
             </div>
           )}
         </div>
@@ -3475,97 +3483,7 @@ const StaffDashboard = ({ activeTab }) => {
     );
   }
 
-  if (activeTab === 'students') {
-    return (
-      <div>
-        <div className="header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-          <div>
-            <h1>My Students</h1>
-            {advisedClass && (
-              <p style={{ color: 'var(--text-muted)', fontSize: '14px', marginTop: '4px' }}>
-                Advised Class: <strong style={{ color: 'var(--accent-primary)' }}>{advisedClass.name} - Year {advisedClass.year} ({advisedClass.section})</strong>
-              </p>
-            )}
-          </div>
-          {user.staff_details?.staff_type === 'Advisor' && (
-            <div style={{ display: 'flex', gap: '8px' }}>
-              <button 
-                className="btn" 
-                style={{ backgroundColor: '#DC2626', color: '#FFFFFF', display: 'flex', alignItems: 'center', gap: '6px', fontWeight: '600' }}
-                onClick={handleDeleteAllStudents}
-              >
-                <Trash2 size={16} />
-                <span>Delete All Students</span>
-              </button>
-            </div>
-          )}
-        </div>
 
-        <div className="card">
-          {studentsListLoading ? (
-            <div style={{ textAlign: 'center', padding: '40px' }}>
-              <div className="spinner" style={{ display: 'inline-block', width: '30px', height: '30px', border: '3px solid var(--border-color)', borderTop: '3px solid var(--accent-primary)', borderRadius: '50%', animation: 'spin 1s linear infinite' }} />
-              <p style={{ marginTop: '12px', color: 'var(--text-secondary)' }}>Loading students...</p>
-            </div>
-          ) : (
-            <div className="table-container">
-              <table className="table">
-                <thead>
-                  <tr>
-                    <th style={{ width: '60px' }}>S.No</th>
-                    <th>Reg No</th>
-                    <th>Roll No</th>
-                    <th>Student Name</th>
-                    <th>Class</th>
-                    <th style={{ textAlign: 'right' }}>Actions</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {advisorClassStudents.length === 0 ? (
-                    <tr>
-                      <td colSpan={6} style={{ textAlign: 'center', color: 'var(--text-muted)', padding: '24px' }}>
-                        No students found.
-                      </td>
-                    </tr>
-                  ) : (
-                    advisorClassStudents.map((stud, idx) => (
-                      <tr key={stud.user?.id || stud.user?.pk || idx}>
-                        <td style={{ fontWeight: '600' }}>{idx + 1}</td>
-                        <td style={{ fontWeight: '600' }}>{stud.reg_no || '-'}</td>
-                        <td>{stud.roll_no || '-'}</td>
-                        <td>{stud.user?.first_name || stud.user?.username} {stud.user?.last_name || ''}</td>
-                        <td>{stud.class_name || '-'}</td>
-                        <td style={{ textAlign: 'right' }}>
-                          <button 
-                            className="btn btn-secondary btn-sm"
-                            style={{ color: 'var(--danger)', display: 'inline-flex', alignItems: 'center', gap: '4px', padding: '4px 8px' }}
-                            onClick={async () => {
-                              if (window.confirm(`Are you sure you want to delete student ${stud.user?.first_name || stud.user?.username}?`)) {
-                                try {
-                                  await api.delete(`/api/students/${stud.user?.id}/`);
-                                  alert('Student deleted.');
-                                  fetchAdvisorStudents();
-                                } catch (err) {
-                                  alert(err.message || 'Failed to delete student.');
-                                }
-                              }
-                            }}
-                          >
-                            <Trash2 size={14} />
-                            <span>Delete</span>
-                          </button>
-                        </td>
-                      </tr>
-                    ))
-                  )}
-                </tbody>
-              </table>
-            </div>
-          )}
-        </div>
-      </div>
-    );
-  }
 
   if (activeTab === 'reports') {
     return (
