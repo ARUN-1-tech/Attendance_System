@@ -181,33 +181,47 @@ const MainPortal = () => {
         return <HODDashboard activeTab={activeTab} setActiveTab={setActiveTab} />;
       case 'admin':
         return (
-          <div className="card" style={{ maxWidth: '640px', marginTop: '20px', padding: '32px' }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '16px' }}>
-              <div style={{
-                width: '40px', height: '40px', borderRadius: '10px',
-                backgroundColor: 'rgba(11, 37, 69, 0.1)', color: 'var(--ngp-blue)',
-                display: 'flex', alignItems: 'center', justifyContent: 'center'
-              }}>
-                <ShieldAlert size={24} />
+          <div style={{ maxWidth: '680px', marginTop: '20px', display: 'flex', flexDirection: 'column', gap: '20px' }}>
+            <div className="card" style={{ padding: '32px' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '16px' }}>
+                <div style={{
+                  width: '40px', height: '40px', borderRadius: '10px',
+                  backgroundColor: 'rgba(11, 37, 69, 0.1)', color: 'var(--ngp-blue)',
+                  display: 'flex', alignItems: 'center', justifyContent: 'center'
+                }}>
+                  <ShieldAlert size={24} />
+                </div>
+                <div>
+                  <h1 style={{ fontSize: '22px', fontWeight: '800', color: 'var(--ngp-navy-header)' }}>System Administrator Control Panel</h1>
+                  <span className="ngp-header-badge">Dr. NGP IT ERP Administration</span>
+                </div>
               </div>
-              <div>
-                <h1 style={{ fontSize: '22px', fontWeight: '800', color: 'var(--ngp-navy-header)' }}>Django Admin Console</h1>
-                <span className="ngp-header-badge">Dr. NGP IT ERP Administration</span>
+              <p style={{ color: 'var(--text-secondary)', marginBottom: '24px', fontSize: '14px', lineHeight: '1.6' }}>
+                Welcome, Administrator. Use the system management panel below to set up initial Departments, create HODs, or manage master system entities.
+              </p>
+              
+              <div style={{ display: 'flex', gap: '12px', flexWrap: 'wrap' }}>
+                <a 
+                  href={`${api.baseUrl}/adminpanel/dashboard/`} 
+                  className="btn btn-primary"
+                  style={{ display: 'inline-flex', alignItems: 'center', gap: '8px', padding: '12px 20px', fontWeight: '700' }}
+                >
+                  <span>Launch Management Panel (Departments & HODs)</span>
+                  <ExternalLink size={18} />
+                </a>
+
+                <a 
+                  href={`${api.baseUrl}/admin/`} 
+                  target="_blank" 
+                  rel="noreferrer" 
+                  className="btn btn-secondary"
+                  style={{ display: 'inline-flex', alignItems: 'center', gap: '8px', padding: '12px 20px', fontWeight: '700' }}
+                >
+                  <span>Launch Django Admin Console</span>
+                  <ExternalLink size={18} />
+                </a>
               </div>
             </div>
-            <p style={{ color: 'var(--text-secondary)', marginBottom: '24px', fontSize: '14px', lineHeight: '1.6' }}>
-              Welcome back, Administrator. System configuration, user permissions, and master database entities are managed directly within the Django Admin administration console.
-            </p>
-            <a 
-              href={`${api.baseUrl}/admin/`} 
-              target="_blank" 
-              rel="noreferrer" 
-              className="btn btn-primary"
-              style={{ display: 'inline-flex', alignItems: 'center', gap: '8px', padding: '12px 24px' }}
-            >
-              <span>Launch Django Admin Console</span>
-              <ExternalLink size={18} />
-            </a>
           </div>
         );
       default:
