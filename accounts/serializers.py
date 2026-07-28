@@ -13,29 +13,32 @@ class UserSerializer(serializers.ModelSerializer):
         model = User
         fields = ['id', 'username', 'email', 'first_name', 'last_name', 'role', 'department', 'department_name', 'phone_number', 'is_superuser', 'password', 'dob', 'profile_photo']
         extra_kwargs = {
-            'password': {'write_only': True},
+            'password': {'write_only': True, 'required': False},
             'username': {
                 'validators': []
             }
         }
 
     def validate_username(self, value):
+        if not value:
+            return value
+        clean_value = str(value).strip()
         user_id = None
         if self.instance:
             user_id = self.instance.id
         elif self.root and getattr(self.root, 'instance', None):
             instance = self.root.instance
-            if hasattr(instance, 'user'):
+            if hasattr(instance, 'user') and instance.user:
                 user_id = instance.user.id
             elif isinstance(instance, User):
                 user_id = instance.id
 
-        qs = User.objects.filter(username=value)
+        qs = User.objects.filter(username__iexact=clean_value)
         if user_id:
             qs = qs.exclude(id=user_id)
         if qs.exists():
             raise serializers.ValidationError("A user with that username already exists.")
-        return value
+        return clean_value
 
 class ClassSerializer(serializers.ModelSerializer):
     department_name = serializers.CharField(source='department.name', read_only=True)
@@ -171,9 +174,7 @@ class StudentSerializer(serializers.ModelSerializer):
         user_data = validated_data.pop('user')
         user_data['role'] = 'student'
         password = user_data.pop('password', 'password123')
-        user = User.objects.create_user(**user_data)
-        user.set_password(password)
-        user.save()
+        user = User.objects.create_user(password=password, **user_data)
         student = Student.objects.create(user=user, **validated_data)
         return student
 
@@ -212,9 +213,7 @@ class StaffSerializer(serializers.ModelSerializer):
         user_data = validated_data.pop('user')
         user_data['role'] = 'staff'
         password = user_data.pop('password', 'password123')
-        user = User.objects.create_user(**user_data)
-        user.set_password(password)
-        user.save()
+        user = User.objects.create_user(password=password, **user_data)
         staff = Staff.objects.create(user=user, **validated_data)
         return staff
 
