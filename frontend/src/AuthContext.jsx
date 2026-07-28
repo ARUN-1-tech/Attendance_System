@@ -44,9 +44,14 @@ export const AuthProvider = ({ children }) => {
     setLoading(true);
     try {
       const data = await api.post('/api/auth/login/', { username, password });
+      const token = data.token || data.session_key;
+      if (token) {
+        localStorage.setItem('auth_token', token);
+      }
       setUser(data.user);
       return data.user;
     } catch (err) {
+      localStorage.removeItem('auth_token');
       setUser(null);
       throw err;
     } finally {
@@ -56,6 +61,7 @@ export const AuthProvider = ({ children }) => {
 
   const logout = async () => {
     isLoggingOutRef.current = true;
+    localStorage.removeItem('auth_token');
     setUser(null);
     setLoading(true);
     try {

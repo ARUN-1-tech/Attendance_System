@@ -68,6 +68,9 @@ def api_login(request):
 
     if user is not None:
         login(request, user)
+        if not request.session.session_key:
+            request.session.save()
+        session_key = request.session.session_key
 
         # Generate CSRF token and attach cookie
         get_token(request)
@@ -85,6 +88,8 @@ def api_login(request):
 
         response = Response({
             'detail': 'Logged in successfully',
+            'token': session_key,
+            'session_key': session_key,
             'user': user_data
         })
 

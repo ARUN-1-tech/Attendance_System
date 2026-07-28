@@ -28,6 +28,12 @@ async function request(endpoint, options = {}) {
     ...options.headers,
   };
 
+  // Add Authorization header token if available (for cross-domain authentication fallback)
+  const authToken = localStorage.getItem('auth_token');
+  if (authToken) {
+    options.headers['Authorization'] = `Bearer ${authToken}`;
+  }
+
   // Add CSRF token for mutating requests (POST, PUT, DELETE)
   const method = options.method ? options.method.toUpperCase() : 'GET';
   if (method !== 'GET' && method !== 'HEAD') {
