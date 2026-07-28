@@ -681,3 +681,166 @@ h1, h2, h3, h4, h5, h6 {
     padding: 24px 16px;
   }
 }
+
+/* ==========================================
+   Comprehensive Print Stylesheet for Reports
+   ========================================== */
+@media print {
+  @page {
+    size: A4 portrait;
+    margin: 10mm;
+  }
+
+  body, html {
+    background: #FFFFFF !important;
+    color: #000000 !important;
+    font-family: 'Inter', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    width: 100% !important;
+    -webkit-print-color-adjust: exact !important;
+    print-color-adjust: exact !important;
+  }
+
+  /* Hide UI elements during print */
+  .sidebar,
+  .mobile-sidebar-toggle,
+  .sidebar-backdrop,
+  .no-print,
+  .no-print *,
+  .header,
+  header,
+  nav,
+  button,
+  .btn,
+  .modal-backdrop,
+  .modal {
+    display: none !important;
+  }
+
+  .app-container, .main-content {
+    margin: 0 !important;
+    padding: 0 !important;
+    display: block !important;
+    width: 100% !important;
+  }
+
+  .grid {
+    display: block !important;
+  }
+
+  .card {
+    box-shadow: none !important;
+    border: none !important;
+    padding: 0 !important;
+    margin: 0 !important;
+    background: transparent !important;
+  }
+
+  /* Container for report table & print header */
+  .printable-section {
+    position: absolute !important;
+    left: 0 !important;
+    top: 0 !important;
+    width: 100% !important;
+    max-width: 100% !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    background: #FFFFFF !important;
+    color: #000000 !important;
+    display: block !important;
+  }
+
+  .print-only-header {
+    display: block !important;
+    margin-bottom: 16px !important;
+  }
+
+  .table-container {
+    max-height: none !important;
+    overflow: visible !important;
+    border: none !important;
+    box-shadow: none !important;
+  }
+
+  /* Full-width clean table matching Image 2 */
+  .table {
+    width: 100% !important;
+    border-collapse: collapse !important;
+    margin-top: 10px !important;
+  }
+
+  .table thead {
+    display: table-header-group !important;
+  }
+
+  .table th {
+    background-color: #F8FAFC !important;
+    color: #0F172A !important;
+    font-weight: 800 !important;
+    text-transform: uppercase !important;
+    font-size: 10px !important;
+    letter-spacing: 0.05em !important;
+    padding: 10px 12px !important;
+    border: 1px solid #CBD5E1 !important;
+    text-align: left !important;
+  }
+
+  .table td {
+    padding: 10px 12px !important;
+    border: 1px solid #E2E8F0 !important;
+    color: #1E293B !important;
+    font-size: 11px !important;
+    vertical-align: middle !important;
+    white-space: normal !important;
+    word-break: break-word !important;
+  }
+
+  .table tr {
+    page-break-inside: avoid !important;
+    break-inside: avoid !important;
+  }
+
+  /* Status Badge print colors */
+  .badge {
+    display: inline-flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+    padding: 4px 12px !important;
+    border-radius: 9999px !important;
+    font-weight: 700 !important;
+    font-size: 10px !important;
+    -webkit-print-color-adjust: exact !important;
+    print-color-adjust: exact !important;
+  }
+
+  .badge-present {
+    background-color: #DCFCE7 !important;
+    color: #15803D !important;
+    border: 1px solid #86EFAC !important;
+  }
+
+  .badge-absent {
+    background-color: #FEE2E2 !important;
+    color: #B91C1C !important;
+    border: 1px solid #FCA5A5 !important;
+  }
+
+  .badge-od {
+    background-color: #DBEAFE !important;
+    color: #1D4ED8 !important;
+    border: 1px solid #93C5FD !important;
+  }
+
+  .badge-leave {
+    background-color: #FEF3C7 !important;
+    color: #B45309 !important;
+    border: 1px solid #FDE68A !important;
+  }
+
+  .badge-halfday {
+    background-color: #FEF3C7 !important;
+    color: #D97706 !important;
+    border: 1px solid #FDE68A !important;
+  }
+}

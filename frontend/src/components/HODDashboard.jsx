@@ -2250,9 +2250,12 @@ const HODDashboard = ({ activeTab, setActiveTab }) => {
 
 
   if (activeTab === 'reports') {
+    const selectedClassName = classes.find(c => String(c.id) === String(reportClassId))?.name;
+    const selectedSubjectCode = subjects.find(s => String(s.id) === String(reportSubjectId))?.code;
+
     return (
       <div>
-        <div className="header">
+        <div className="header no-print">
           <h1>Attendance Reports</h1>
           {reportData.length > 0 && (
             <div style={{ display: 'flex', gap: '8px' }}>
@@ -2268,8 +2271,8 @@ const HODDashboard = ({ activeTab, setActiveTab }) => {
           )}
         </div>
 
-        <div className="grid grid-cols-3">
-          <div className="card" style={{ gridColumn: 'span 1' }}>
+        <div className="grid grid-cols-3" style={{ alignItems: 'start' }}>
+          <div className="card no-print" style={{ gridColumn: 'span 1' }}>
             <h2 style={{ marginBottom: '16px' }}>Report Filters</h2>
             <form onSubmit={handleRunReport}>
               <div className="form-group">
@@ -2343,28 +2346,70 @@ const HODDashboard = ({ activeTab, setActiveTab }) => {
             </form>
           </div>
 
-          <div className="card" style={{ gridColumn: 'span 2' }}>
-            <h2 style={{ marginBottom: '16px' }}>Query Output ({reportData.length} records)</h2>
+          <div className="card printable-section" style={{ gridColumn: 'span 2' }}>
+            {/* Header & Filter Summary only visible when printing */}
+            <div className="print-only-header" style={{ display: 'none', marginBottom: '20px' }}>
+              <div style={{ textTransform: 'uppercase', fontSize: '18px', fontWeight: '900', color: '#0F172A', letterSpacing: '-0.02em', marginBottom: '2px' }}>
+                Dr. NGP Institute of Technology
+              </div>
+              <div style={{ fontSize: '13px', fontWeight: '700', color: '#475569', textTransform: 'uppercase', letterSpacing: '0.04em', marginBottom: '14px' }}>
+                Autonomous ERP — Official Student Attendance Report
+              </div>
+              
+              <div style={{
+                display: 'grid',
+                gridTemplateColumns: 'repeat(4, 1fr)',
+                gap: '12px',
+                padding: '12px 16px',
+                backgroundColor: '#F8FAFC',
+                border: '1px solid #CBD5E1',
+                borderRadius: '8px',
+                fontSize: '11px',
+                color: '#334155'
+              }}>
+                <div><span style={{ color: '#64748B', fontWeight: '600' }}>Mode: </span><strong style={{ color: '#0F172A' }}>{reportMode === 'day' ? 'Day Attendance' : 'Subject Percentage'}</strong></div>
+                <div><span style={{ color: '#64748B', fontWeight: '600' }}>Scope: </span><strong style={{ color: '#0F172A' }}>{reportType === 'department' ? 'Entire Department' : reportType === 'class' ? `Class (${selectedClassName || 'Selected'})` : `Student (${reportStudentId})`}</strong></div>
+                <div><span style={{ color: '#64748B', fontWeight: '600' }}>Date Range: </span><strong style={{ color: '#0F172A' }}>{reportFromDate}{reportToDate ? ` to ${reportToDate}` : ''}</strong></div>
+                <div><span style={{ color: '#64748B', fontWeight: '600' }}>Total Records: </span><strong style={{ color: '#0F172A' }}>{reportData.length} Students</strong></div>
+              </div>
+            </div>
+
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }} className="no-print">
+              <h2>Query Output ({reportData.length} records)</h2>
+              {reportData.length > 0 && (
+                <div style={{ display: 'flex', gap: '8px' }}>
+                  <button className="btn btn-secondary" style={{ display: 'flex', alignItems: 'center', gap: '6px' }} onClick={handlePrintReport}>
+                    <Printer size={16} />
+                    <span>Print Report</span>
+                  </button>
+                  <button className="btn btn-primary" style={{ display: 'flex', alignItems: 'center', gap: '6px' }} onClick={handleDownloadReportCSV}>
+                    <FileSpreadsheet size={16} />
+                    <span>Download CSV</span>
+                  </button>
+                </div>
+              )}
+            </div>
+
             <div className="table-container">
               <table className="table">
                 <thead>
                   {reportMode === 'day' ? (
                     <tr>
-                      <th style={{ width: '60px' }}>S.No</th>
-                      <th>Reg No</th>
-                      <th>Student Name</th>
-                      <th>Class</th>
-                      <th>Date</th>
-                      <th>Status</th>
+                      <th style={{ width: '60px' }}>S.NO</th>
+                      <th>REG NO</th>
+                      <th>STUDENT NAME</th>
+                      <th>CLASS</th>
+                      <th>DATE</th>
+                      <th>STATUS</th>
                     </tr>
                   ) : (
                     <tr>
-                      <th style={{ width: '60px' }}>S.No</th>
-                      <th>Reg No</th>
-                      <th>Student Name</th>
-                      <th>Class</th>
-                      <th>Subject</th>
-                      <th>Attendance Percentage</th>
+                      <th style={{ width: '60px' }}>S.NO</th>
+                      <th>REG NO</th>
+                      <th>STUDENT NAME</th>
+                      <th>CLASS</th>
+                      <th>SUBJECT</th>
+                      <th>ATTENDANCE PERCENTAGE</th>
                     </tr>
                   )}
                 </thead>
@@ -2379,8 +2424,8 @@ const HODDashboard = ({ activeTab, setActiveTab }) => {
                     reportData.map((r, idx) => (
                       <tr key={idx}>
                         <td style={{ fontWeight: '600' }}>{idx + 1}</td>
-                        <td style={{ fontWeight: '600' }}>{r.student_reg_no || r.student_username}</td>
-                        <td>{r.student_name}</td>
+                        <td style={{ fontWeight: '700' }}>{r.student_reg_no || r.student_username}</td>
+                        <td style={{ fontWeight: '600' }}>{r.student_name}</td>
                         <td>{r.class_name}</td>
                         {reportMode === 'day' ? (
                           <>
