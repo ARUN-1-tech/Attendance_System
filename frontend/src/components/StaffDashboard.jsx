@@ -791,29 +791,18 @@ const StaffDashboard = ({ activeTab }) => {
     formData.append("file", selectedFile);
 
     try {
-      const csrfToken = getCookie('csrftoken');
-      const response = await fetch(`${api.baseUrl}/api/students/bulk_create/`, {
-        method: 'POST',
-        headers: csrfToken ? { 'X-CSRFToken': csrfToken } : {},
-        body: formData,
-        credentials: 'include'
-      });
-      const data = await response.json();
-      if (!response.ok) {
-        setBulkErrors([data.detail || 'Bulk import failed.']);
+      const data = await api.post('/api/students/bulk_create/', formData);
+      if (data.errors && data.errors.length > 0) {
+        setBulkErrors(data.errors);
+        alert(`Import completed with some errors. Created: ${data.created}, Failed: ${data.failed}`);
       } else {
-        if (data.errors && data.errors.length > 0) {
-          setBulkErrors(data.errors);
-          alert(`Import completed with some errors. Created: ${data.created}, Failed: ${data.failed}`);
-        } else {
-          alert(data.detail || `Successfully imported all ${data.created} students!`);
-          setBulkUploadOpen(false);
-          setCsvFile(null);
-        }
-        fetchStudents();
+        alert(data.detail || `Successfully imported all ${data.created} students!`);
+        setBulkUploadOpen(false);
+        setCsvFile(null);
       }
+      fetchStudents();
     } catch (err) {
-      setBulkErrors([err.message || 'Connection error.']);
+      setBulkErrors([err.message || 'Bulk import failed.']);
     } finally {
       setBulkSubmitting(false);
     }
@@ -836,29 +825,18 @@ const StaffDashboard = ({ activeTab }) => {
     formData.append("file", subjectCsvFile);
 
     try {
-      const csrfToken = getCookie('csrftoken');
-      const response = await fetch(`${api.baseUrl}/api/subjects/bulk-import/`, {
-        method: 'POST',
-        headers: csrfToken ? { 'X-CSRFToken': csrfToken } : {},
-        body: formData,
-        credentials: 'include'
-      });
-      const data = await response.json();
-      if (!response.ok) {
-        setSubjectBulkErrors([data.detail || 'Bulk import failed.']);
+      const data = await api.post('/api/subjects/bulk-import/', formData);
+      if (data.errors && data.errors.length > 0) {
+        setSubjectBulkErrors(data.errors);
+        alert(`Import completed with some errors. Created: ${data.created}, Updated: ${data.updated}`);
       } else {
-        if (data.errors && data.errors.length > 0) {
-          setSubjectBulkErrors(data.errors);
-          alert(`Import completed with some errors. Created: ${data.created}, Updated: ${data.updated}`);
-        } else {
-          alert(data.detail || `Successfully imported all ${data.created} subjects!`);
-          setSubjectBulkUploadOpen(false);
-          setSubjectCsvFile(null);
-        }
-        fetchAdvisedSubjects(advisedClass.id);
+        alert(data.detail || `Successfully imported all ${data.created} subjects!`);
+        setSubjectBulkUploadOpen(false);
+        setSubjectCsvFile(null);
       }
+      fetchAdvisedSubjects(advisedClass.id);
     } catch (err) {
-      setSubjectBulkErrors([err.message || 'Connection error.']);
+      setSubjectBulkErrors([err.message || 'Bulk import failed.']);
     } finally {
       setSubjectBulkSubmitting(false);
     }

@@ -506,29 +506,18 @@ const HODDashboard = ({ activeTab, setActiveTab }) => {
     formData.append("file", selectedFile);
 
     try {
-      const csrfToken = getCookie('csrftoken');
-      const response = await fetch(`${api.baseUrl}/api/students/bulk_create/`, {
-        method: 'POST',
-        headers: csrfToken ? { 'X-CSRFToken': csrfToken } : {},
-        body: formData,
-        credentials: 'include'
-      });
-      const data = await response.json();
-      if (!response.ok) {
-        setBulkErrors([data.detail || 'Bulk import failed.']);
+      const data = await api.post('/api/students/bulk_create/', formData);
+      if (data.errors && data.errors.length > 0) {
+        setBulkErrors(data.errors);
+        alert(`Import completed with some errors. Created: ${data.created}, Failed: ${data.failed}`);
       } else {
-        if (data.errors && data.errors.length > 0) {
-          setBulkErrors(data.errors);
-          alert(`Import completed with some errors. Created: ${data.created}, Failed: ${data.failed}`);
-        } else {
-          alert(data.detail || `Successfully imported all ${data.created} students!`);
-          setBulkUploadOpen(false);
-          setCsvFile(null);
-        }
-        fetchStudentsList();
+        alert(data.detail || `Successfully imported all ${data.created} students!`);
+        setBulkUploadOpen(false);
+        setCsvFile(null);
       }
+      fetchStudentsList();
     } catch (err) {
-      setBulkErrors([err.message || 'Connection error.']);
+      setBulkErrors([err.message || 'Bulk import failed.']);
     } finally {
       setBulkSubmitting(false);
     }
