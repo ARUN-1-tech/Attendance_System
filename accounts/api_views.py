@@ -96,15 +96,16 @@ def api_login(request):
     )
 
 @api_view(['POST', 'GET'])
-@permission_classes([permissions.IsAuthenticated])
+@permission_classes([permissions.AllowAny])
 def api_logout(request):
-    from accounts.utils import has_active_otp
-    if has_active_otp(request.user):
-        return Response(
-            {'detail': 'You cannot log out while an active OTP session is running for your class.'},
-            status=status.HTTP_400_BAD_REQUEST
-        )
-    logout(request)
+    if request.user.is_authenticated:
+        from accounts.utils import has_active_otp
+        if has_active_otp(request.user):
+            return Response(
+                {'detail': 'You cannot log out while an active OTP session is running for your class.'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+        logout(request)
     return Response({'detail': 'Logged out successfully'})
 
 @api_view(['GET'])

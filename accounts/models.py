@@ -1,11 +1,26 @@
 from django.db import models
-from django.contrib.auth.models import AbstractUser
+from django.contrib.auth.models import AbstractUser, UserManager
 
 class Department(models.Model):
     name = models.CharField(max_length=100)
 
     def __str__(self):
         return self.name
+
+class CustomUserManager(UserManager):
+    def create_superuser(self, username, email=None, password=None, **extra_fields):
+        extra_fields.setdefault('role', 'admin')
+        extra_fields.setdefault('is_staff', True)
+        extra_fields.setdefault('is_superuser', True)
+
+        if extra_fields.get('role') != 'admin':
+            extra_fields['role'] = 'admin'
+        if extra_fields.get('is_staff') is not True:
+            raise ValueError('Superuser must have is_staff=True.')
+        if extra_fields.get('is_superuser') is not True:
+            raise ValueError('Superuser must have is_superuser=True.')
+
+        return self._create_user(username, email, password, **extra_fields)
 
 class User(AbstractUser):
     ROLE_CHOICES = (
@@ -19,6 +34,13 @@ class User(AbstractUser):
     phone_number = models.CharField(max_length=15, null=True, blank=True)
     dob = models.DateField(null=True, blank=True)
     profile_photo = models.TextField(null=True, blank=True)
+
+    objects = CustomUserManager()
+
+    def save(self, *args, **kwargs):
+        if self.is_superuser and self.role == 'student':
+            self.role = 'admin'
+        super().save(*args, **kwargs)
 
 class Class(models.Model):
     CLASS_TYPE_CHOICES = (

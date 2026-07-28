@@ -83,7 +83,7 @@ const MainPortal = () => {
       }, 15000);
       return () => clearInterval(interval);
     }
-  }, [user, checkAuth]);
+  }, [user?.username, user?.role, checkAuth]);
 
   if (loading) {
     return (

@@ -97,28 +97,36 @@ WSGI_APPLICATION = 'attendance_system.wsgi.application'
 # Database
 # https://docs.djangoproject.com/en/5.2/ref/settings/#databases
 
-if os.environ.get('DATABASE_URL'):
+DATABASE_URL = os.environ.get("DATABASE_URL")
+
+if DATABASE_URL:
     DATABASES = {
-        'default': dj_database_url.config(conn_max_age=600)
+        "default": dj_database_url.parse(
+            DATABASE_URL,
+            conn_max_age=600,
+            ssl_require=True,
+        )
     }
-elif os.environ.get('DB_NAME') or os.environ.get('DB_USER'):
+
+elif os.environ.get("DB_NAME"):
     DATABASES = {
-        'default': {
-            'ENGINE': 'django.db.backends.postgresql',
-            'NAME': os.environ.get('DB_NAME', 'attendance_db'),
-            'USER': os.environ.get('DB_USER', 'postgres'),
-            'PASSWORD': os.environ.get('DB_PASSWORD', 'postgres'),
-            'HOST': os.environ.get('DB_HOST', '127.0.0.1'),
-            'PORT': os.environ.get('DB_PORT', '5432'),
-            'CONN_MAX_AGE': 600,
+        "default": {
+            "ENGINE": "django.db.backends.postgresql",
+            "NAME": os.environ.get("DB_NAME"),
+            "USER": os.environ.get("DB_USER"),
+            "PASSWORD": os.environ.get("DB_PASSWORD"),
+            "HOST": os.environ.get("DB_HOST"),
+            "PORT": os.environ.get("DB_PORT"),
+            "CONN_MAX_AGE": 600,
         }
     }
+
 else:
     DATABASES = {
-        'default': {
-            'ENGINE': 'django.db.backends.sqlite3',
-            'NAME': BASE_DIR / 'db.sqlite3',
-            'CONN_MAX_AGE': 600,
+        "default": {
+            "ENGINE": "django.db.backends.sqlite3",
+            "NAME": BASE_DIR / "db.sqlite3",
+            "CONN_MAX_AGE": 600,
         }
     }
 
@@ -196,9 +204,10 @@ CORS_ALLOWED_ORIGINS = [
     "http://127.0.0.1:5174",
     "http://localhost:5175",
     "http://127.0.0.1:5175",
+    "https://attendance-system-ecru-xi.vercel.app",
 ]
 frontend_url = os.environ.get('FRONTEND_URL')
-if frontend_url:
+if frontend_url and frontend_url not in CORS_ALLOWED_ORIGINS:
     CORS_ALLOWED_ORIGINS.append(frontend_url)
 
 CORS_ALLOW_CREDENTIALS = True
@@ -210,19 +219,18 @@ CSRF_TRUSTED_ORIGINS = [
     "http://127.0.0.1:5174",
     "http://localhost:5175",
     "http://127.0.0.1:5175",
+    "https://attendance-system-ecru-xi.vercel.app",
 ]
-if frontend_url:
+if frontend_url and frontend_url not in CSRF_TRUSTED_ORIGINS:
     CSRF_TRUSTED_ORIGINS.append(frontend_url)
 
-SESSION_COOKIE_SAMESITE = "None"
-SESSION_COOKIE_SECURE = True
-
-CSRF_COOKIE_SAMESITE = "None"
-CSRF_COOKIE_SECURE = True
-
-CSRF_TRUSTED_ORIGINS = [
-    "https://attendance-system-ecru-xi.vercel.app",
-]
-CORS_ALLOWED_ORIGINS = [
-    "https://attendance-system-ecru-xi.vercel.app",
-]
+if not DEBUG:
+    SESSION_COOKIE_SAMESITE = "None"
+    SESSION_COOKIE_SECURE = True
+    CSRF_COOKIE_SAMESITE = "None"
+    CSRF_COOKIE_SECURE = True
+else:
+    SESSION_COOKIE_SAMESITE = "Lax"
+    SESSION_COOKIE_SECURE = False
+    CSRF_COOKIE_SAMESITE = "Lax"
+    CSRF_COOKIE_SECURE = False

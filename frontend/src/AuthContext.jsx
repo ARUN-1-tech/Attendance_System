@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useState, useEffect } from 'react';
+import React, { createContext, useContext, useState, useEffect, useCallback, useRef } from 'react';
 import { api } from './api';
 
 const AuthContext = createContext(null);
@@ -7,24 +7,31 @@ export const AuthProvider = ({ children }) => {
   const [user, setUser] = useState(null);
   const [loading, setLoading] = useState(true);
   const [theme, setTheme] = useState('light');
+  const isLoggingOutRef = useRef(false);
 
   // Fetch current user details on mount to persist session
-  const checkAuth = async () => {
+  const checkAuth = useCallback(async () => {
+    if (isLoggingOutRef.current) return null;
     try {
       const data = await api.get('/api/auth/me/');
-      setUser(data);
+      if (!isLoggingOutRef.current) {
+        setUser(data);
+        return data;
+      }
     } catch (err) {
-      if (err.status === 401 || err.status === 403 || !user) {
+      if (!isLoggingOutRef.current) {
         setUser(null);
       }
     } finally {
-      setLoading(false);
+      if (!isLoggingOutRef.current) {
+        setLoading(false);
+      }
     }
-  };
+  }, []);
 
   useEffect(() => {
     checkAuth();
-  }, []);
+  }, [checkAuth]);
 
   // Force light mode theme
   useEffect(() => {
@@ -33,6 +40,7 @@ export const AuthProvider = ({ children }) => {
   }, []);
 
   const login = async (username, password) => {
+    isLoggingOutRef.current = false;
     setLoading(true);
     try {
       const data = await api.post('/api/auth/login/', { username, password });
@@ -47,14 +55,19 @@ export const AuthProvider = ({ children }) => {
   };
 
   const logout = async () => {
+    isLoggingOutRef.current = true;
+    setUser(null);
     setLoading(true);
     try {
       await api.post('/api/auth/logout/');
     } catch (err) {
       console.error('Logout error', err);
     } finally {
-      setUser(null);
       setLoading(false);
+      // Keep guard active briefly to ignore any trailing in-flight checkAuth responses
+      setTimeout(() => {
+        isLoggingOutRef.current = false;
+      }, 1000);
     }
   };
 
