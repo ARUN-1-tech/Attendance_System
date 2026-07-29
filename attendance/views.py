@@ -177,6 +177,15 @@ def verify_otp(request):
                     student = request.user.student
                     today = date.today()
                     
+                    if otp.schedule.subject and otp.schedule.subject.subject_type == 'OPEN_ELECTIVE':
+                        is_enrolled = otp.schedule.subject.elective_students.filter(pk=student.pk).exists()
+                    else:
+                        is_enrolled = (student.student_class == otp.schedule.student_class)
+
+                    if not is_enrolled:
+                        messages.error(request, "You are not enrolled in this subject session.")
+                        return redirect('student_dashboard')
+
                     # Check if student has approved Leave/OD today
                     from leave.models import Leave
                     approved_leave = Leave.objects.filter(student=student, date=today, final_status='Approved').first()
@@ -231,10 +240,13 @@ def session_stats_api(request, otp_id):
     otp = get_object_or_404(OTP, id=otp_id)
     today = timezone.now().date()
     
-    # Students bound to this schedule's class
-    students_in_class = Student.objects.filter(student_class=otp.schedule.student_class)
+    # Students enrolled in this schedule/subject
+    if otp.schedule.subject and otp.schedule.subject.subject_type == 'OPEN_ELECTIVE':
+        students = otp.schedule.subject.get_enrolled_students()
+    else:
+        students = Student.objects.filter(student_class=otp.schedule.student_class)
     
-    attendances = Attendance.objects.filter(student__in=students_in_class, schedule=otp.schedule, date=today).select_related('student__user')
+    attendances = Attendance.objects.filter(student__in=students, schedule=otp.schedule, date=today).select_related('student__user', 'student__student_class')
     
     present_count = attendances.filter(status='Present').count()
     absent_count = attendances.filter(status='Absent').count()
@@ -245,6 +257,7 @@ def session_stats_api(request, otp_id):
         {
             'reg_no': a.student.reg_no or a.student.roll_no or a.student.user.username,
             'name': f"{a.student.user.first_name} {a.student.user.last_name}".strip() or a.student.user.username,
+            'class_name': str(a.student.student_class) if a.student.student_class else '',
             'status': a.status
         } for a in attendances
     ]

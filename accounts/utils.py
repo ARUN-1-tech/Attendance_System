@@ -6,16 +6,16 @@ def has_active_otp(user):
     if user.is_authenticated and user.role == 'student':
         try:
             student = user.student
-            if student.student_class:
-                now = timezone.now()
-                three_minutes_ago = now - timedelta(minutes=3)
-                # Check if there is an active OTP for the student's class
-                # created in the last 3 minutes
-                return OTP.objects.filter(
-                    schedule__student_class=student.student_class,
-                    is_active=True,
-                    created_at__gte=three_minutes_ago
-                ).exists()
+            now = timezone.now()
+            three_minutes_ago = now - timedelta(minutes=3)
+            from django.db.models import Q
+            return OTP.objects.filter(
+                is_active=True,
+                created_at__gte=three_minutes_ago
+            ).filter(
+                Q(schedule__student_class=student.student_class) |
+                Q(schedule__subject__subject_type='OPEN_ELECTIVE', schedule__subject__elective_students=student)
+            ).exists()
         except Exception:
             pass
     return False

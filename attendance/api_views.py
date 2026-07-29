@@ -213,7 +213,11 @@ def api_verify_otp(request):
                 student = request.user.student
                 today = timezone.localdate()
                 
-                is_enrolled = (student.student_class == otp.schedule.student_class)
+                if otp.schedule.subject and otp.schedule.subject.subject_type == 'OPEN_ELECTIVE':
+                    is_enrolled = otp.schedule.subject.elective_students.filter(pk=student.pk).exists()
+                else:
+                    is_enrolled = (student.student_class == otp.schedule.student_class)
+
                 if not is_enrolled:
                     return Response({'detail': 'You are not enrolled in this class session.'}, status=status.HTTP_400_BAD_REQUEST)
                 
@@ -295,9 +299,13 @@ def api_session_stats(request, otp_id):
     otp = get_object_or_404(OTP, id=otp_id)
     today = timezone.now().date()
     
-    # Students bound to this schedule's class
-    students_in_class = Student.objects.filter(student_class=otp.schedule.student_class)
-    attendances = Attendance.objects.filter(student__in=students_in_class, schedule=otp.schedule, date=today).select_related('student__user')
+    # Students enrolled in this schedule/subject
+    if otp.schedule.subject and otp.schedule.subject.subject_type == 'OPEN_ELECTIVE':
+        students = otp.schedule.subject.get_enrolled_students()
+    else:
+        students = Student.objects.filter(student_class=otp.schedule.student_class)
+
+    attendances = Attendance.objects.filter(student__in=students, schedule=otp.schedule, date=today).select_related('student__user', 'student__student_class')
     
     present_count = attendances.filter(status='Present').count()
     absent_count = attendances.filter(status='Absent').count()
@@ -308,6 +316,7 @@ def api_session_stats(request, otp_id):
         {
             'reg_no': a.student.reg_no or a.student.roll_no or a.student.user.username,
             'name': f"{a.student.user.first_name} {a.student.user.last_name}".strip() or a.student.user.username,
+            'class_name': str(a.student.student_class) if a.student.student_class else '',
             'status': a.status
         } for a in attendances
     ]
@@ -1183,17 +1192,23 @@ class AttendanceViewSet(viewsets.ModelViewSet):
         except ValueError:
             return Response({'detail': 'Invalid date format. Use YYYY-MM-DD.'}, status=status.HTTP_400_BAD_REQUEST)
 
-        # Retrieve students for this class
-        students = Student.objects.filter(student_class_id=class_id).select_related('user').order_by('reg_no', 'user__username')
+        from accounts.models import Subject
+        subject = Subject.objects.filter(id=subject_id).first()
+        if subject and subject.subject_type == 'OPEN_ELECTIVE':
+            students = subject.get_enrolled_students().select_related('user', 'student_class').order_by('student_class__name', 'student_class__section', 'reg_no', 'user__username')
+        else:
+            students = Student.objects.filter(student_class_id=class_id).select_related('user').order_by('reg_no', 'user__username')
 
         # Retrieve existing attendance for this class, subject, and date
         weekday = target_date.strftime('%A')
         
         schedules_filter = {
-            'student_class_id': class_id,
             'subject_id': subject_id,
             'day': weekday
         }
+        if not (subject and subject.subject_type == 'OPEN_ELECTIVE'):
+            schedules_filter['student_class_id'] = class_id
+
         period_val = None
         if period:
             try:
@@ -1207,7 +1222,7 @@ class AttendanceViewSet(viewsets.ModelViewSet):
         existing_attendance = {}
         if schedules.exists():
             attendances = Attendance.objects.filter(
-                student__student_class_id=class_id,
+                student__in=students,
                 schedule__in=schedules,
                 date=target_date
             )
@@ -1221,6 +1236,7 @@ class AttendanceViewSet(viewsets.ModelViewSet):
                 'id': s.user_id,
                 'username': s.user.username,
                 'name': f"{s.user.first_name} {s.user.last_name}".strip() or s.user.username,
+                'class_name': str(s.student_class) if s.student_class else '',
                 'reg_no': s.reg_no or s.roll_no or s.user.username,
                 'roll_no': s.roll_no or '',
                 'current_status': existing_attendance.get(s.user_id, 'Present')  # Default to Present if not marked

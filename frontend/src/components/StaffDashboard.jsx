@@ -1542,6 +1542,7 @@ const StaffDashboard = ({ activeTab }) => {
                         <th style={{ padding: '8px 12px', width: '60px' }}>S.No</th>
                         <th style={{ padding: '8px 12px' }}>Reg No</th>
                         <th style={{ padding: '8px 12px' }}>Name</th>
+                        <th style={{ padding: '8px 12px' }}>Class</th>
                         <th style={{ padding: '8px 12px', textAlign: 'right' }}>Status</th>
                       </tr>
                     </thead>
@@ -1569,6 +1570,7 @@ const StaffDashboard = ({ activeTab }) => {
                               <td style={{ padding: '8px 12px', fontWeight: '600' }}>{idx + 1}</td>
                               <td style={{ padding: '8px 12px', fontWeight: '600' }}>{student.reg_no}</td>
                               <td style={{ padding: '8px 12px', color: 'var(--text-secondary)' }}>{student.name}</td>
+                              <td style={{ padding: '8px 12px', fontSize: '12px', color: 'var(--text-muted)' }}>{student.class_name || '-'}</td>
                               <td style={{ padding: '8px 12px', textAlign: 'right' }}>
                                 <span style={{
                                   padding: '2px 8px',
