@@ -1144,6 +1144,7 @@ class AttendanceViewSet(viewsets.ModelViewSet):
                 'id': student.pk,
                 'reg_no': student.reg_no or student.roll_no or student.user.username,
                 'name': f"{student.user.first_name} {student.user.last_name}".strip() or student.user.username,
+                'class_name': str(student.student_class) if student.student_class else '',
                 'total_hours': total_hours,
                 'present_count': present_count,
                 'absent_count': absent_count,

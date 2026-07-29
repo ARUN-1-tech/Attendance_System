@@ -120,6 +120,7 @@ class Subject(models.Model):
     year = models.IntegerField(null=True, blank=True)
     semester = models.IntegerField(null=True, blank=True)
     elective_students = models.ManyToManyField('Student', related_name='elective_subjects', blank=True)
+    accepted_classes = models.ManyToManyField(Class, related_name='accepted_open_electives', blank=True)
 
     def __str__(self):
         return f"{self.name} ({self.code})" if self.code else self.name
@@ -135,6 +136,8 @@ class Subject(models.Model):
         if self.student_class and not self.year:
             self.year = self.student_class.year
         super().save(*args, **kwargs)
+        if self.subject_type == 'OPEN_ELECTIVE' and self.student_class:
+            self.accepted_classes.add(self.student_class)
 
 class Student(models.Model):
     user = models.OneToOneField(User, on_delete=models.CASCADE, primary_key=True, limit_choices_to={'role': 'student'})

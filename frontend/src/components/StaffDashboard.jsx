@@ -177,12 +177,42 @@ const StaffDashboard = ({ activeTab }) => {
     }
   };
 
+  const [availableOpenElectives, setAvailableOpenElectives] = useState([]);
+  const [availableOpenElectivesLoading, setAvailableOpenElectivesLoading] = useState(false);
+
+  const fetchAvailableOpenElectives = async (classId) => {
+    setAvailableOpenElectivesLoading(true);
+    try {
+      const url = classId ? `/api/subjects/available-open-electives/?class_id=${classId}` : '/api/subjects/available-open-electives/';
+      const data = await api.get(url);
+      setAvailableOpenElectives(data);
+    } catch (err) {
+      console.error('Failed to fetch available open electives:', err);
+    } finally {
+      setAvailableOpenElectivesLoading(false);
+    }
+  };
+
+  const handleToggleAcceptOpenElective = async (subjectId, accept) => {
+    try {
+      await api.post(`/api/subjects/${subjectId}/toggle-acceptance/`, { accept });
+      if (advisedClass) {
+        fetchAdvisedSubjects(advisedClass.id);
+        fetchAvailableOpenElectives(advisedClass.id);
+      }
+    } catch (err) {
+      console.error(err);
+      alert(err.message || 'Failed to update open elective acceptance.');
+    }
+  };
+
   useEffect(() => {
     if (activeTab === 'manage_subjects') {
       const myAdvisedClass = classes.find(c => c.advisor === user.id);
       if (myAdvisedClass) {
         setAdvisedClass(myAdvisedClass);
         fetchAdvisedSubjects(myAdvisedClass.id);
+        fetchAvailableOpenElectives(myAdvisedClass.id);
       } else {
         setAdvisedClass(null);
         setAdvisedSubjectsLoading(false);
@@ -3460,6 +3490,96 @@ const StaffDashboard = ({ activeTab }) => {
                 </div>
               </div>
             )}
+
+            {advisedClass && (
+              <div className="card" style={{ marginTop: '24px' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
+                  <div>
+                    <h2 style={{ margin: 0, fontSize: '18px' }}>Available Year Open Electives</h2>
+                    <p style={{ color: 'var(--text-secondary)', fontSize: '13px', margin: '4px 0 0 0' }}>
+                      Open Electives offered for Year {advisedClass.year}. Accept subjects to enable them for your class and select enrolled students.
+                    </p>
+                  </div>
+                </div>
+
+                {availableOpenElectivesLoading ? (
+                  <div style={{ textAlign: 'center', padding: '20px' }}>
+                    <div className="spinner" style={{ display: 'inline-block', width: '24px', height: '24px', border: '3px solid var(--border-color)', borderTop: '3px solid var(--accent-primary)', borderRadius: '50%', animation: 'spin 1s linear infinite' }} />
+                  </div>
+                ) : availableOpenElectives.length === 0 ? (
+                  <div style={{ textAlign: 'center', padding: '20px', color: 'var(--text-muted)', fontSize: '13px' }}>
+                    No Open Electives offered for Year {advisedClass.year} yet.
+                  </div>
+                ) : (
+                  <div className="table-container">
+                    <table className="table">
+                      <thead>
+                        <tr>
+                          <th style={{ width: '60px' }}>S.No</th>
+                          <th>Subject Code</th>
+                          <th>Subject Name</th>
+                          <th>Offered By</th>
+                          <th>Class Students Enrolled</th>
+                          <th>Status</th>
+                          <th style={{ textAlign: 'right' }}>Actions</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {availableOpenElectives.map((oe, idx) => (
+                          <tr key={oe.id}>
+                            <td style={{ fontWeight: '600' }}>{idx + 1}</td>
+                            <td><span className="badge badge-secondary">{oe.code}</span></td>
+                            <td style={{ fontWeight: '600' }}>{oe.name}</td>
+                            <td style={{ fontSize: '13px', color: 'var(--text-secondary)' }}>{oe.offered_by_class}</td>
+                            <td>
+                              <span className="badge badge-info">{oe.class_enrolled_count} / {oe.total_enrolled_count} Total</span>
+                            </td>
+                            <td>
+                              {oe.is_accepted ? (
+                                <span className="badge badge-success">Accepted for Class</span>
+                              ) : (
+                                <span className="badge badge-warning">Not Accepted</span>
+                              )}
+                            </td>
+                            <td style={{ textAlign: 'right' }}>
+                              <div style={{ display: 'flex', gap: '8px', justifyContent: 'flex-end' }}>
+                                {oe.is_accepted ? (
+                                  <>
+                                    <button 
+                                      className="btn btn-secondary btn-sm" 
+                                      style={{ padding: '4px 10px', display: 'flex', alignItems: 'center', gap: '4px', color: 'var(--accent-primary)' }}
+                                      onClick={() => handleOpenSelectiveModal(oe)}
+                                    >
+                                      <UserPlus size={14} />
+                                      <span>Selective Students</span>
+                                    </button>
+                                    <button 
+                                      className="btn btn-secondary btn-sm" 
+                                      style={{ padding: '4px 10px', color: 'var(--danger)' }}
+                                      onClick={() => handleToggleAcceptOpenElective(oe.id, false)}
+                                    >
+                                      Opt-Out / Reject
+                                    </button>
+                                  </>
+                                ) : (
+                                  <button 
+                                    className="btn btn-primary btn-sm" 
+                                    style={{ padding: '4px 12px' }}
+                                    onClick={() => handleToggleAcceptOpenElective(oe.id, true)}
+                                  >
+                                    Accept for Class
+                                  </button>
+                                )}
+                              </div>
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                )}
+              </div>
+            )}
           </div>
         )}
 
@@ -3530,6 +3650,7 @@ const StaffDashboard = ({ activeTab }) => {
                         <th style={{ width: '60px' }}>S.No</th>
                         <th>Reg No</th>
                         <th>Student Name</th>
+                        <th>Class / Sec</th>
                         <th>Total Hours</th>
                         <th>Present</th>
                         <th>Absent</th>
@@ -3544,6 +3665,7 @@ const StaffDashboard = ({ activeTab }) => {
                           <td style={{ fontWeight: '600' }}>{idx + 1}</td>
                           <td style={{ fontWeight: '600' }}>{stud.reg_no}</td>
                           <td>{stud.name}</td>
+                          <td style={{ fontSize: '12px', color: 'var(--text-secondary)' }}>{stud.class_name || '-'}</td>
                           <td>{stud.total_hours}</td>
                           <td style={{ color: 'var(--success)' }}>{stud.present_count}</td>
                           <td style={{ color: 'var(--danger)' }}>{stud.absent_count}</td>

@@ -35,15 +35,15 @@ def get_live_class_attendance_matrix(student_class):
     # 2. Get all students of this class
     students = Student.objects.filter(student_class=student_class).select_related('user').order_by('reg_no', 'user__username')
     
-    # 3. Get all attendance records for today for these students and schedules
+    # 3. Get all attendance records for today for these students
     attendances = Attendance.objects.filter(
         student__in=students,
-        schedule__in=schedules,
         date=today
-    ).select_related('student', 'schedule__subject')
+    ).select_related('student', 'schedule__subject', 'schedule')
     
-    # Create a lookup
-    att_lookup = { (att.student_id, att.schedule_id): att.status for att in attendances }
+    # Create lookups by schedule_id and period
+    att_sched_lookup = { (att.student_id, att.schedule_id): att.status for att in attendances }
+    att_period_lookup = { (att.student_id, att.schedule.period): att.status for att in attendances }
     
     # Build rows
     student_rows = []
@@ -59,7 +59,7 @@ def get_live_class_attendance_matrix(student_class):
             'leave_count': 0,
         }
         for sched in schedules:
-            status = att_lookup.get((student.user_id, sched.id), '-')
+            status = att_sched_lookup.get((student.user_id, sched.id)) or att_period_lookup.get((student.user_id, sched.period), '-')
             row['statuses'].append({
                 'schedule_id': sched.id,
                 'status': status
@@ -82,7 +82,7 @@ def get_live_class_attendance_matrix(student_class):
         col_od = 0
         col_leave = 0
         for student in students:
-            status = att_lookup.get((student.user_id, sched.id), '-')
+            status = att_sched_lookup.get((student.user_id, sched.id)) or att_period_lookup.get((student.user_id, sched.period), '-')
             if status == 'Present':
                 col_present += 1
             elif status == 'Absent':

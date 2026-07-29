@@ -165,7 +165,11 @@ class SubjectViewSet(viewsets.ModelViewSet):
         queryset = Subject.objects.all()
         class_id = self.request.query_params.get('class_id')
         if class_id:
-            queryset = queryset.filter(student_class_id=class_id)
+            from django.db.models import Q
+            queryset = queryset.filter(
+                Q(student_class_id=class_id) |
+                Q(accepted_classes__id=class_id, subject_type='OPEN_ELECTIVE')
+            ).distinct()
         else:
             dept_id = self.request.query_params.get('department')
             if dept_id:
@@ -180,15 +184,96 @@ class SubjectViewSet(viewsets.ModelViewSet):
             from accounts.models import Class
             advised_class = Class.objects.filter(advisor=user).first()
             if advised_class:
-                serializer.save(
+                subj = serializer.save(
                     student_class=advised_class,
-                    department=user.department
+                    department=user.department,
+                    year=advised_class.year
                 )
+                if subj.subject_type == 'OPEN_ELECTIVE':
+                    subj.accepted_classes.add(advised_class)
                 return
         if user.role == 'hod' and user.department:
             serializer.save(department=user.department)
         else:
             serializer.save()
+
+    @action(detail=False, methods=['get'], url_path='available-open-electives')
+    def available_open_electives(self, request):
+        user = request.user
+        if user.role not in ['staff', 'hod', 'admin']:
+            return Response({'detail': 'Permission denied.'}, status=status.HTTP_403_FORBIDDEN)
+
+        from accounts.models import Class, Subject
+        advised_class = None
+        if user.role == 'staff':
+            advised_class = Class.objects.filter(advisor=user).first()
+
+        class_id = request.query_params.get('class_id')
+        if class_id:
+            target_class = Class.objects.filter(id=class_id).first()
+        else:
+            target_class = advised_class
+
+        if not target_class:
+            return Response([], status=status.HTTP_200_OK)
+
+        # Get all OPEN_ELECTIVE subjects offered for target_class.year
+        subjects = Subject.objects.filter(
+            subject_type='OPEN_ELECTIVE'
+        ).filter(
+            year=target_class.year
+        ).select_related('student_class', 'department').prefetch_related('accepted_classes', 'elective_students')
+
+        data = []
+        for sub in subjects:
+            is_accepted = target_class in sub.accepted_classes.all()
+            class_enrolled_count = sub.elective_students.filter(student_class=target_class).count()
+            total_enrolled_count = sub.elective_students.count()
+            
+            data.append({
+                'id': sub.id,
+                'name': sub.name,
+                'code': sub.code,
+                'year': sub.year,
+                'department_name': sub.department.name if sub.department else '',
+                'offered_by_class': str(sub.student_class) if sub.student_class else 'All',
+                'is_accepted': is_accepted,
+                'class_enrolled_count': class_enrolled_count,
+                'total_enrolled_count': total_enrolled_count
+            })
+
+        return Response(data)
+
+    @action(detail=True, methods=['post'], url_path='toggle-acceptance')
+    def toggle_acceptance(self, request, pk=None):
+        subject = self.get_object()
+        user = request.user
+        if user.role not in ['staff', 'hod', 'admin']:
+            return Response({'detail': 'Permission denied.'}, status=status.HTTP_403_FORBIDDEN)
+
+        from accounts.models import Class
+        class_id = request.data.get('class_id')
+        if class_id:
+            target_class = Class.objects.filter(id=class_id).first()
+        else:
+            target_class = Class.objects.filter(advisor=user).first()
+
+        if not target_class:
+            return Response({'detail': 'No class found.'}, status=status.HTTP_400_BAD_REQUEST)
+
+        accept = request.data.get('accept', True)
+        if accept:
+            subject.accepted_classes.add(target_class)
+        else:
+            subject.accepted_classes.remove(target_class)
+            # Remove all students of target_class from elective_students
+            class_students = target_class.get_students()
+            subject.elective_students.remove(*class_students)
+
+        return Response({
+            'detail': f'Open elective {"accepted" if accept else "rejected"} for {target_class.name}.',
+            'is_accepted': accept
+        })
 
     @action(detail=True, methods=['get', 'post'], url_path='enrolled-students')
     def enrolled_students(self, request, pk=None):
@@ -199,9 +284,15 @@ class SubjectViewSet(viewsets.ModelViewSet):
             return Response({'detail': 'Permission denied.'}, status=status.HTTP_403_FORBIDDEN)
 
         from accounts.models import Class, Student
-        target_class = subject.student_class
-        if not target_class and user.role == 'staff':
-            target_class = Class.objects.filter(advisor=user).first()
+        class_id = request.query_params.get('class_id')
+        if class_id:
+            target_class = Class.objects.filter(id=class_id).first()
+        else:
+            target_class = subject.student_class
+            if (not target_class or user.role == 'staff') and user.role == 'staff':
+                advised_class = Class.objects.filter(advisor=user).first()
+                if advised_class:
+                    target_class = advised_class
 
         if not target_class:
             return Response({'detail': 'Class not found for this subject.'}, status=status.HTTP_400_BAD_REQUEST)
@@ -215,6 +306,7 @@ class SubjectViewSet(viewsets.ModelViewSet):
                     'id': student.pk,
                     'reg_no': student.reg_no or student.roll_no or student.user.username,
                     'name': f"{student.user.first_name} {student.user.last_name}".strip() or student.user.username,
+                    'class_name': str(student.student_class),
                     'enrolled': student.pk in currently_enrolled_ids
                 }
                 for student in all_class_students
@@ -233,8 +325,13 @@ class SubjectViewSet(viewsets.ModelViewSet):
             if not isinstance(student_ids, list):
                 return Response({'detail': 'student_ids must be a list of student primary keys.'}, status=status.HTTP_400_BAD_REQUEST)
 
-            valid_students = Student.objects.filter(pk__in=student_ids, student_class=target_class)
-            subject.elective_students.set(valid_students)
+            # Class-scoped update so we don't clear students from other classes!
+            students_to_enrol = Student.objects.filter(pk__in=student_ids, student_class=target_class)
+            students_to_remove = Student.objects.filter(student_class=target_class).exclude(pk__in=student_ids)
+
+            subject.elective_students.add(*students_to_enrol)
+            if students_to_remove.exists():
+                subject.elective_students.remove(*students_to_remove)
 
             return Response({
                 'detail': f'Successfully updated enrolled students for {subject.name}.',
