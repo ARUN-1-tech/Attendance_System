@@ -3491,7 +3491,7 @@ const StaffDashboard = ({ activeTab }) => {
               </div>
             )}
 
-            {advisedClass && (
+            {advisedClass && availableOpenElectives.length > 0 && (
               <div className="card" style={{ marginTop: '24px' }}>
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
                   <div>
@@ -3505,10 +3505,6 @@ const StaffDashboard = ({ activeTab }) => {
                 {availableOpenElectivesLoading ? (
                   <div style={{ textAlign: 'center', padding: '20px' }}>
                     <div className="spinner" style={{ display: 'inline-block', width: '24px', height: '24px', border: '3px solid var(--border-color)', borderTop: '3px solid var(--accent-primary)', borderRadius: '50%', animation: 'spin 1s linear infinite' }} />
-                  </div>
-                ) : availableOpenElectives.length === 0 ? (
-                  <div style={{ textAlign: 'center', padding: '20px', color: 'var(--text-muted)', fontSize: '13px' }}>
-                    No Open Electives offered for Year {advisedClass.year} yet.
                   </div>
                 ) : (
                   <div className="table-container">
@@ -3535,42 +3531,16 @@ const StaffDashboard = ({ activeTab }) => {
                               <span className="badge badge-info">{oe.class_enrolled_count} / {oe.total_enrolled_count} Total</span>
                             </td>
                             <td>
-                              {oe.is_accepted ? (
-                                <span className="badge badge-success">Accepted for Class</span>
-                              ) : (
-                                <span className="badge badge-warning">Not Accepted</span>
-                              )}
+                              <span className="badge badge-warning">Not Accepted</span>
                             </td>
                             <td style={{ textAlign: 'right' }}>
-                              <div style={{ display: 'flex', gap: '8px', justifyContent: 'flex-end' }}>
-                                {oe.is_accepted ? (
-                                  <>
-                                    <button 
-                                      className="btn btn-secondary btn-sm" 
-                                      style={{ padding: '4px 10px', display: 'flex', alignItems: 'center', gap: '4px', color: 'var(--accent-primary)' }}
-                                      onClick={() => handleOpenSelectiveModal(oe)}
-                                    >
-                                      <UserPlus size={14} />
-                                      <span>Selective Students</span>
-                                    </button>
-                                    <button 
-                                      className="btn btn-secondary btn-sm" 
-                                      style={{ padding: '4px 10px', color: 'var(--danger)' }}
-                                      onClick={() => handleToggleAcceptOpenElective(oe.id, false)}
-                                    >
-                                      Opt-Out / Reject
-                                    </button>
-                                  </>
-                                ) : (
-                                  <button 
-                                    className="btn btn-primary btn-sm" 
-                                    style={{ padding: '4px 12px' }}
-                                    onClick={() => handleToggleAcceptOpenElective(oe.id, true)}
-                                  >
-                                    Accept for Class
-                                  </button>
-                                )}
-                              </div>
+                              <button 
+                                className="btn btn-primary btn-sm" 
+                                style={{ padding: '4px 12px' }}
+                                onClick={() => handleToggleAcceptOpenElective(oe.id, true)}
+                              >
+                                Accept for Class
+                              </button>
                             </td>
                           </tr>
                         ))}
@@ -3638,46 +3608,73 @@ const StaffDashboard = ({ activeTab }) => {
                 <div style={{ textAlign: 'center', padding: '20px', color: 'var(--danger)' }}>
                   Error: {subjectDetailsError}
                 </div>
-              ) : !subjectStudentsAttendance ? (
+              ) : !subjectStudentsAttendance || !subjectStudentsAttendance.students || subjectStudentsAttendance.students.length === 0 ? (
                 <div style={{ textAlign: 'center', padding: '20px', color: 'var(--text-muted)' }}>
-                  No statistics available.
+                  No enrolled students or statistics available.
                 </div>
               ) : (
-                <div className="table-container">
-                  <table className="table">
-                    <thead>
-                      <tr>
-                        <th style={{ width: '60px' }}>S.No</th>
-                        <th>Reg No</th>
-                        <th>Student Name</th>
-                        <th>Class / Sec</th>
-                        <th>Total Hours</th>
-                        <th>Present</th>
-                        <th>Absent</th>
-                        <th>OD</th>
-                        <th>Leave</th>
-                        <th>Percentage</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {subjectStudentsAttendance.students.map((stud, idx) => (
-                        <tr key={stud.id}>
-                          <td style={{ fontWeight: '600' }}>{idx + 1}</td>
-                          <td style={{ fontWeight: '600' }}>{stud.reg_no}</td>
-                          <td>{stud.name}</td>
-                          <td style={{ fontSize: '12px', color: 'var(--text-secondary)' }}>{stud.class_name || '-'}</td>
-                          <td>{stud.total_hours}</td>
-                          <td style={{ color: 'var(--success)' }}>{stud.present_count}</td>
-                          <td style={{ color: 'var(--danger)' }}>{stud.absent_count}</td>
-                          <td style={{ color: 'var(--info)' }}>{stud.od_count}</td>
-                          <td style={{ color: 'var(--warning)' }}>{stud.leave_count}</td>
-                          <td style={{ fontWeight: '600', color: stud.percentage >= 75.0 ? 'var(--success)' : 'var(--danger)' }}>
-                            {stud.percentage}%
-                          </td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
+                <div>
+                  {Object.entries(
+                    subjectStudentsAttendance.students.reduce((acc, stud) => {
+                      const cName = stud.class_name || 'Unassigned Class';
+                      if (!acc[cName]) acc[cName] = [];
+                      acc[cName].push(stud);
+                      return acc;
+                    }, {})
+                  ).map(([className, classStudents], cIdx) => (
+                    <div key={cIdx} style={{ marginBottom: '24px' }}>
+                      <div style={{
+                        backgroundColor: 'var(--bg-secondary)',
+                        padding: '10px 14px',
+                        borderRadius: '8px',
+                        marginBottom: '12px',
+                        display: 'flex',
+                        justify: 'space-between',
+                        alignItems: 'center',
+                        borderLeft: '4px solid var(--accent-primary)'
+                      }}>
+                        <h4 style={{ margin: 0, fontSize: '14px', fontWeight: '700', color: 'var(--text-primary)' }}>
+                          Class: {className}
+                        </h4>
+                        <span className="badge badge-info">{classStudents.length} Students</span>
+                      </div>
+
+                      <div className="table-container">
+                        <table className="table">
+                          <thead>
+                            <tr>
+                              <th style={{ width: '50px' }}>S.No</th>
+                              <th>Reg No</th>
+                              <th>Student Name</th>
+                              <th>Total Hours</th>
+                              <th>Present</th>
+                              <th>Absent</th>
+                              <th>OD</th>
+                              <th>Leave</th>
+                              <th>Percentage</th>
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {classStudents.map((stud, idx) => (
+                              <tr key={stud.id}>
+                                <td style={{ fontWeight: '600' }}>{idx + 1}</td>
+                                <td style={{ fontWeight: '600' }}>{stud.reg_no}</td>
+                                <td>{stud.name}</td>
+                                <td>{stud.total_hours}</td>
+                                <td style={{ color: 'var(--success)' }}>{stud.present_count}</td>
+                                <td style={{ color: 'var(--danger)' }}>{stud.absent_count}</td>
+                                <td style={{ color: 'var(--info)' }}>{stud.od_count}</td>
+                                <td style={{ color: 'var(--warning)' }}>{stud.leave_count}</td>
+                                <td style={{ fontWeight: '600', color: stud.percentage >= 75.0 ? 'var(--success)' : 'var(--danger)' }}>
+                                  {stud.percentage}%
+                                </td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      </div>
+                    </div>
+                  ))}
                 </div>
               )}
             </div>

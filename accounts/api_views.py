@@ -217,11 +217,13 @@ class SubjectViewSet(viewsets.ModelViewSet):
         if not target_class:
             return Response([], status=status.HTTP_200_OK)
 
-        # Get all OPEN_ELECTIVE subjects offered for target_class.year
+        # Get all UNACCEPTED OPEN_ELECTIVE subjects offered for target_class.year
         subjects = Subject.objects.filter(
             subject_type='OPEN_ELECTIVE'
         ).filter(
             year=target_class.year
+        ).exclude(
+            accepted_classes=target_class
         ).select_related('student_class', 'department').prefetch_related('accepted_classes', 'elective_students')
 
         data = []

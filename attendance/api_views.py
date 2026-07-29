@@ -1005,12 +1005,12 @@ class AttendanceViewSet(viewsets.ModelViewSet):
         from accounts.models import Subject, Student, Class
         subject = get_object_or_404(Subject, id=subject_id)
         if subject.subject_type == 'OPEN_ELECTIVE':
-            students = subject.get_enrolled_students().select_related('user').order_by('reg_no', 'user__username')
+            students = subject.get_enrolled_students().select_related('user', 'student_class').order_by('student_class__name', 'student_class__section', 'reg_no', 'user__username')
         else:
             advised_class = Class.objects.filter(advisor=user).first()
             target_class = subject.student_class or advised_class
             if target_class:
-                students = target_class.get_students().select_related('user').order_by('reg_no', 'user__username')
+                students = target_class.get_students().select_related('user', 'student_class').order_by('student_class__name', 'student_class__section', 'reg_no', 'user__username')
             else:
                 students = Student.objects.none()
         
@@ -1102,12 +1102,12 @@ class AttendanceViewSet(viewsets.ModelViewSet):
         from accounts.models import Subject, Student, Class
         subject = get_object_or_404(Subject, id=subject_id)
         if subject.subject_type == 'OPEN_ELECTIVE':
-            students = subject.get_enrolled_students().select_related('user').order_by('reg_no', 'user__username')
+            students = subject.get_enrolled_students().select_related('user', 'student_class').order_by('student_class__name', 'student_class__section', 'reg_no', 'user__username')
         else:
             advised_class = Class.objects.filter(advisor=user).first()
             target_class = subject.student_class or advised_class
             if target_class:
-                students = target_class.get_students().select_related('user').order_by('reg_no', 'user__username')
+                students = target_class.get_students().select_related('user', 'student_class').order_by('student_class__name', 'student_class__section', 'reg_no', 'user__username')
             else:
                 students = Student.objects.none()
         
@@ -1144,7 +1144,10 @@ class AttendanceViewSet(viewsets.ModelViewSet):
                 'id': student.pk,
                 'reg_no': student.reg_no or student.roll_no or student.user.username,
                 'name': f"{student.user.first_name} {student.user.last_name}".strip() or student.user.username,
-                'class_name': str(student.student_class) if student.student_class else '',
+                'class_id': student.student_class.id if student.student_class else None,
+                'class_name': str(student.student_class) if student.student_class else 'Unassigned',
+                'class_only_name': student.student_class.name if student.student_class else '',
+                'section': student.student_class.section if student.student_class else '',
                 'total_hours': total_hours,
                 'present_count': present_count,
                 'absent_count': absent_count,
