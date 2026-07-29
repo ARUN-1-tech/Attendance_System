@@ -90,7 +90,7 @@ const HODDashboard = ({ activeTab, setActiveTab }) => {
   const [editingSubject, setEditingSubject] = useState(null);
   const [subjectName, setSubjectName] = useState('');
   const [subjectCode, setSubjectCode] = useState('');
-  const [subjectType, setSubjectType] = useState('REGULAR');
+  const [subjectType, setSubjectType] = useState('THEORY');
 
   // Approvals states
   const [leaves, setLeaves] = useState([]);
@@ -738,7 +738,7 @@ const HODDashboard = ({ activeTab, setActiveTab }) => {
     setEditingSubject(s);
     setSubjectName(s.name);
     setSubjectCode(s.code);
-    setSubjectType(s.subject_type || 'REGULAR');
+    setSubjectType(s.subject_type || 'THEORY');
     setSubjectFormOpen(true);
   };
 
@@ -756,7 +756,7 @@ const HODDashboard = ({ activeTab, setActiveTab }) => {
   const clearSubjectForm = () => {
     setSubjectName('');
     setSubjectCode('');
-    setSubjectType('REGULAR');
+    setSubjectType('THEORY');
   };
 
   // HOD Approvals
@@ -2084,15 +2084,44 @@ const HODDashboard = ({ activeTab, setActiveTab }) => {
                 <div className="form-group">
                   <label className="form-label">Subject Type</label>
                   <select className="input" value={subjectType} onChange={(e) => setSubjectType(e.target.value)}>
-                    <option value="REGULAR">Regular</option>
+                    <option value="THEORY">Theory</option>
+                    <option value="THEORY_CUM_PRACTICAL">Theory Cum Practical</option>
+                    <option value="PROFESSIONAL_ELECTIVE">Professional Elective</option>
                     <option value="OPEN_ELECTIVE">Open Elective</option>
                   </select>
                 </div>
               </div>
-              <div className="form-group" style={{ marginBottom: '24px' }}>
+              <div className="form-group" style={{ marginBottom: '16px' }}>
                 <label className="form-label">Subject Name</label>
                 <input type="text" className="input" placeholder="e.g. Cloud Computing" required value={subjectName} onChange={(e) => setSubjectName(e.target.value)} />
               </div>
+
+              {subjectType === 'PROFESSIONAL_ELECTIVE' && (
+                <div style={{ marginBottom: '20px', padding: '12px', borderRadius: '8px', backgroundColor: 'var(--bg-secondary)', border: '1px solid var(--border-color)' }}>
+                  <label className="form-label" style={{ marginBottom: '6px', fontSize: '13px' }}>
+                    Choose Roman Letter Designation (Click to select/append):
+                  </label>
+                  <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px' }}>
+                    {['I', 'II', 'III', 'IV', 'V', 'VI', 'VII', 'VIII', 'IX', 'X'].map((roman) => (
+                      <button
+                        key={roman}
+                        type="button"
+                        className="btn btn-secondary btn-sm"
+                        style={{ padding: '3px 10px', fontSize: '12px', fontWeight: '600' }}
+                        onClick={() => {
+                          if (!subjectName.trim()) {
+                            setSubjectName(`Professional Elective ${roman}`);
+                          } else if (!subjectName.includes(roman)) {
+                            setSubjectName(`${subjectName} ${roman}`);
+                          }
+                        }}
+                      >
+                        {roman}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              )}
 
               <div style={{ display: 'flex', gap: '12px' }}>
                 <button type="submit" className="btn btn-primary">Save Subject</button>
@@ -2125,8 +2154,16 @@ const HODDashboard = ({ activeTab, setActiveTab }) => {
                         <span className="badge" style={{ backgroundColor: 'rgba(59, 130, 246, 0.15)', color: '#3b82f6', border: '1px solid rgba(59, 130, 246, 0.3)' }}>
                           Open Elective
                         </span>
+                      ) : s.subject_type === 'PROFESSIONAL_ELECTIVE' ? (
+                        <span className="badge" style={{ backgroundColor: 'rgba(147, 51, 234, 0.15)', color: '#a855f7', border: '1px solid rgba(147, 51, 234, 0.3)' }}>
+                          Professional Elective
+                        </span>
+                      ) : s.subject_type === 'THEORY_CUM_PRACTICAL' ? (
+                        <span className="badge" style={{ backgroundColor: 'rgba(20, 184, 166, 0.15)', color: '#14b8a6', border: '1px solid rgba(20, 184, 166, 0.3)' }}>
+                          Theory Cum Practical
+                        </span>
                       ) : (
-                        <span className="badge badge-secondary">Regular</span>
+                        <span className="badge badge-secondary">Theory</span>
                       )}
                     </td>
                     <td>

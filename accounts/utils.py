@@ -13,8 +13,8 @@ def has_active_otp(user):
                 is_active=True,
                 created_at__gte=three_minutes_ago
             ).filter(
-                Q(schedule__student_class=student.student_class) |
-                Q(schedule__subject__subject_type='OPEN_ELECTIVE', schedule__subject__elective_students=student)
+                (Q(schedule__student_class=student.student_class) & ~Q(schedule__subject__subject_type__in=['OPEN_ELECTIVE', 'PROFESSIONAL_ELECTIVE'])) |
+                Q(schedule__subject__subject_type__in=['OPEN_ELECTIVE', 'PROFESSIONAL_ELECTIVE'], schedule__subject__elective_students=student)
             ).exists()
         except Exception:
             pass

@@ -142,7 +142,7 @@ def api_generate_otp(request):
         otps_created.append(otp)
         
         # Pre-mark all students
-        if schedule.subject and schedule.subject.subject_type == 'OPEN_ELECTIVE':
+        if schedule.subject and schedule.subject.subject_type in ['OPEN_ELECTIVE', 'PROFESSIONAL_ELECTIVE']:
             students = schedule.subject.get_enrolled_students()
         else:
             students = schedule.student_class.get_students()
@@ -213,7 +213,7 @@ def api_verify_otp(request):
                 student = request.user.student
                 today = timezone.localdate()
                 
-                if otp.schedule.subject and otp.schedule.subject.subject_type == 'OPEN_ELECTIVE':
+                if otp.schedule.subject and otp.schedule.subject.subject_type in ['OPEN_ELECTIVE', 'PROFESSIONAL_ELECTIVE']:
                     is_enrolled = otp.schedule.subject.elective_students.filter(pk=student.pk).exists()
                 else:
                     is_enrolled = (student.student_class == otp.schedule.student_class)
@@ -300,7 +300,7 @@ def api_session_stats(request, otp_id):
     today = timezone.now().date()
     
     # Students enrolled in this schedule/subject
-    if otp.schedule.subject and otp.schedule.subject.subject_type == 'OPEN_ELECTIVE':
+    if otp.schedule.subject and otp.schedule.subject.subject_type in ['OPEN_ELECTIVE', 'PROFESSIONAL_ELECTIVE']:
         students = otp.schedule.subject.get_enrolled_students()
     else:
         students = Student.objects.filter(student_class=otp.schedule.student_class)
@@ -1013,7 +1013,7 @@ class AttendanceViewSet(viewsets.ModelViewSet):
             
         from accounts.models import Subject, Student, Class
         subject = get_object_or_404(Subject, id=subject_id)
-        if subject.subject_type == 'OPEN_ELECTIVE':
+        if subject.subject_type in ['OPEN_ELECTIVE', 'PROFESSIONAL_ELECTIVE']:
             students = subject.get_enrolled_students().select_related('user', 'student_class').order_by('student_class__name', 'student_class__section', 'reg_no', 'user__username')
         else:
             advised_class = Class.objects.filter(advisor=user).first()
@@ -1110,7 +1110,7 @@ class AttendanceViewSet(viewsets.ModelViewSet):
             
         from accounts.models import Subject, Student, Class
         subject = get_object_or_404(Subject, id=subject_id)
-        if subject.subject_type == 'OPEN_ELECTIVE':
+        if subject.subject_type in ['OPEN_ELECTIVE', 'PROFESSIONAL_ELECTIVE']:
             students = subject.get_enrolled_students().select_related('user', 'student_class').order_by('student_class__name', 'student_class__section', 'reg_no', 'user__username')
         else:
             advised_class = Class.objects.filter(advisor=user).first()
@@ -1194,7 +1194,7 @@ class AttendanceViewSet(viewsets.ModelViewSet):
 
         from accounts.models import Subject
         subject = Subject.objects.filter(id=subject_id).first()
-        if subject and subject.subject_type == 'OPEN_ELECTIVE':
+        if subject and subject.subject_type in ['OPEN_ELECTIVE', 'PROFESSIONAL_ELECTIVE']:
             students = subject.get_enrolled_students().select_related('user', 'student_class').order_by('student_class__name', 'student_class__section', 'reg_no', 'user__username')
         else:
             students = Student.objects.filter(student_class_id=class_id).select_related('user').order_by('reg_no', 'user__username')
@@ -1206,7 +1206,7 @@ class AttendanceViewSet(viewsets.ModelViewSet):
             'subject_id': subject_id,
             'day': weekday
         }
-        if not (subject and subject.subject_type == 'OPEN_ELECTIVE'):
+        if not (subject and subject.subject_type in ['OPEN_ELECTIVE', 'PROFESSIONAL_ELECTIVE']):
             schedules_filter['student_class_id'] = class_id
 
         period_val = None

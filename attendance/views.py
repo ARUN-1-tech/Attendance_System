@@ -177,7 +177,7 @@ def verify_otp(request):
                     student = request.user.student
                     today = date.today()
                     
-                    if otp.schedule.subject and otp.schedule.subject.subject_type == 'OPEN_ELECTIVE':
+                    if otp.schedule.subject and otp.schedule.subject.subject_type in ['OPEN_ELECTIVE', 'PROFESSIONAL_ELECTIVE']:
                         is_enrolled = otp.schedule.subject.elective_students.filter(pk=student.pk).exists()
                     else:
                         is_enrolled = (student.student_class == otp.schedule.student_class)
@@ -241,7 +241,7 @@ def session_stats_api(request, otp_id):
     today = timezone.now().date()
     
     # Students enrolled in this schedule/subject
-    if otp.schedule.subject and otp.schedule.subject.subject_type == 'OPEN_ELECTIVE':
+    if otp.schedule.subject and otp.schedule.subject.subject_type in ['OPEN_ELECTIVE', 'PROFESSIONAL_ELECTIVE']:
         students = otp.schedule.subject.get_enrolled_students()
     else:
         students = Student.objects.filter(student_class=otp.schedule.student_class)

@@ -109,14 +109,16 @@ class Class(models.Model):
 
 class Subject(models.Model):
     SUBJECT_TYPE_CHOICES = (
-        ('REGULAR', 'Regular'),
+        ('THEORY', 'Theory'),
+        ('THEORY_CUM_PRACTICAL', 'Theory Cum Practical'),
+        ('PROFESSIONAL_ELECTIVE', 'Professional Elective'),
         ('OPEN_ELECTIVE', 'Open Elective'),
     )
     name = models.CharField(max_length=100)
     code = models.CharField(max_length=20, null=True, blank=True)
     department = models.ForeignKey(Department, on_delete=models.CASCADE, null=True, blank=True)
     student_class = models.ForeignKey(Class, on_delete=models.CASCADE, null=True, blank=True, related_name='subjects')
-    subject_type = models.CharField(max_length=20, choices=SUBJECT_TYPE_CHOICES, default='REGULAR')
+    subject_type = models.CharField(max_length=30, choices=SUBJECT_TYPE_CHOICES, default='THEORY')
     year = models.IntegerField(null=True, blank=True)
     semester = models.IntegerField(null=True, blank=True)
     elective_students = models.ManyToManyField('Student', related_name='elective_subjects', blank=True)
@@ -126,7 +128,7 @@ class Subject(models.Model):
         return f"{self.name} ({self.code})" if self.code else self.name
 
     def get_enrolled_students(self):
-        if self.subject_type == 'OPEN_ELECTIVE':
+        if self.subject_type in ['OPEN_ELECTIVE', 'PROFESSIONAL_ELECTIVE']:
             return self.elective_students.all()
         elif self.student_class:
             return self.student_class.get_students()

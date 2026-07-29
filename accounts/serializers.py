@@ -64,7 +64,7 @@ class SubjectSerializer(serializers.ModelSerializer):
         fields = '__all__'
 
     def get_elective_student_count(self, obj):
-        if obj.subject_type == 'OPEN_ELECTIVE':
+        if obj.subject_type in ['OPEN_ELECTIVE', 'PROFESSIONAL_ELECTIVE']:
             return obj.elective_students.count()
         return 0
 

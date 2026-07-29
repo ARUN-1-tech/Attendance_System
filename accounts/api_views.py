@@ -191,11 +191,15 @@ class SubjectViewSet(viewsets.ModelViewSet):
                 )
                 if subj.subject_type == 'OPEN_ELECTIVE':
                     subj.accepted_classes.add(advised_class)
+                elif subj.subject_type == 'PROFESSIONAL_ELECTIVE':
+                    subj.elective_students.set(advised_class.get_students())
                 return
         if user.role == 'hod' and user.department:
-            serializer.save(department=user.department)
+            subj = serializer.save(department=user.department)
         else:
-            serializer.save()
+            subj = serializer.save()
+        if subj.subject_type == 'PROFESSIONAL_ELECTIVE' and subj.student_class:
+            subj.elective_students.set(subj.student_class.get_students())
 
     @action(detail=False, methods=['get'], url_path='available-open-electives')
     def available_open_electives(self, request):

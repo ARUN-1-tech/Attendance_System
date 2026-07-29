@@ -612,6 +612,44 @@ class UserPasswordChangeAndManualAttendanceTestCase(TestCase):
         self.assertTrue(Subject.objects.filter(code='PHY101', student_class=self.clazz).exists())
         self.assertTrue(Subject.objects.filter(code='CHM101', student_class=self.clazz).exists())
 
+    def test_professional_elective_creation_and_enrolled_students(self):
+        from accounts.models import Subject
+        self.staff.staff_type = 'Advisor'
+        self.staff.save()
+        self.clazz.advisor = self.staff_user
+        self.clazz.save()
+
+        self.client.login(username='staff_user', password='staffpass123')
+
+        # 1. Create Professional Elective subject as Advisor
+        response = self.client.post('/api/subjects/', {
+            'name': 'Professional Elective II',
+            'code': 'PE201',
+            'subject_type': 'PROFESSIONAL_ELECTIVE'
+        })
+        self.assertEqual(response.status_code, 201)
+        sub_id = response.data['id']
+
+        sub = Subject.objects.get(id=sub_id)
+        self.assertEqual(sub.subject_type, 'PROFESSIONAL_ELECTIVE')
+        self.assertEqual(sub.student_class, self.clazz)
+        # Initially auto-enrolled class student
+        self.assertTrue(sub.elective_students.filter(pk=self.student.pk).exists())
+
+        # 2. Get enrolled students endpoint
+        res = self.client.get(f'/api/subjects/{sub_id}/enrolled-students/')
+        self.assertEqual(res.status_code, 200)
+        self.assertEqual(res.data['subject_type'], 'PROFESSIONAL_ELECTIVE')
+        self.assertEqual(len(res.data['students']), 1)
+
+        # 3. Update enrolled students (deselect)
+        post_res = self.client.post(f'/api/subjects/{sub_id}/enrolled-students/', {
+            'student_ids': []
+        }, format='json')
+        self.assertEqual(post_res.status_code, 200)
+        sub.refresh_from_db()
+        self.assertEqual(sub.elective_students.count(), 0)
+
     def test_period_lock_conflict(self):
         from attendance.models import PeriodLock
         # Create user B
