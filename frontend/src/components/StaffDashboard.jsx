@@ -3,7 +3,7 @@ import { api } from '../api';
 import { useAuth } from '../AuthContext';
 import { 
   Play, Check, X, ShieldAlert, Award, FileSpreadsheet, 
-  Trash2, Plus, Calendar, User, Eye, Edit,
+  Trash2, Plus, Calendar, User, Eye, Edit, UserPlus,
   Search, Download, ArrowLeft, Settings, HelpCircle,
   MapPin, Clock, ShieldCheck, CheckCircle, CheckCircle2
 } from 'lucide-react';
@@ -88,6 +88,13 @@ const StaffDashboard = ({ activeTab }) => {
   const [editingSubject, setEditingSubject] = useState(null);
   const [subjectName, setSubjectName] = useState('');
   const [subjectCode, setSubjectCode] = useState('');
+  const [subjectType, setSubjectType] = useState('REGULAR');
+  const [selectiveModalOpen, setSelectiveModalOpen] = useState(false);
+  const [selectiveSubject, setSelectiveSubject] = useState(null);
+  const [selectiveStudentsList, setSelectiveStudentsList] = useState([]);
+  const [selectiveLoading, setSelectiveLoading] = useState(false);
+  const [selectiveSaving, setSelectiveSaving] = useState(false);
+  const [selectiveSearch, setSelectiveSearch] = useState('');
 
   // Manual Attendance states
   const [manualDeptId, setManualDeptId] = useState(user.department?.toString() || '');
@@ -141,7 +148,6 @@ const StaffDashboard = ({ activeTab }) => {
     }
   };
 
-  const [subjectType, setSubjectType] = useState('REGULAR');
   const [studentsListLoading, setStudentsListLoading] = useState(false);
   const [advisorClassStudents, setAdvisorClassStudents] = useState([]);
 
@@ -199,7 +205,7 @@ const StaffDashboard = ({ activeTab }) => {
     const payload = {
       name: subjectName,
       code: subjectCode,
-      subject_type: 'REGULAR',
+      subject_type: subjectType,
       student_class: advisedClass?.id
     };
     try {
@@ -241,6 +247,51 @@ const StaffDashboard = ({ activeTab }) => {
     } catch (err) {
       console.error(err);
       alert("Error deleting subject.");
+    }
+  };
+
+  const handleOpenSelectiveModal = async (sub) => {
+    setSelectiveSubject(sub);
+    setSelectiveModalOpen(true);
+    setSelectiveLoading(true);
+    setSelectiveSearch('');
+    try {
+      const data = await api.get(`/api/subjects/${sub.id}/enrolled-students/`);
+      setSelectiveStudentsList(data.students || []);
+    } catch (err) {
+      console.error(err);
+      alert(err.message || 'Failed to load class students.');
+      setSelectiveModalOpen(false);
+    } finally {
+      setSelectiveLoading(false);
+    }
+  };
+
+  const handleToggleStudentEnrolment = (studentId) => {
+    setSelectiveStudentsList(prev => prev.map(s => s.id === studentId ? { ...s, enrolled: !s.enrolled } : s));
+  };
+
+  const handleSelectAllStudents = (select) => {
+    setSelectiveStudentsList(prev => prev.map(s => ({ ...s, enrolled: select })));
+  };
+
+  const handleSaveSelectiveEnrolment = async () => {
+    if (!selectiveSubject) return;
+    setSelectiveSaving(true);
+    try {
+      const enrolledIds = selectiveStudentsList.filter(s => s.enrolled).map(s => s.id);
+      await api.post(`/api/subjects/${selectiveSubject.id}/enrolled-students/`, { student_ids: enrolledIds });
+      alert('Selective students updated successfully!');
+      setSelectiveModalOpen(false);
+      if (advisedClass) fetchAdvisedSubjects(advisedClass.id);
+      if (subjectDetailsModalOpen && selectedSubjectDetails?.id === selectiveSubject.id) {
+        handleViewSubjectDetails(selectiveSubject);
+      }
+    } catch (err) {
+      console.error(err);
+      alert(err.message || 'Failed to save student selection.');
+    } finally {
+      setSelectiveSaving(false);
     }
   };
 
@@ -3255,7 +3306,7 @@ const StaffDashboard = ({ activeTab }) => {
               <div className="card" style={{ marginBottom: '24px', maxWidth: '650px' }}>
                 <h2>{editingSubject ? 'Edit Subject' : 'Add New Subject'}</h2>
                 <form onSubmit={handleSaveSubject} style={{ marginTop: '16px' }}>
-                  <div className="grid grid-cols-2" style={{ marginBottom: '16px' }}>
+                  <div className="grid grid-cols-3" style={{ marginBottom: '16px' }}>
                     <div className="form-group">
                       <label className="form-label">Subject Name</label>
                       <input 
@@ -3277,6 +3328,17 @@ const StaffDashboard = ({ activeTab }) => {
                         onChange={(e) => setSubjectCode(e.target.value)} 
                         required 
                       />
+                    </div>
+                    <div className="form-group">
+                      <label className="form-label">Subject Type</label>
+                      <select 
+                        className="input" 
+                        value={subjectType} 
+                        onChange={(e) => setSubjectType(e.target.value)}
+                      >
+                        <option value="REGULAR">Regular</option>
+                        <option value="OPEN_ELECTIVE">Open Elective</option>
+                      </select>
                     </div>
                   </div>
                   <div style={{ display: 'flex', gap: '8px' }}>
@@ -3316,13 +3378,14 @@ const StaffDashboard = ({ activeTab }) => {
                         <th style={{ width: '60px' }}>S.No</th>
                         <th>Subject Name</th>
                         <th>Subject Code</th>
+                        <th>Type</th>
                         <th style={{ textAlign: 'right' }}>Actions</th>
                       </tr>
                     </thead>
                     <tbody>
                       {advisedSubjects.length === 0 ? (
                         <tr>
-                          <td colSpan={4} style={{ textAlign: 'center', color: 'var(--text-muted)' }}>
+                          <td colSpan={5} style={{ textAlign: 'center', color: 'var(--text-muted)' }}>
                             No subjects added yet. Add subjects to enable attendance marking for this class.
                           </td>
                         </tr>
@@ -3340,8 +3403,28 @@ const StaffDashboard = ({ activeTab }) => {
                               {sub.name}
                             </td>
                             <td><span className="badge badge-secondary">{sub.code}</span></td>
+                            <td>
+                              {sub.subject_type === 'OPEN_ELECTIVE' ? (
+                                <span className="badge" style={{ backgroundColor: 'rgba(59, 130, 246, 0.15)', color: '#3b82f6', border: '1px solid rgba(59, 130, 246, 0.3)' }}>
+                                  Open Elective ({sub.elective_student_count || 0})
+                                </span>
+                              ) : (
+                                <span className="badge badge-secondary">Regular</span>
+                              )}
+                            </td>
                             <td style={{ textAlign: 'right' }}>
                               <div style={{ display: 'flex', gap: '8px', justifyContent: 'flex-end' }}>
+                                {sub.subject_type === 'OPEN_ELECTIVE' && (
+                                  <button 
+                                    className="btn btn-secondary btn-sm" 
+                                    style={{ padding: '4px 8px', display: 'flex', alignItems: 'center', gap: '4px', color: 'var(--accent-primary)' }}
+                                    onClick={() => handleOpenSelectiveModal(sub)}
+                                    title="Manage Enrolled Students"
+                                  >
+                                    <UserPlus size={14} />
+                                    <span>Selective Students</span>
+                                  </button>
+                                )}
                                 <button 
                                   className="btn btn-secondary btn-sm" 
                                   style={{ padding: '4px 8px', display: 'flex', alignItems: 'center', gap: '4px' }}
@@ -3389,20 +3472,41 @@ const StaffDashboard = ({ activeTab }) => {
             <div className="card" style={{ width: '90%', maxWidth: '900px', maxHeight: '90vh', overflowY: 'auto', padding: '30px', position: 'relative' }}>
               <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '24px', alignItems: 'center', borderBottom: '1px solid var(--border-color)', paddingBottom: '16px' }}>
                 <div>
-                  <h2 style={{ fontSize: '20px', fontWeight: '700', margin: 0, color: 'var(--text-primary)' }}>
-                    Subject Attendance Details: {selectedSubjectDetails.name}
-                  </h2>
-                  <span className="badge badge-secondary" style={{ marginTop: '4px' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                    <h2 style={{ fontSize: '20px', fontWeight: '700', margin: 0, color: 'var(--text-primary)' }}>
+                      Subject Attendance Details: {selectedSubjectDetails.name}
+                    </h2>
+                    {selectedSubjectDetails.subject_type === 'OPEN_ELECTIVE' ? (
+                      <span className="badge" style={{ backgroundColor: 'rgba(59, 130, 246, 0.15)', color: '#3b82f6', border: '1px solid rgba(59, 130, 246, 0.3)' }}>
+                        Open Elective
+                      </span>
+                    ) : (
+                      <span className="badge badge-secondary">Regular</span>
+                    )}
+                  </div>
+                  <span className="badge badge-secondary" style={{ marginTop: '6px' }}>
                     Code: {selectedSubjectDetails.code}
                   </span>
                 </div>
-                <button 
-                  className="btn btn-secondary" 
-                  style={{ padding: '6px 12px', fontSize: '13px' }} 
-                  onClick={() => setSubjectDetailsModalOpen(false)}
-                >
-                  Close
-                </button>
+                <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+                  {selectedSubjectDetails.subject_type === 'OPEN_ELECTIVE' && (
+                    <button 
+                      className="btn btn-secondary" 
+                      style={{ padding: '6px 12px', fontSize: '13px', display: 'flex', alignItems: 'center', gap: '6px', color: 'var(--accent-primary)' }} 
+                      onClick={() => handleOpenSelectiveModal(selectedSubjectDetails)}
+                    >
+                      <UserPlus size={15} />
+                      <span>Manage Enrolled Students</span>
+                    </button>
+                  )}
+                  <button 
+                    className="btn btn-secondary" 
+                    style={{ padding: '6px 12px', fontSize: '13px' }} 
+                    onClick={() => setSubjectDetailsModalOpen(false)}
+                  >
+                    Close
+                  </button>
+                </div>
               </div>
 
               {subjectDetailsLoading ? (
@@ -3452,6 +3556,118 @@ const StaffDashboard = ({ activeTab }) => {
                       ))}
                     </tbody>
                   </table>
+                </div>
+              )}
+            </div>
+          </div>
+        )}
+
+        {selectiveModalOpen && selectiveSubject && (
+          <div style={{
+            position: 'fixed', top: 0, left: 0, right: 0, bottom: 0,
+            backgroundColor: 'rgba(0,0,0,0.6)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1200,
+            backdropFilter: 'blur(4px)'
+          }}>
+            <div className="card" style={{ width: '90%', maxWidth: '650px', maxHeight: '85vh', overflowY: 'auto', padding: '24px', position: 'relative' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '16px', alignItems: 'center', borderBottom: '1px solid var(--border-color)', paddingBottom: '12px' }}>
+                <div>
+                  <h3 style={{ fontSize: '18px', fontWeight: '700', margin: 0, color: 'var(--text-primary)' }}>
+                    Enrol Selective Students: {selectiveSubject.name}
+                  </h3>
+                  <p style={{ color: 'var(--text-secondary)', fontSize: '13px', margin: '4px 0 0 0' }}>
+                    Select students from your class who are taking this Open Elective subject.
+                  </p>
+                </div>
+                <button 
+                  className="btn btn-secondary" 
+                  style={{ padding: '4px 10px', fontSize: '12px' }} 
+                  onClick={() => setSelectiveModalOpen(false)}
+                >
+                  Close
+                </button>
+              </div>
+
+              {selectiveLoading ? (
+                <div style={{ textAlign: 'center', padding: '30px' }}>
+                  <div className="spinner" style={{ display: 'inline-block', width: '24px', height: '24px', border: '3px solid var(--border-color)', borderTop: '3px solid var(--accent-primary)', borderRadius: '50%', animation: 'spin 1s linear infinite' }} />
+                  <p style={{ marginTop: '8px', color: 'var(--text-secondary)', fontSize: '13px' }}>Loading class students...</p>
+                </div>
+              ) : (
+                <div>
+                  <div style={{ display: 'flex', gap: '10px', marginBottom: '16px', alignItems: 'center' }}>
+                    <div style={{ position: 'relative', flex: 1 }}>
+                      <Search size={16} style={{ position: 'absolute', left: '10px', top: '50%', transform: 'translateY(-50%)', color: 'var(--text-muted)' }} />
+                      <input 
+                        type="text" 
+                        className="input" 
+                        placeholder="Search student by name or reg no..." 
+                        style={{ paddingLeft: '34px', height: '36px', fontSize: '13px' }}
+                        value={selectiveSearch}
+                        onChange={(e) => setSelectiveSearch(e.target.value)}
+                      />
+                    </div>
+                    <button className="btn btn-secondary btn-sm" style={{ height: '36px', fontSize: '12px' }} onClick={() => handleSelectAllStudents(true)}>
+                      Select All
+                    </button>
+                    <button className="btn btn-secondary btn-sm" style={{ height: '36px', fontSize: '12px' }} onClick={() => handleSelectAllStudents(false)}>
+                      Deselect All
+                    </button>
+                  </div>
+
+                  <div style={{ maxHeight: '350px', overflowY: 'auto', border: '1px solid var(--border-color)', borderRadius: 'var(--radius-sm)', padding: '8px', backgroundColor: 'var(--bg-secondary)' }}>
+                    {selectiveStudentsList.filter(s => 
+                      s.name.toLowerCase().includes(selectiveSearch.toLowerCase()) || 
+                      s.reg_no.toLowerCase().includes(selectiveSearch.toLowerCase())
+                    ).length === 0 ? (
+                      <div style={{ textAlign: 'center', padding: '20px', color: 'var(--text-muted)', fontSize: '13px' }}>
+                        No students found in your class.
+                      </div>
+                    ) : (
+                      selectiveStudentsList
+                        .filter(s => 
+                          s.name.toLowerCase().includes(selectiveSearch.toLowerCase()) || 
+                          s.reg_no.toLowerCase().includes(selectiveSearch.toLowerCase())
+                        )
+                        .map(stud => (
+                          <label key={stud.id} style={{
+                            display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+                            padding: '10px 12px', borderBottom: '1px solid var(--border-color)', cursor: 'pointer',
+                            borderRadius: '6px', marginBottom: '2px',
+                            backgroundColor: stud.enrolled ? 'rgba(79, 70, 229, 0.08)' : 'transparent'
+                          }}>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                              <input 
+                                type="checkbox" 
+                                checked={stud.enrolled} 
+                                onChange={() => handleToggleStudentEnrolment(stud.id)}
+                                style={{ width: '16px', height: '16px', cursor: 'pointer' }}
+                              />
+                              <div>
+                                <span style={{ fontWeight: '600', fontSize: '13px', display: 'block' }}>{stud.name}</span>
+                                <span style={{ color: 'var(--text-secondary)', fontSize: '11px' }}>Reg No: {stud.reg_no}</span>
+                              </div>
+                            </div>
+                            {stud.enrolled && (
+                              <span className="badge badge-success" style={{ fontSize: '11px' }}>Enrolled</span>
+                            )}
+                          </label>
+                        ))
+                    )}
+                  </div>
+
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: '16px' }}>
+                    <span style={{ fontSize: '13px', color: 'var(--text-secondary)' }}>
+                      Total Selected: <strong>{selectiveStudentsList.filter(s => s.enrolled).length}</strong> / {selectiveStudentsList.length}
+                    </span>
+                    <div style={{ display: 'flex', gap: '8px' }}>
+                      <button className="btn btn-secondary" onClick={() => setSelectiveModalOpen(false)} disabled={selectiveSaving}>
+                        Cancel
+                      </button>
+                      <button className="btn btn-primary" onClick={handleSaveSelectiveEnrolment} disabled={selectiveSaving}>
+                        {selectiveSaving ? 'Saving...' : 'Save Selection'}
+                      </button>
+                    </div>
+                  </div>
                 </div>
               )}
             </div>

@@ -142,7 +142,10 @@ def api_generate_otp(request):
         otps_created.append(otp)
         
         # Pre-mark all students
-        students = schedule.student_class.get_students()
+        if schedule.subject and schedule.subject.subject_type == 'OPEN_ELECTIVE':
+            students = schedule.subject.get_enrolled_students()
+        else:
+            students = schedule.student_class.get_students()
         for student in students:
             # Check for approved leave/od
             approved_leave = Leave.objects.filter(student=student, date=today, final_status='Approved').first()
@@ -1001,13 +1004,15 @@ class AttendanceViewSet(viewsets.ModelViewSet):
             
         from accounts.models import Subject, Student, Class
         subject = get_object_or_404(Subject, id=subject_id)
-        advised_class = Class.objects.filter(advisor=user).first()
-        target_class = subject.student_class or advised_class
-        
-        if target_class:
-            students = target_class.get_students().select_related('user').order_by('reg_no', 'user__username')
+        if subject.subject_type == 'OPEN_ELECTIVE':
+            students = subject.get_enrolled_students().select_related('user').order_by('reg_no', 'user__username')
         else:
-            students = Student.objects.none()
+            advised_class = Class.objects.filter(advisor=user).first()
+            target_class = subject.student_class or advised_class
+            if target_class:
+                students = target_class.get_students().select_related('user').order_by('reg_no', 'user__username')
+            else:
+                students = Student.objects.none()
         
         from timetable.models import Schedule
         schedules = Schedule.objects.filter(subject=subject)
@@ -1096,13 +1101,15 @@ class AttendanceViewSet(viewsets.ModelViewSet):
             
         from accounts.models import Subject, Student, Class
         subject = get_object_or_404(Subject, id=subject_id)
-        advised_class = Class.objects.filter(advisor=user).first()
-        target_class = subject.student_class or advised_class
-        
-        if target_class:
-            students = target_class.get_students().select_related('user').order_by('reg_no', 'user__username')
+        if subject.subject_type == 'OPEN_ELECTIVE':
+            students = subject.get_enrolled_students().select_related('user').order_by('reg_no', 'user__username')
         else:
-            students = Student.objects.none()
+            advised_class = Class.objects.filter(advisor=user).first()
+            target_class = subject.student_class or advised_class
+            if target_class:
+                students = target_class.get_students().select_related('user').order_by('reg_no', 'user__username')
+            else:
+                students = Student.objects.none()
         
         records = Attendance.objects.filter(
             schedule__subject=subject,
@@ -1134,7 +1141,7 @@ class AttendanceViewSet(viewsets.ModelViewSet):
             percentage = (effective_present / total_hours * 100) if total_hours > 0 else 100.0
             
             student_data.append({
-                'id': student.id,
+                'id': student.pk,
                 'reg_no': student.reg_no or student.roll_no or student.user.username,
                 'name': f"{student.user.first_name} {student.user.last_name}".strip() or student.user.username,
                 'total_hours': total_hours,
@@ -1146,8 +1153,10 @@ class AttendanceViewSet(viewsets.ModelViewSet):
             })
             
         return Response({
+            'subject_id': subject.id,
             'subject_name': subject.name,
             'subject_code': subject.code,
+            'subject_type': subject.subject_type,
             'students': student_data
         })
 

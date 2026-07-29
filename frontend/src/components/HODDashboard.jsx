@@ -2076,10 +2076,17 @@ const HODDashboard = ({ activeTab, setActiveTab }) => {
           <div className="card" style={{ marginBottom: '24px' }}>
             <h2>{editingSubject ? 'Edit Subject Parameters' : 'Create New Subject'}</h2>
             <form onSubmit={handleSaveSubject} style={{ marginTop: '16px' }}>
-              <div className="grid grid-cols-2">
-                <div className="form-group" style={{ gridColumn: 'span 2' }}>
+              <div className="grid grid-cols-2" style={{ gap: '16px', marginBottom: '16px' }}>
+                <div className="form-group">
                   <label className="form-label">Subject Code</label>
                   <input type="text" className="input" placeholder="e.g. CS301" required value={subjectCode} onChange={(e) => setSubjectCode(e.target.value)} />
+                </div>
+                <div className="form-group">
+                  <label className="form-label">Subject Type</label>
+                  <select className="input" value={subjectType} onChange={(e) => setSubjectType(e.target.value)}>
+                    <option value="REGULAR">Regular</option>
+                    <option value="OPEN_ELECTIVE">Open Elective</option>
+                  </select>
                 </div>
               </div>
               <div className="form-group" style={{ marginBottom: '24px' }}>
@@ -2103,16 +2110,24 @@ const HODDashboard = ({ activeTab, setActiveTab }) => {
                   <th style={{ width: '60px' }}>S.No</th>
                   <th>Subject Code</th>
                   <th>Subject Name</th>
+                  <th>Type</th>
                   <th>Actions</th>
                 </tr>
               </thead>
               <tbody>
                 {subjects.map((s, idx) => (
                   <tr key={s.id}>
-                    <td style={{ fontWeight: '600' }}>{idx + 1}</td>
-                    <td style={{ fontWeight: '600', color: 'var(--accent-primary)' }}>{s.code}</td>
+                    <td>{idx + 1}</td>
+                    <td><span className="badge badge-secondary">{s.code}</span></td>
+                    <td style={{ fontWeight: '600' }}>{s.name}</td>
                     <td>
-                      {s.name}
+                      {s.subject_type === 'OPEN_ELECTIVE' ? (
+                        <span className="badge" style={{ backgroundColor: 'rgba(59, 130, 246, 0.15)', color: '#3b82f6', border: '1px solid rgba(59, 130, 246, 0.3)' }}>
+                          Open Elective
+                        </span>
+                      ) : (
+                        <span className="badge badge-secondary">Regular</span>
+                      )}
                     </td>
                     <td>
                       <div style={{ display: 'flex', gap: '8px' }}>

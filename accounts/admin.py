@@ -1,7 +1,6 @@
 from django.contrib import admin
 from django.contrib.auth.admin import UserAdmin as BaseUserAdmin
 from .models import User, Department, Class, Subject, Student, Staff
-
 @admin.register(User)
 
 class UserAdmin(BaseUserAdmin):
@@ -16,6 +15,7 @@ class UserAdmin(BaseUserAdmin):
     add_fieldsets = BaseUserAdmin.add_fieldsets + (
         ('Custom Profile Info', {'fields': ('role', 'department', 'phone_number', 'dob')}),
     )
+
 
 @admin.register(Department)
 class DepartmentAdmin(admin.ModelAdmin):

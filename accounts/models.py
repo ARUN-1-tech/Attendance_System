@@ -110,6 +110,7 @@ class Class(models.Model):
 class Subject(models.Model):
     SUBJECT_TYPE_CHOICES = (
         ('REGULAR', 'Regular'),
+        ('OPEN_ELECTIVE', 'Open Elective'),
     )
     name = models.CharField(max_length=100)
     code = models.CharField(max_length=20, null=True, blank=True)
@@ -118,9 +119,17 @@ class Subject(models.Model):
     subject_type = models.CharField(max_length=20, choices=SUBJECT_TYPE_CHOICES, default='REGULAR')
     year = models.IntegerField(null=True, blank=True)
     semester = models.IntegerField(null=True, blank=True)
+    elective_students = models.ManyToManyField('Student', related_name='elective_subjects', blank=True)
 
     def __str__(self):
         return f"{self.name} ({self.code})" if self.code else self.name
+
+    def get_enrolled_students(self):
+        if self.subject_type == 'OPEN_ELECTIVE':
+            return self.elective_students.all()
+        elif self.student_class:
+            return self.student_class.get_students()
+        return Student.objects.none()
 
     def save(self, *args, **kwargs):
         if self.student_class and not self.year:

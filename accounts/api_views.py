@@ -190,6 +190,57 @@ class SubjectViewSet(viewsets.ModelViewSet):
         else:
             serializer.save()
 
+    @action(detail=True, methods=['get', 'post'], url_path='enrolled-students')
+    def enrolled_students(self, request, pk=None):
+        subject = self.get_object()
+        user = request.user
+
+        if user.role not in ['staff', 'hod', 'admin']:
+            return Response({'detail': 'Permission denied.'}, status=status.HTTP_403_FORBIDDEN)
+
+        from accounts.models import Class, Student
+        target_class = subject.student_class
+        if not target_class and user.role == 'staff':
+            target_class = Class.objects.filter(advisor=user).first()
+
+        if not target_class:
+            return Response({'detail': 'Class not found for this subject.'}, status=status.HTTP_400_BAD_REQUEST)
+
+        all_class_students = target_class.get_students().select_related('user').order_by('reg_no', 'user__username')
+        currently_enrolled_ids = set(subject.elective_students.values_list('pk', flat=True))
+
+        if request.method == 'GET':
+            students_data = [
+                {
+                    'id': student.pk,
+                    'reg_no': student.reg_no or student.roll_no or student.user.username,
+                    'name': f"{student.user.first_name} {student.user.last_name}".strip() or student.user.username,
+                    'enrolled': student.pk in currently_enrolled_ids
+                }
+                for student in all_class_students
+            ]
+            return Response({
+                'subject_id': subject.id,
+                'subject_name': subject.name,
+                'subject_code': subject.code,
+                'subject_type': subject.subject_type,
+                'class_name': target_class.name,
+                'students': students_data
+            })
+
+        elif request.method == 'POST':
+            student_ids = request.data.get('student_ids', [])
+            if not isinstance(student_ids, list):
+                return Response({'detail': 'student_ids must be a list of student primary keys.'}, status=status.HTTP_400_BAD_REQUEST)
+
+            valid_students = Student.objects.filter(pk__in=student_ids, student_class=target_class)
+            subject.elective_students.set(valid_students)
+
+            return Response({
+                'detail': f'Successfully updated enrolled students for {subject.name}.',
+                'enrolled_count': subject.elective_students.count()
+            })
+
     @action(detail=False, methods=['POST'], url_path='bulk-import')
     def bulk_import(self, request):
         user = request.user

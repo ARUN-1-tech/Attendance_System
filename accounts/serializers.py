@@ -57,10 +57,16 @@ class ClassSerializer(serializers.ModelSerializer):
 class SubjectSerializer(serializers.ModelSerializer):
     department_name = serializers.CharField(source='department.name', read_only=True)
     class_name = serializers.CharField(source='student_class.name', read_only=True)
+    elective_student_count = serializers.SerializerMethodField()
 
     class Meta:
         model = Subject
         fields = '__all__'
+
+    def get_elective_student_count(self, obj):
+        if obj.subject_type == 'OPEN_ELECTIVE':
+            return obj.elective_students.count()
+        return 0
 
 class StudentSerializer(serializers.ModelSerializer):
     user = UserSerializer()
