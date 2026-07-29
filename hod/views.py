@@ -180,11 +180,13 @@ def class_students_list(request, class_id):
     from timetable.models import Schedule
     from accounts.models import Subject
     
-    class_subject_ids = Schedule.objects.filter(student_class=class_obj).values_list('subject_id', flat=True).distinct()
-    class_subjects = Subject.objects.filter(id__in=class_subject_ids)
+    non_elective_subjects = Subject.objects.filter(
+        student_class=class_obj
+    ).exclude(subject_type__in=['OPEN_ELECTIVE', 'PROFESSIONAL_ELECTIVE'])
     
     for student in students:
-        attendances = Attendance.objects.filter(student=student, schedule__subject__in=class_subjects)
+        student_subjects = (non_elective_subjects | student.elective_subjects.all()).distinct()
+        attendances = Attendance.objects.filter(student=student, schedule__subject__in=student_subjects)
         total_periods = attendances.count()
         if total_periods > 0:
             present_periods = attendances.filter(status='Present').count()

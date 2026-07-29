@@ -362,11 +362,13 @@ def api_student_stats(request, username):
     from timetable.models import Schedule
     from accounts.models import Subject
     if student.student_class:
-        class_subjects = Subject.objects.filter(student_class=student.student_class)
-        sched_subject_ids = Schedule.objects.filter(student_class=student.student_class).values_list('subject_id', flat=True).distinct()
-        class_subjects = (class_subjects | Subject.objects.filter(id__in=sched_subject_ids)).distinct()
+        non_elective_subjects = Subject.objects.filter(
+            student_class=student.student_class
+        ).exclude(subject_type__in=['OPEN_ELECTIVE', 'PROFESSIONAL_ELECTIVE'])
+        enrolled_elective_subjects = student.elective_subjects.all()
+        class_subjects = (non_elective_subjects | enrolled_elective_subjects).distinct()
     else:
-        class_subjects = Subject.objects.none()
+        class_subjects = student.elective_subjects.all()
 
     attendances_qs = Attendance.objects.filter(student=student, schedule__subject__in=class_subjects).select_related('schedule__subject')
     from .models import filter_active_attendance

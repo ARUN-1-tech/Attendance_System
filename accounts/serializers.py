@@ -107,11 +107,20 @@ class StudentSerializer(serializers.ModelSerializer):
             from accounts.models import Subject
 
             # Prefetch active attendances for all students in batch
-            active_atts = Attendance.objects.filter(
+            active_atts_qs = Attendance.objects.filter(
                 student_id__in=student_ids
             ).filter(
                 ~Q(schedule__period=8) | Q(schedule__period=8, status='Present')
-            ).values('student_id', 'status', 'date')
+            ).select_related('schedule__subject').prefetch_related('schedule__subject__elective_students')
+
+            active_atts = []
+            for att in active_atts_qs:
+                subj = att.schedule.subject if att.schedule else None
+                if subj and subj.subject_type in ['OPEN_ELECTIVE', 'PROFESSIONAL_ELECTIVE']:
+                    if any(s.user_id == att.student_id for s in subj.elective_students.all()):
+                        active_atts.append({'student_id': att.student_id, 'status': att.status, 'date': att.date})
+                else:
+                    active_atts.append({'student_id': att.student_id, 'status': att.status, 'date': att.date})
             
             # Prefetch approved OD leaves for all students in batch
             verified_ods = Leave.objects.filter(
