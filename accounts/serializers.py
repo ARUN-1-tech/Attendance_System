@@ -70,6 +70,11 @@ class SubjectSerializer(serializers.ModelSerializer):
             'student_class': {'required': False, 'allow_null': True},
         }
 
+    def validate_subject_type(self, value):
+        if value == 'REGULAR':
+            return 'THEORY'
+        return value
+
     def get_staff_name(self, obj):
         if obj.staff:
             full = f"{obj.staff.first_name} {obj.staff.last_name}".strip()

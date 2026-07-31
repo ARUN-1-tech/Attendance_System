@@ -113,6 +113,7 @@ class Subject(models.Model):
         ('THEORY_CUM_PRACTICAL', 'Theory Cum Practical'),
         ('PROFESSIONAL_ELECTIVE', 'Professional Elective'),
         ('OPEN_ELECTIVE', 'Open Elective'),
+        ('REGULAR', 'Regular (Theory)'),
     )
     name = models.CharField(max_length=100)
     code = models.CharField(max_length=20, null=True, blank=True)

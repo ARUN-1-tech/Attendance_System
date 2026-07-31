@@ -312,10 +312,12 @@ const StaffDashboard = ({ activeTab }) => {
       alert("Name and Code are required.");
       return;
     }
+    let typeToSend = subjectType;
+    if (typeToSend === 'REGULAR') typeToSend = 'THEORY';
     const payload = {
       name: subjectName,
       code: subjectCode,
-      subject_type: subjectType,
+      subject_type: typeToSend,
       student_class: advisedClass?.id || editingSubject?.student_class || null,
       staff: subjectStaffId ? parseInt(subjectStaffId, 10) : null
     };
@@ -347,7 +349,9 @@ const StaffDashboard = ({ activeTab }) => {
     setEditingSubject(sub);
     setSubjectName(sub.name);
     setSubjectCode(sub.code);
-    setSubjectType(sub.subject_type || 'THEORY');
+    let type = sub.subject_type || 'THEORY';
+    if (type === 'REGULAR') type = 'THEORY';
+    setSubjectType(type);
     setSubjectStaffId(sub.staff || sub.staff_id || '');
     setStaffSearchTerm('');
     setSubjectFormOpen(true);

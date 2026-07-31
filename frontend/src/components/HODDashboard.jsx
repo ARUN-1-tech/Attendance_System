@@ -713,10 +713,12 @@ const HODDashboard = ({ activeTab, setActiveTab }) => {
   // Subject CRUD functions
   const handleSaveSubject = async (e) => {
     e.preventDefault();
+    let typeToSend = subjectType;
+    if (typeToSend === 'REGULAR') typeToSend = 'THEORY';
     const payload = {
       name: subjectName,
       code: subjectCode,
-      subject_type: subjectType,
+      subject_type: typeToSend,
       staff: subjectStaffId ? parseInt(subjectStaffId, 10) : null,
     };
 
@@ -741,7 +743,9 @@ const HODDashboard = ({ activeTab, setActiveTab }) => {
     setEditingSubject(s);
     setSubjectName(s.name);
     setSubjectCode(s.code);
-    setSubjectType(s.subject_type || 'THEORY');
+    let type = s.subject_type || 'THEORY';
+    if (type === 'REGULAR') type = 'THEORY';
+    setSubjectType(type);
     setSubjectStaffId(s.staff || s.staff_id || '');
     setStaffSearchTerm('');
     setSubjectFormOpen(true);
