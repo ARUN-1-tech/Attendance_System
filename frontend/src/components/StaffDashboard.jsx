@@ -6,7 +6,7 @@ import {
   Play, Check, X, ShieldAlert, Award, FileSpreadsheet, 
   Trash2, Plus, Calendar, User, Eye, Edit, UserPlus,
   Search, Download, ArrowLeft, Settings, HelpCircle,
-  MapPin, Clock, ShieldCheck, CheckCircle, CheckCircle2
+  MapPin, Clock, ShieldCheck, CheckCircle, CheckCircle2, XCircle
 } from 'lucide-react';
 
 const StaffDashboard = ({ activeTab }) => {
@@ -3587,22 +3587,42 @@ const StaffDashboard = ({ activeTab }) => {
                                   <Download size={14} />
                                   <span>Download CSV</span>
                                 </button>
-                                <button 
-                                  className="btn btn-secondary btn-sm" 
-                                  style={{ padding: '4px 8px', display: 'flex', alignItems: 'center', gap: '4px' }}
-                                  onClick={() => handleEditSubjectClick(sub)}
-                                >
-                                  <Edit size={14} />
-                                  <span>Edit</span>
-                                </button>
-                                <button 
-                                  className="btn btn-secondary btn-sm" 
-                                  style={{ padding: '4px 8px', display: 'flex', alignItems: 'center', gap: '4px', color: 'var(--danger)' }}
-                                  onClick={() => handleDeleteSubject(sub.id)}
-                                >
-                                  <Trash2 size={14} />
-                                  <span>Delete</span>
-                                </button>
+                                {(() => {
+                                  const isCreator = (!sub.student_class || sub.student_class === advisedClass?.id || sub.creator_advisor_id === user.id);
+                                  if (sub.subject_type === 'OPEN_ELECTIVE' && !isCreator) {
+                                    return (
+                                      <button 
+                                        className="btn btn-secondary btn-sm" 
+                                        style={{ padding: '4px 8px', display: 'flex', alignItems: 'center', gap: '4px', color: 'var(--danger)', borderColor: 'rgba(239, 68, 68, 0.3)' }}
+                                        onClick={() => handleToggleAcceptOpenElective(sub.id, false)}
+                                        title="Reject / Unaccept open elective for your class"
+                                      >
+                                        <XCircle size={14} />
+                                        <span>Reject for Class</span>
+                                      </button>
+                                    );
+                                  }
+                                  return (
+                                    <>
+                                      <button 
+                                        className="btn btn-secondary btn-sm" 
+                                        style={{ padding: '4px 8px', display: 'flex', alignItems: 'center', gap: '4px' }}
+                                        onClick={() => handleEditSubjectClick(sub)}
+                                      >
+                                        <Edit size={14} />
+                                        <span>Edit</span>
+                                      </button>
+                                      <button 
+                                        className="btn btn-secondary btn-sm" 
+                                        style={{ padding: '4px 8px', display: 'flex', alignItems: 'center', gap: '4px', color: 'var(--danger)' }}
+                                        onClick={() => handleDeleteSubject(sub.id)}
+                                      >
+                                        <Trash2 size={14} />
+                                        <span>Delete</span>
+                                      </button>
+                                    </>
+                                  );
+                                })()}
                               </div>
                             </td>
                           </tr>
@@ -3654,16 +3674,58 @@ const StaffDashboard = ({ activeTab }) => {
                               <span className="badge badge-info">{oe.class_enrolled_count} / {oe.total_enrolled_count} Total</span>
                             </td>
                             <td>
-                              <span className="badge badge-warning">Not Accepted</span>
+                              {oe.is_accepted ? (
+                                <span className="badge badge-success" style={{ backgroundColor: 'rgba(16, 185, 129, 0.15)', color: 'var(--success)', border: '1px solid rgba(16, 185, 129, 0.3)' }}>
+                                  Accepted
+                                </span>
+                              ) : (
+                                <span className="badge badge-warning">Not Accepted</span>
+                              )}
                             </td>
                             <td style={{ textAlign: 'right' }}>
-                              <button 
-                                className="btn btn-primary btn-sm" 
-                                style={{ padding: '4px 12px' }}
-                                onClick={() => handleToggleAcceptOpenElective(oe.id, true)}
-                              >
-                                Accept for Class
-                              </button>
+                              <div style={{ display: 'flex', gap: '8px', justifyContent: 'flex-end' }}>
+                                {oe.is_creator_advisor && (
+                                  <>
+                                    <button 
+                                      className="btn btn-secondary btn-sm" 
+                                      style={{ padding: '4px 8px', display: 'flex', alignItems: 'center', gap: '4px' }}
+                                      onClick={() => handleEditSubjectClick(oe)}
+                                      title="Edit open elective definition"
+                                    >
+                                      <Edit size={14} />
+                                      <span>Edit</span>
+                                    </button>
+                                    <button 
+                                      className="btn btn-secondary btn-sm" 
+                                      style={{ padding: '4px 8px', display: 'flex', alignItems: 'center', gap: '4px', color: 'var(--danger)' }}
+                                      onClick={() => handleDeleteSubject(oe.id)}
+                                      title="Delete open elective"
+                                    >
+                                      <Trash2 size={14} />
+                                      <span>Delete</span>
+                                    </button>
+                                  </>
+                                )}
+                                {oe.is_accepted ? (
+                                  <button 
+                                    className="btn btn-secondary btn-sm" 
+                                    style={{ padding: '4px 12px', display: 'flex', alignItems: 'center', gap: '4px', color: 'var(--danger)', borderColor: 'rgba(239, 68, 68, 0.3)' }}
+                                    onClick={() => handleToggleAcceptOpenElective(oe.id, false)}
+                                  >
+                                    <XCircle size={14} />
+                                    <span>Reject for Class</span>
+                                  </button>
+                                ) : (
+                                  <button 
+                                    className="btn btn-primary btn-sm" 
+                                    style={{ padding: '4px 12px', display: 'flex', alignItems: 'center', gap: '4px' }}
+                                    onClick={() => handleToggleAcceptOpenElective(oe.id, true)}
+                                  >
+                                    <CheckCircle size={14} />
+                                    <span>Accept for Class</span>
+                                  </button>
+                                )}
+                              </div>
                             </td>
                           </tr>
                         ))}

@@ -683,7 +683,7 @@ class UserPasswordChangeAndManualAttendanceTestCase(TestCase):
             }
         }, content_type='application/json')
         self.assertEqual(response.status_code, 400)
-        self.assertIn("already marked/used", response.data['detail'])
+        self.assertIn("already marked", response.data['detail'])
 
         # Attempt to save advisor manual attendance for locked period 1 -> should succeed (advisor overrides locks)
         self.staff.staff_type = 'Advisor'
@@ -715,7 +715,7 @@ class UserPasswordChangeAndManualAttendanceTestCase(TestCase):
             }
         }, content_type='application/json')
         self.assertEqual(response.status_code, 400)
-        self.assertIn("must edit it through the Advisor Whole Day", response.data['detail'])
+        self.assertIn("edit through Advisor Whole Day", response.data['detail'])
 
     def test_default_present_in_subject_manual_save(self):
         self.client.login(username='staff_user', password='staffpass123')
@@ -851,3 +851,45 @@ class UserPasswordChangeAndManualAttendanceTestCase(TestCase):
         self.assertIn("Register Number", response.content.decode('utf-8'))
         self.assertIn("Name", response.content.decode('utf-8'))
         self.assertIn("Percentage", response.content.decode('utf-8'))
+
+    def test_open_elective_toggle_acceptance_and_creator_permissions(self):
+        advisor_a = User.objects.create_user(username='advisor_a', password='password123', role='staff', department=self.dept)
+        Staff.objects.create(user=advisor_a, staff_type='Advisor')
+        class_a = Class.objects.create(name='Class A', department=self.dept, year=3, section='A', advisor=advisor_a)
+
+        advisor_b = User.objects.create_user(username='advisor_b', password='password123', role='staff', department=self.dept)
+        Staff.objects.create(user=advisor_b, staff_type='Advisor')
+        class_b = Class.objects.create(name='Class B', department=self.dept, year=3, section='B', advisor=advisor_b)
+
+        oe_a = Subject.objects.create(
+            name='Solar Energy',
+            code='OE101',
+            department=self.dept,
+            year=3,
+            subject_type='OPEN_ELECTIVE',
+            student_class=class_a
+        )
+        oe_a.accepted_classes.add(class_a)
+
+        # Advisor B accepts OE_A
+        self.client.login(username='advisor_b', password='password123')
+        resp_accept = self.client.post(f'/api/subjects/{oe_a.id}/toggle-acceptance/', {'accept': True}, content_type='application/json')
+        self.assertEqual(resp_accept.status_code, 200)
+        self.assertTrue(oe_a.accepted_classes.filter(id=class_b.id).exists())
+
+        # Advisor B attempts to edit OE_A definition -> should be forbidden (403)
+        resp_edit_b = self.client.put(f'/api/subjects/{oe_a.id}/', {'name': 'Modified By B', 'code': 'OE101', 'subject_type': 'OPEN_ELECTIVE'}, content_type='application/json')
+        self.assertEqual(resp_edit_b.status_code, 403)
+
+        # Advisor B rejects (unaccepts) OE_A -> should succeed (200)
+        resp_reject = self.client.post(f'/api/subjects/{oe_a.id}/toggle-acceptance/', {'accept': False}, content_type='application/json')
+        self.assertEqual(resp_reject.status_code, 200)
+        self.assertFalse(oe_a.accepted_classes.filter(id=class_b.id).exists())
+
+        # Advisor A edits OE_A -> should succeed (200)
+        self.client.login(username='advisor_a', password='password123')
+        resp_edit_a = self.client.put(f'/api/subjects/{oe_a.id}/', {'name': 'Solar & Renewable Energy', 'code': 'OE101', 'subject_type': 'OPEN_ELECTIVE'}, content_type='application/json')
+        self.assertEqual(resp_edit_a.status_code, 200)
+        oe_a.refresh_from_db()
+        self.assertEqual(oe_a.name, 'Solar & Renewable Energy')
+

@@ -201,6 +201,25 @@ class SubjectViewSet(viewsets.ModelViewSet):
         if subj.subject_type == 'PROFESSIONAL_ELECTIVE' and subj.student_class:
             subj.elective_students.set(subj.student_class.get_students())
 
+    def perform_update(self, serializer):
+        user = self.request.user
+        subject = self.get_object()
+        if user.role == 'staff':
+            is_creator = subject.student_class and (subject.student_class.advisor == user)
+            if not is_creator:
+                from rest_framework.exceptions import PermissionDenied
+                raise PermissionDenied('Only the creator advisor of this subject (or HOD/Admin) can edit it.')
+        serializer.save()
+
+    def perform_destroy(self, instance):
+        user = self.request.user
+        if user.role == 'staff':
+            is_creator = instance.student_class and (instance.student_class.advisor == user)
+            if not is_creator:
+                from rest_framework.exceptions import PermissionDenied
+                raise PermissionDenied('Only the creator advisor of this subject (or HOD/Admin) can delete it.')
+        instance.delete()
+
     @action(detail=False, methods=['get'], url_path='available-open-electives')
     def available_open_electives(self, request):
         user = request.user
@@ -221,28 +240,31 @@ class SubjectViewSet(viewsets.ModelViewSet):
         if not target_class:
             return Response([], status=status.HTTP_200_OK)
 
-        # Get all UNACCEPTED OPEN_ELECTIVE subjects offered for target_class.year
+        # Get all OPEN_ELECTIVE subjects offered for target_class.year
         subjects = Subject.objects.filter(
-            subject_type='OPEN_ELECTIVE'
-        ).filter(
+            subject_type='OPEN_ELECTIVE',
             year=target_class.year
-        ).exclude(
-            accepted_classes=target_class
-        ).select_related('student_class', 'department').prefetch_related('accepted_classes', 'elective_students')
+        ).select_related('student_class', 'department', 'student_class__advisor').prefetch_related('accepted_classes', 'elective_students')
 
         data = []
         for sub in subjects:
             is_accepted = target_class in sub.accepted_classes.all()
             class_enrolled_count = sub.elective_students.filter(student_class=target_class).count()
             total_enrolled_count = sub.elective_students.count()
+            creator_advisor_id = sub.student_class.advisor_id if sub.student_class else None
+            is_creator_advisor = (creator_advisor_id == user.id) or (user.role in ['hod', 'admin'])
             
             data.append({
                 'id': sub.id,
                 'name': sub.name,
                 'code': sub.code,
                 'year': sub.year,
+                'subject_type': sub.subject_type,
                 'department_name': sub.department.name if sub.department else '',
                 'offered_by_class': str(sub.student_class) if sub.student_class else 'All',
+                'student_class': sub.student_class_id,
+                'creator_advisor_id': creator_advisor_id,
+                'is_creator_advisor': is_creator_advisor,
                 'is_accepted': is_accepted,
                 'class_enrolled_count': class_enrolled_count,
                 'total_enrolled_count': total_enrolled_count
