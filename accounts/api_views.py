@@ -162,7 +162,16 @@ class SubjectViewSet(viewsets.ModelViewSet):
     permission_classes = [permissions.IsAuthenticated]
 
     def get_queryset(self):
-        queryset = Subject.objects.all()
+        queryset = Subject.objects.all().select_related('student_class', 'department', 'staff')
+        
+        my_subjects = self.request.query_params.get('my_subjects') or self.request.query_params.get('assigned_to_me')
+        if my_subjects == 'true':
+            return queryset.filter(staff=self.request.user)
+
+        staff_id = self.request.query_params.get('staff_id')
+        if staff_id:
+            queryset = queryset.filter(staff_id=staff_id)
+
         class_id = self.request.query_params.get('class_id')
         if class_id:
             from django.db.models import Q
@@ -175,6 +184,7 @@ class SubjectViewSet(viewsets.ModelViewSet):
             if dept_id:
                 queryset = queryset.filter(department_id=dept_id)
             if self.request.user.role in ['staff', 'hod'] and self.request.user.department:
+                # If HOD or staff requesting general list without my_subjects/class_id, show department subjects or assigned
                 queryset = queryset.filter(department=self.request.user.department)
         return queryset
 

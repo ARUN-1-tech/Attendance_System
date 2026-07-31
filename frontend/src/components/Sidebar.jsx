@@ -87,6 +87,13 @@ const Sidebar = ({ activeTab, setActiveTab, mobileOpen, setMobileOpen }) => {
             <History size={19} />
             <span>Attendance History</span>
           </div>
+          <div 
+            className={`nav-item ${activeTab === 'my_subjects' ? 'active' : ''}`}
+            onClick={() => handleTabClick('my_subjects')}
+          >
+            <BookOpen size={19} />
+            <span>My Subjects</span>
+          </div>
           {user.staff_details?.staff_type !== 'Normal' && (
             <div 
               className={`nav-item ${activeTab === 'approvals' ? 'active' : ''}`}

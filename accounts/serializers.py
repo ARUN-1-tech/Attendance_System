@@ -57,11 +57,19 @@ class ClassSerializer(serializers.ModelSerializer):
 class SubjectSerializer(serializers.ModelSerializer):
     department_name = serializers.CharField(source='department.name', read_only=True)
     class_name = serializers.CharField(source='student_class.name', read_only=True)
+    staff_name = serializers.SerializerMethodField()
+    staff_username = serializers.CharField(source='staff.username', read_only=True)
     elective_student_count = serializers.SerializerMethodField()
 
     class Meta:
         model = Subject
         fields = '__all__'
+
+    def get_staff_name(self, obj):
+        if obj.staff:
+            full = f"{obj.staff.first_name} {obj.staff.last_name}".strip()
+            return full if full else obj.staff.username
+        return None
 
     def get_elective_student_count(self, obj):
         if obj.subject_type in ['OPEN_ELECTIVE', 'PROFESSIONAL_ELECTIVE']:

@@ -765,27 +765,28 @@ def api_attendance_report_data(request):
 def api_export_excel_report(request):
     user = request.user
     
-    # Restrict report access exclusively to Advisor, Tutor, HOD, Admin
-    if user.role == 'staff':
-        staff_type = user.staff.staff_type if hasattr(user, 'staff') else 'Normal'
-        from accounts.models import Class, Student
-        is_advisor = Class.objects.filter(advisor=user).exists()
-        is_tutor = Student.objects.filter(tutor=user).exists()
-        
-        if staff_type not in ['Advisor', 'Tutor'] and not is_advisor and not is_tutor:
-            return Response(
-                {'detail': 'Reports access is reserved exclusively for Class Advisors and Tutors.'},
-                status=status.HTTP_403_FORBIDDEN
-            )
-    elif user.role not in ['hod', 'admin']:
-        return Response({'detail': 'Access denied.'}, status=status.HTTP_403_FORBIDDEN)
-
     params = request.data if request.method == 'POST' else request.query_params
     report_mode = params.get('report_mode', 'day')
     class_id = params.get('class_id')
     subject_id = params.get('subject_id')
     from_date_str = params.get('from_date') or params.get('date')
     to_date_str = params.get('to_date') or from_date_str
+
+    # Restrict report access exclusively to Advisor, Tutor, HOD, Admin, or Staff assigned to subject
+    if user.role == 'staff':
+        staff_type = user.staff.staff_type if hasattr(user, 'staff') else 'Normal'
+        from accounts.models import Class, Student, Subject
+        is_advisor = Class.objects.filter(advisor=user).exists()
+        is_tutor = Student.objects.filter(tutor=user).exists()
+        is_assigned_staff = subject_id and Subject.objects.filter(id=subject_id, staff=user).exists()
+        
+        if staff_type not in ['Advisor', 'Tutor'] and not is_advisor and not is_tutor and not is_assigned_staff:
+            return Response(
+                {'detail': 'Reports access is reserved for Advisors, Tutors, and assigned Subject Teachers.'},
+                status=status.HTTP_403_FORBIDDEN
+            )
+    elif user.role not in ['hod', 'admin']:
+        return Response({'detail': 'Access denied.'}, status=status.HTTP_403_FORBIDDEN)
 
     is_tutor_role = hasattr(user, 'staff') and user.staff.staff_type == 'Tutor'
     tutor_user = user if (user.role == 'staff' and is_tutor_role) else None
@@ -1163,13 +1164,20 @@ class AttendanceViewSet(viewsets.ModelViewSet):
             
         from accounts.models import Subject, Student, Class
         subject = get_object_or_404(Subject, id=subject_id)
-        if subject.subject_type in ['OPEN_ELECTIVE', 'PROFESSIONAL_ELECTIVE']:
+        class_id = request.query_params.get('class_id')
+        if subject.subject_type in ['OPEN_ELECTIVE', 'PROFESSIONAL_ELECTIVE'] and not class_id:
             students = subject.get_enrolled_students().select_related('user', 'student_class').order_by('student_class__name', 'student_class__section', 'reg_no', 'user__username')
         else:
-            advised_class = Class.objects.filter(advisor=user).first()
-            target_class = subject.student_class or advised_class
+            if class_id:
+                target_class = Class.objects.filter(id=class_id).first()
+            else:
+                advised_class = Class.objects.filter(advisor=user).first()
+                target_class = subject.student_class or advised_class
+                
             if target_class:
                 students = target_class.get_students().select_related('user', 'student_class').order_by('student_class__name', 'student_class__section', 'reg_no', 'user__username')
+                if subject.subject_type in ['OPEN_ELECTIVE', 'PROFESSIONAL_ELECTIVE']:
+                    students = students.filter(id__in=subject.elective_students.values_list('user_id', flat=True))
             else:
                 students = Student.objects.none()
         

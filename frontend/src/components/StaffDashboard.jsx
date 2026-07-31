@@ -6,7 +6,8 @@ import {
   Play, Check, X, ShieldAlert, Award, FileSpreadsheet, 
   Trash2, Plus, Calendar, User, Eye, Edit, UserPlus,
   Search, Download, ArrowLeft, Settings, HelpCircle,
-  MapPin, Clock, ShieldCheck, CheckCircle, CheckCircle2, XCircle
+  MapPin, Clock, ShieldCheck, CheckCircle, CheckCircle2, XCircle,
+  BookOpen, Users, ChevronRight
 } from 'lucide-react';
 
 const StaffDashboard = ({ activeTab }) => {
@@ -90,6 +91,21 @@ const StaffDashboard = ({ activeTab }) => {
   const [subjectName, setSubjectName] = useState('');
   const [subjectCode, setSubjectCode] = useState('');
   const [subjectType, setSubjectType] = useState('THEORY');
+  const [subjectStaffId, setSubjectStaffId] = useState('');
+  const [staffSearchTerm, setStaffSearchTerm] = useState('');
+  const [allStaffList, setAllStaffList] = useState([]);
+  
+  // My Subjects tab state variables
+  const [myAssignedSubjects, setMyAssignedSubjects] = useState([]);
+  const [mySubjectsLoading, setMySubjectsLoading] = useState(false);
+  const [selectedMySubject, setSelectedMySubject] = useState(null); // { subject, classId, className }
+  const [mySubjectStudents, setMySubjectStudents] = useState([]);
+  const [mySubjectStudentsLoading, setMySubjectStudentsLoading] = useState(false);
+  const [mySubjectStudentSearch, setMySubjectStudentSearch] = useState('');
+  const [staffStudentDetailModalOpen, setStaffStudentDetailModalOpen] = useState(false);
+  const [staffStudentDetailData, setStaffStudentDetailData] = useState(null);
+  const [staffStudentDetailLoading, setStaffStudentDetailLoading] = useState(false);
+
   const [selectiveModalOpen, setSelectiveModalOpen] = useState(false);
   const [selectiveSubject, setSelectiveSubject] = useState(null);
   const [selectiveStudentsList, setSelectiveStudentsList] = useState([]);
@@ -208,8 +224,67 @@ const StaffDashboard = ({ activeTab }) => {
     }
   };
 
+  const fetchStaffList = async () => {
+    try {
+      const data = await api.get('/api/staff/');
+      setAllStaffList(data);
+    } catch (err) {
+      console.error('Error fetching staff list:', err);
+    }
+  };
+
+  const fetchMySubjects = async () => {
+    setMySubjectsLoading(true);
+    try {
+      const data = await api.get('/api/subjects/?my_subjects=true');
+      setMyAssignedSubjects(data);
+    } catch (err) {
+      console.error('Error fetching my subjects:', err);
+    } finally {
+      setMySubjectsLoading(false);
+    }
+  };
+
+  const handleOpenMySubjectDetails = async (sub, classId, className) => {
+    setSelectedMySubject({ subject: sub, classId, className });
+    setMySubjectStudentsLoading(true);
+    setMySubjectStudents([]);
+    try {
+      const url = `/api/attendances/advisor-subject-report-json/?subject_id=${sub.id}${classId ? `&class_id=${classId}` : ''}`;
+      const data = await api.get(url);
+      setMySubjectStudents(Array.isArray(data) ? data : (data.students || []));
+    } catch (err) {
+      console.error('Error fetching class subject student attendance:', err);
+      alert('Failed to load class student attendance.');
+    } finally {
+      setMySubjectStudentsLoading(false);
+    }
+  };
+
+  const handleDownloadSemesterExcel = (subjectId, classId, subjectCode) => {
+    const url = `${api.baseUrl}/api/attendance/reports/export-excel/?report_mode=subject_percentage&subject_id=${subjectId}${classId ? `&class_id=${classId}` : ''}`;
+    window.open(url, '_blank');
+  };
+
+  const handleStaffStudentRowClick = async (username, subjectId) => {
+    setStaffStudentDetailLoading(true);
+    setStaffStudentDetailModalOpen(true);
+    setStaffStudentDetailData(null);
+    try {
+      const data = await api.get(`/api/attendances/subject-detail/?student_username=${username}&subject_id=${subjectId}`);
+      setStaffStudentDetailData(data);
+    } catch (err) {
+      console.error('Failed to fetch student subject details:', err);
+      alert('Failed to load student subject attendance details.');
+      setStaffStudentDetailModalOpen(false);
+    } finally {
+      setStaffStudentDetailLoading(false);
+    }
+  };
+
   useEffect(() => {
     if (activeTab === 'manage_subjects') {
+      fetchStaffList();
       const myAdvisedClass = classes.find(c => c.advisor === user.id);
       if (myAdvisedClass) {
         setAdvisedClass(myAdvisedClass);
@@ -219,6 +294,9 @@ const StaffDashboard = ({ activeTab }) => {
         setAdvisedClass(null);
         setAdvisedSubjectsLoading(false);
       }
+    } else if (activeTab === 'my_subjects') {
+      fetchMySubjects();
+      fetchStaffList();
     } else if (activeTab === 'students') {
       const myAdvisedClass = classes.find(c => c.advisor === user.id);
       if (myAdvisedClass) {
@@ -238,7 +316,8 @@ const StaffDashboard = ({ activeTab }) => {
       name: subjectName,
       code: subjectCode,
       subject_type: subjectType,
-      student_class: advisedClass?.id
+      student_class: advisedClass?.id,
+      staff: subjectStaffId || null
     };
     try {
       if (editingSubject) {
@@ -253,6 +332,8 @@ const StaffDashboard = ({ activeTab }) => {
       setSubjectName('');
       setSubjectCode('');
       setSubjectType('THEORY');
+      setSubjectStaffId('');
+      setStaffSearchTerm('');
       if (advisedClass) {
         fetchAdvisedSubjects(advisedClass.id);
       }
@@ -267,6 +348,8 @@ const StaffDashboard = ({ activeTab }) => {
     setSubjectName(sub.name);
     setSubjectCode(sub.code);
     setSubjectType(sub.subject_type || 'THEORY');
+    setSubjectStaffId(sub.staff || sub.staff_id || '');
+    setStaffSearchTerm('');
     setSubjectFormOpen(true);
   };
 
@@ -3460,6 +3543,50 @@ const StaffDashboard = ({ activeTab }) => {
                       </select>
                     </div>
                   </div>
+
+                  <div className="form-group" style={{ marginBottom: '16px' }}>
+                    <label className="form-label" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                      <span>Assigned Staff (Subject Teacher)</span>
+                      {staffSearchTerm && (
+                        <button type="button" className="btn btn-secondary btn-sm" style={{ padding: '2px 8px', fontSize: '11px' }} onClick={() => setStaffSearchTerm('')}>
+                          Clear Search
+                        </button>
+                      )}
+                    </label>
+                    <input 
+                      type="text" 
+                      className="input" 
+                      placeholder="🔍 Search staff by name, username, or staff ID..." 
+                      value={staffSearchTerm}
+                      onChange={(e) => setStaffSearchTerm(e.target.value)}
+                      style={{ marginBottom: '6px' }}
+                    />
+                    <select 
+                      className="input" 
+                      value={subjectStaffId} 
+                      onChange={(e) => setSubjectStaffId(e.target.value)}
+                    >
+                      <option value="">-- Select Staff Member (Optional) --</option>
+                      {allStaffList
+                        .filter(st => {
+                          if (!staffSearchTerm.trim()) return true;
+                          const search = staffSearchTerm.toLowerCase();
+                          const name = `${st.user?.first_name || ''} ${st.user?.last_name || ''} ${st.user?.username || ''}`.toLowerCase();
+                          const id = (st.staff_id || '').toLowerCase();
+                          return name.includes(search) || id.includes(search);
+                        })
+                        .map(st => (
+                          <option key={st.user?.id || st.id} value={st.user?.id || st.id}>
+                            {st.user?.first_name || st.user?.last_name 
+                              ? `${st.user.first_name} ${st.user.last_name} (@${st.user.username})${st.staff_id ? ' - ' + st.staff_id : ''}`
+                              : `@${st.user?.username || st.id}`
+                            }
+                          </option>
+                        ))
+                      }
+                    </select>
+                  </div>
+
                   {subjectType === 'PROFESSIONAL_ELECTIVE' && (
                     <div style={{ marginBottom: '16px', padding: '12px', borderRadius: '8px', backgroundColor: 'var(--bg-secondary)', border: '1px solid var(--border-color)' }}>
                       <label className="form-label" style={{ marginBottom: '6px', fontSize: '13px' }}>
@@ -3499,6 +3626,8 @@ const StaffDashboard = ({ activeTab }) => {
                         setSubjectName('');
                         setSubjectCode('');
                         setSubjectType('THEORY');
+                        setSubjectStaffId('');
+                        setStaffSearchTerm('');
                       }}
                     >
                       Cancel
@@ -3524,6 +3653,7 @@ const StaffDashboard = ({ activeTab }) => {
                         <th>Subject Name</th>
                         <th>Subject Code</th>
                         <th>Type</th>
+                        <th>Assigned Staff</th>
                         <th style={{ textAlign: 'right' }}>Actions</th>
                       </tr>
                     </thead>
@@ -3563,6 +3693,13 @@ const StaffDashboard = ({ activeTab }) => {
                                 </span>
                               ) : (
                                 <span className="badge badge-secondary">Theory</span>
+                              )}
+                            </td>
+                            <td>
+                              {sub.staff_name ? (
+                                <span className="badge badge-success" style={{ fontWeight: '600' }}>{sub.staff_name}</span>
+                              ) : (
+                                <span style={{ color: 'var(--text-muted)', fontSize: '13px', fontStyle: 'italic' }}>Unassigned</span>
                               )}
                             </td>
                             <td style={{ textAlign: 'right' }}>
@@ -3981,7 +4118,384 @@ const StaffDashboard = ({ activeTab }) => {
     );
   }
 
+  if (activeTab === 'my_subjects') {
+    const subjectsByClass = {};
+    myAssignedSubjects.forEach(sub => {
+      let key = 'Unassigned / Open Electives';
+      if (sub.student_class) {
+        key = sub.class_name || `Class ${sub.student_class}`;
+      } else if (sub.accepted_classes && sub.accepted_classes.length > 0) {
+        key = `Open Elective (${sub.code})`;
+      }
+      if (!subjectsByClass[key]) {
+        subjectsByClass[key] = {
+          className: key,
+          classId: sub.student_class || null,
+          subjects: []
+        };
+      }
+      subjectsByClass[key].subjects.push(sub);
+    });
 
+    return (
+      <div>
+        <div className="header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '24px' }}>
+          <div>
+            <h1 style={{ fontSize: '24px', fontWeight: '800', color: 'var(--text-primary)', margin: 0 }}>
+              My Assigned Subjects
+            </h1>
+            <p style={{ color: 'var(--text-secondary)', fontSize: '14px', marginTop: '4px', margin: 0 }}>
+              Class-wise separation of your assigned subject handling and student attendance details.
+            </p>
+          </div>
+          {selectedMySubject && (
+            <button 
+              className="btn btn-secondary" 
+              onClick={() => setSelectedMySubject(null)}
+              style={{ display: 'flex', alignItems: 'center', gap: '6px' }}
+            >
+              <ArrowLeft size={16} />
+              <span>Back to My Subjects</span>
+            </button>
+          )}
+        </div>
+
+        {mySubjectsLoading ? (
+          <div style={{ textAlign: 'center', padding: '60px' }}>
+            <div className="spinner" style={{ display: 'inline-block', width: '32px', height: '32px', border: '3px solid var(--border-color)', borderTop: '3px solid var(--accent-primary)', borderRadius: '50%', animation: 'spin 1s linear infinite' }} />
+            <p style={{ marginTop: '12px', color: 'var(--text-secondary)', fontWeight: '500' }}>Loading your subjects...</p>
+          </div>
+        ) : !selectedMySubject ? (
+          Object.keys(subjectsByClass).length === 0 ? (
+            <div className="card" style={{ textAlign: 'center', padding: '48px' }}>
+              <BookOpen size={44} style={{ color: 'var(--text-muted)', marginBottom: '12px' }} />
+              <h3 style={{ fontSize: '18px', fontWeight: '700', margin: '0 0 8px 0' }}>No Subjects Assigned Yet</h3>
+              <p style={{ color: 'var(--text-secondary)', fontSize: '14px', margin: 0 }}>
+                You have not been assigned to any subjects yet. Ask your HOD or Class Advisor to assign subjects to your profile.
+              </p>
+            </div>
+          ) : (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '24px' }}>
+              {Object.values(subjectsByClass).map((group, groupIdx) => (
+                <div key={groupIdx} className="card" style={{ padding: '24px' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '18px', borderBottom: '1px solid var(--border-color)', paddingBottom: '12px' }}>
+                    <div style={{ width: '36px', height: '36px', borderRadius: '10px', backgroundColor: 'rgba(79, 70, 229, 0.1)', color: 'var(--accent-primary)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                      <Users size={20} />
+                    </div>
+                    <div>
+                      <h2 style={{ fontSize: '18px', fontWeight: '700', margin: 0, color: 'var(--text-primary)' }}>
+                        {group.className}
+                      </h2>
+                      <span style={{ fontSize: '12px', color: 'var(--text-muted)' }}>
+                        {group.subjects.length} Subject{group.subjects.length > 1 ? 's' : ''} Assigned
+                      </span>
+                    </div>
+                  </div>
+
+                  <div className="grid grid-cols-2" style={{ gap: '16px' }}>
+                    {group.subjects.map((sub) => (
+                      <div 
+                        key={sub.id} 
+                        className="glass-panel"
+                        onClick={() => handleOpenMySubjectDetails(sub, group.classId, group.className)}
+                        style={{ 
+                          padding: '20px', 
+                          borderRadius: '12px', 
+                          border: '1px solid var(--border-color)', 
+                          cursor: 'pointer',
+                          transition: 'all 0.2s ease',
+                          display: 'flex',
+                          flexDirection: 'column',
+                          justify: 'space-between',
+                          gap: '14px',
+                          backgroundColor: 'var(--bg-secondary)'
+                        }}
+                        onMouseEnter={(e) => {
+                          e.currentTarget.style.borderColor = 'var(--accent-primary)';
+                          e.currentTarget.style.transform = 'translateY(-2px)';
+                          e.currentTarget.style.boxShadow = 'var(--shadow-md)';
+                        }}
+                        onMouseLeave={(e) => {
+                          e.currentTarget.style.borderColor = 'var(--border-color)';
+                          e.currentTarget.style.transform = 'none';
+                          e.currentTarget.style.boxShadow = 'none';
+                        }}
+                      >
+                        <div>
+                          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '8px' }}>
+                            <span className="badge badge-secondary" style={{ fontWeight: '700', fontSize: '12px' }}>
+                              {sub.code || 'NO-CODE'}
+                            </span>
+                            <span className="badge" style={{ backgroundColor: 'rgba(79, 70, 229, 0.12)', color: 'var(--accent-primary)', border: '1px solid rgba(79, 70, 229, 0.2)', fontSize: '11px' }}>
+                              {sub.subject_type || 'THEORY'}
+                            </span>
+                          </div>
+                          <h3 style={{ fontSize: '16px', fontWeight: '700', color: 'var(--text-primary)', margin: 0, lineHeight: '1.4' }}>
+                            {sub.name}
+                          </h3>
+                          {sub.department_name && (
+                            <div style={{ fontSize: '12px', color: 'var(--text-muted)', marginTop: '4px' }}>
+                              Dept: {sub.department_name}
+                            </div>
+                          )}
+                        </div>
+
+                        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', borderTop: '1px solid var(--border-color)', paddingTop: '10px', marginTop: '4px' }}>
+                          <span style={{ fontSize: '13px', fontWeight: '600', color: 'var(--accent-primary)' }}>
+                            View Student Attendance List →
+                          </span>
+                          <ChevronRight size={18} style={{ color: 'var(--accent-primary)' }} />
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              ))}
+            </div>
+          )
+        ) : (
+          <div>
+            <div className="card" style={{ marginBottom: '20px', padding: '24px' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '16px' }}>
+                <div>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '6px' }}>
+                    <span className="badge badge-secondary" style={{ fontSize: '14px', fontWeight: '800', padding: '4px 10px' }}>
+                      {selectedMySubject.subject.code}
+                    </span>
+                    <h2 style={{ fontSize: '20px', fontWeight: '800', margin: 0, color: 'var(--text-primary)' }}>
+                      {selectedMySubject.subject.name}
+                    </h2>
+                  </div>
+                  <p style={{ color: 'var(--text-secondary)', fontSize: '14px', margin: 0 }}>
+                    Class: <strong style={{ color: 'var(--accent-primary)' }}>{selectedMySubject.className}</strong>
+                  </p>
+                </div>
+
+                <div style={{ display: 'flex', gap: '12px', flexWrap: 'wrap', alignItems: 'center' }}>
+                  <button 
+                    className="btn btn-primary"
+                    style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '10px 16px', fontWeight: '700', backgroundColor: '#059669', borderColor: '#059669' }}
+                    onClick={() => handleDownloadSemesterExcel(selectedMySubject.subject.id, selectedMySubject.classId, selectedMySubject.subject.code)}
+                    title="Download complete semester summary report as an Excel file"
+                  >
+                    <FileSpreadsheet size={18} />
+                    <span>Download Excel Summary</span>
+                  </button>
+
+                  <button 
+                    className="btn btn-secondary"
+                    onClick={() => setSelectedMySubject(null)}
+                    style={{ display: 'flex', alignItems: 'center', gap: '6px' }}
+                  >
+                    <ArrowLeft size={16} />
+                    <span>Back</span>
+                  </button>
+                </div>
+              </div>
+
+              <div style={{ marginTop: '20px' }}>
+                <input 
+                  type="text"
+                  className="input"
+                  placeholder="🔍 Search students by Name or Register Number..."
+                  value={mySubjectStudentSearch}
+                  onChange={(e) => setMySubjectStudentSearch(e.target.value)}
+                  style={{ maxWidth: '400px' }}
+                />
+              </div>
+            </div>
+
+            <div className="card">
+              {mySubjectStudentsLoading ? (
+                <div style={{ textAlign: 'center', padding: '40px' }}>
+                  <div className="spinner" style={{ display: 'inline-block', width: '30px', height: '30px', border: '3px solid var(--border-color)', borderTop: '3px solid var(--accent-primary)', borderRadius: '50%', animation: 'spin 1s linear infinite' }} />
+                  <p style={{ marginTop: '12px', color: 'var(--text-secondary)' }}>Calculating subject attendance statistics...</p>
+                </div>
+              ) : (
+                <div className="table-container">
+                  <table className="table">
+                    <thead>
+                      <tr>
+                        <th style={{ width: '60px' }}>S.No</th>
+                        <th>Reg. No</th>
+                        <th>Student Name</th>
+                        <th style={{ textAlign: 'center' }}>T (Total)</th>
+                        <th style={{ textAlign: 'center' }}>P (Present)</th>
+                        <th style={{ textAlign: 'center' }}>A (Absent)</th>
+                        <th style={{ textAlign: 'center' }}>O (OD)</th>
+                        <th style={{ textAlign: 'center' }}>Percentage</th>
+                        <th style={{ textAlign: 'center' }}>Status</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {mySubjectStudents
+                        .filter(st => {
+                          if (!mySubjectStudentSearch.trim()) return true;
+                          const q = mySubjectStudentSearch.toLowerCase();
+                          const name = (st.name || '').toLowerCase();
+                          const reg = (st.reg_no || '').toLowerCase();
+                          return name.includes(q) || reg.includes(q);
+                        })
+                        .length === 0 ? (
+                          <tr>
+                            <td colSpan={9} style={{ textAlign: 'center', color: 'var(--text-muted)', padding: '30px' }}>
+                              No student attendance records found.
+                            </td>
+                          </tr>
+                        ) : (
+                          mySubjectStudents
+                            .filter(st => {
+                              if (!mySubjectStudentSearch.trim()) return true;
+                              const q = mySubjectStudentSearch.toLowerCase();
+                              const name = (st.name || '').toLowerCase();
+                              const reg = (st.reg_no || '').toLowerCase();
+                              return name.includes(q) || reg.includes(q);
+                            })
+                            .map((st, idx) => {
+                              const isSafe = st.percentage >= 75.0;
+                              const percentColor = isSafe ? 'var(--success)' : 'var(--danger)';
+                              return (
+                                <tr 
+                                  key={st.id || idx}
+                                  style={{ cursor: 'pointer', transition: 'background-color 0.15s ease' }}
+                                  onClick={() => handleStaffStudentRowClick(st.reg_no || st.username, selectedMySubject.subject.id)}
+                                  onMouseEnter={(e) => e.currentTarget.style.backgroundColor = 'var(--bg-tertiary)'}
+                                  onMouseLeave={(e) => e.currentTarget.style.backgroundColor = 'transparent'}
+                                  title="Click to view student's date-wise P/A/O log for this subject"
+                                >
+                                  <td style={{ fontWeight: '600' }}>{idx + 1}</td>
+                                  <td><span className="badge badge-secondary" style={{ fontFamily: 'monospace' }}>{st.reg_no || st.roll_no || 'N/A'}</span></td>
+                                  <td style={{ fontWeight: '600', color: 'var(--text-primary)' }}>{st.name}</td>
+                                  <td style={{ textAlign: 'center', fontWeight: '700' }}>{st.total_hours}</td>
+                                  <td style={{ textAlign: 'center', fontWeight: '700', color: 'var(--success)' }}>{st.present_count}</td>
+                                  <td style={{ textAlign: 'center', fontWeight: '700', color: 'var(--danger)' }}>{st.absent_count}</td>
+                                  <td style={{ textAlign: 'center', fontWeight: '700', color: 'var(--warning)' }}>{st.od_count || 0}</td>
+                                  <td style={{ textAlign: 'center', fontWeight: '800', color: percentColor }}>
+                                    {st.percentage}%
+                                  </td>
+                                  <td style={{ textAlign: 'center' }}>
+                                    <span className={`badge ${isSafe ? 'badge-present' : 'badge-absent'}`}>
+                                      {isSafe ? 'Safe' : 'Critical'}
+                                    </span>
+                                  </td>
+                                </tr>
+                              );
+                            })
+                        )
+                      }
+                    </tbody>
+                  </table>
+                </div>
+              )}
+            </div>
+          </div>
+        )}
+
+        {staffStudentDetailModalOpen && (
+          <div style={{
+            position: 'fixed', top: 0, left: 0, right: 0, bottom: 0,
+            backgroundColor: 'rgba(0,0,0,0.65)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1200,
+            backdropFilter: 'blur(5px)'
+          }}>
+            <div className="card" style={{ width: '90%', maxWidth: '700px', maxHeight: '90vh', overflowY: 'auto', padding: '30px' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '20px', alignItems: 'center', borderBottom: '1px solid var(--border-color)', paddingBottom: '16px' }}>
+                <div>
+                  <h2 style={{ fontSize: '20px', fontWeight: '800', margin: 0, color: 'var(--text-primary)' }}>
+                    Student Attendance Detailed Log
+                  </h2>
+                  {staffStudentDetailData?.student_details && (
+                    <span style={{ fontSize: '13px', color: 'var(--text-secondary)' }}>
+                      {staffStudentDetailData.student_details.name} ({staffStudentDetailData.student_details.reg_no})
+                    </span>
+                  )}
+                </div>
+                <button 
+                  className="btn btn-secondary" 
+                  style={{ padding: '6px 14px', fontSize: '13px', fontWeight: '700' }} 
+                  onClick={() => setStaffStudentDetailModalOpen(false)}
+                >
+                  Close
+                </button>
+              </div>
+
+              {staffStudentDetailLoading ? (
+                <div style={{ textAlign: 'center', padding: '40px' }}>
+                  <div className="spinner" style={{ display: 'inline-block', width: '28px', height: '28px', border: '3px solid var(--border-color)', borderTop: '3px solid var(--accent-primary)', borderRadius: '50%', animation: 'spin 1s linear infinite' }} />
+                  <p style={{ marginTop: '12px', color: 'var(--text-secondary)' }}>Loading session log...</p>
+                </div>
+              ) : staffStudentDetailData ? (
+                <div>
+                  <div className="grid grid-cols-4" style={{ gap: '12px', marginBottom: '20px', backgroundColor: 'var(--bg-secondary)', padding: '14px', borderRadius: '10px', border: '1px solid var(--border-color)' }}>
+                    <div style={{ textAlign: 'center' }}>
+                      <span style={{ fontSize: '11px', color: 'var(--text-muted)', display: 'block' }}>TOTAL HOURS</span>
+                      <strong style={{ fontSize: '18px', color: 'var(--text-primary)' }}>{staffStudentDetailData.stats?.total_hours || 0}</strong>
+                    </div>
+                    <div style={{ textAlign: 'center' }}>
+                      <span style={{ fontSize: '11px', color: 'var(--text-muted)', display: 'block' }}>PRESENT</span>
+                      <strong style={{ fontSize: '18px', color: 'var(--success)' }}>{staffStudentDetailData.stats?.effective_present || 0}</strong>
+                    </div>
+                    <div style={{ textAlign: 'center' }}>
+                      <span style={{ fontSize: '11px', color: 'var(--text-muted)', display: 'block' }}>ABSENT</span>
+                      <strong style={{ fontSize: '18px', color: 'var(--danger)' }}>{staffStudentDetailData.stats?.absent_count || 0}</strong>
+                    </div>
+                    <div style={{ textAlign: 'center' }}>
+                      <span style={{ fontSize: '11px', color: 'var(--text-muted)', display: 'block' }}>PERCENTAGE</span>
+                      <strong style={{ fontSize: '18px', color: (staffStudentDetailData.stats?.percentage >= 75) ? 'var(--success)' : 'var(--danger)' }}>
+                        {staffStudentDetailData.stats?.percentage || 0}%
+                      </strong>
+                    </div>
+                  </div>
+
+                  <div className="table-container">
+                    <table className="table">
+                      <thead>
+                        <tr>
+                          <th>Date</th>
+                          <th>Period</th>
+                          <th>Status</th>
+                          <th>Note</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {!staffStudentDetailData.records || staffStudentDetailData.records.length === 0 ? (
+                          <tr>
+                            <td colSpan={4} style={{ textAlign: 'center', color: 'var(--text-muted)' }}>
+                              No session records found for this subject.
+                            </td>
+                          </tr>
+                        ) : (
+                          staffStudentDetailData.records.map((r, idx) => (
+                            <tr key={idx}>
+                              <td style={{ fontWeight: '600' }}>{r.date}</td>
+                              <td>Period {r.period}</td>
+                              <td>
+                                <span className={`badge ${
+                                  r.status === 'Present' ? 'badge-present' :
+                                  r.status === 'Absent' ? 'badge-absent' :
+                                  r.status === 'OD' ? 'badge-od' : 'badge-leave'
+                                }`}>
+                                  {r.status}
+                                </span>
+                              </td>
+                              <td style={{ fontSize: '12px', color: 'var(--text-muted)' }}>
+                                {r.ignored ? 'Ignored (Optional 8th Period)' : '-'}
+                              </td>
+                            </tr>
+                          ))
+                        )}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+              ) : (
+                <div style={{ textAlign: 'center', color: 'var(--danger)' }}>Failed to load data.</div>
+              )}
+            </div>
+          </div>
+        )}
+      </div>
+    );
+  }
 
   if (activeTab === 'reports') {
     const isAdvisorOrTutor = (

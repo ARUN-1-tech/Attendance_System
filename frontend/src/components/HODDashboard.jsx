@@ -91,6 +91,8 @@ const HODDashboard = ({ activeTab, setActiveTab }) => {
   const [subjectName, setSubjectName] = useState('');
   const [subjectCode, setSubjectCode] = useState('');
   const [subjectType, setSubjectType] = useState('THEORY');
+  const [subjectStaffId, setSubjectStaffId] = useState('');
+  const [staffSearchTerm, setStaffSearchTerm] = useState('');
 
   // Approvals states
   const [leaves, setLeaves] = useState([]);
@@ -715,6 +717,7 @@ const HODDashboard = ({ activeTab, setActiveTab }) => {
       name: subjectName,
       code: subjectCode,
       subject_type: subjectType,
+      staff: subjectStaffId || null,
     };
 
     try {
@@ -739,6 +742,8 @@ const HODDashboard = ({ activeTab, setActiveTab }) => {
     setSubjectName(s.name);
     setSubjectCode(s.code);
     setSubjectType(s.subject_type || 'THEORY');
+    setSubjectStaffId(s.staff || s.staff_id || '');
+    setStaffSearchTerm('');
     setSubjectFormOpen(true);
   };
 
@@ -757,6 +762,8 @@ const HODDashboard = ({ activeTab, setActiveTab }) => {
     setSubjectName('');
     setSubjectCode('');
     setSubjectType('THEORY');
+    setSubjectStaffId('');
+    setStaffSearchTerm('');
   };
 
   // HOD Approvals
@@ -2096,6 +2103,49 @@ const HODDashboard = ({ activeTab, setActiveTab }) => {
                 <input type="text" className="input" placeholder="e.g. Cloud Computing" required value={subjectName} onChange={(e) => setSubjectName(e.target.value)} />
               </div>
 
+              <div className="form-group" style={{ marginBottom: '16px' }}>
+                <label className="form-label" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                  <span>Assigned Staff (Teacher)</span>
+                  {staffSearchTerm && (
+                    <button type="button" className="btn btn-secondary btn-sm" style={{ padding: '2px 8px', fontSize: '11px' }} onClick={() => setStaffSearchTerm('')}>
+                      Clear Search
+                    </button>
+                  )}
+                </label>
+                <input 
+                  type="text" 
+                  className="input" 
+                  placeholder="🔍 Search staff by name, username, or staff ID..." 
+                  value={staffSearchTerm}
+                  onChange={(e) => setStaffSearchTerm(e.target.value)}
+                  style={{ marginBottom: '6px' }}
+                />
+                <select 
+                  className="input" 
+                  value={subjectStaffId} 
+                  onChange={(e) => setSubjectStaffId(e.target.value)}
+                >
+                  <option value="">-- Select Staff Member (Optional) --</option>
+                  {staffList
+                    .filter(st => {
+                      if (!staffSearchTerm.trim()) return true;
+                      const search = staffSearchTerm.toLowerCase();
+                      const name = `${st.user?.first_name || ''} ${st.user?.last_name || ''} ${st.user?.username || ''}`.toLowerCase();
+                      const id = (st.staff_id || '').toLowerCase();
+                      return name.includes(search) || id.includes(search);
+                    })
+                    .map(st => (
+                      <option key={st.user?.id || st.id} value={st.user?.id || st.id}>
+                        {st.user?.first_name || st.user?.last_name 
+                          ? `${st.user.first_name} ${st.user.last_name} (@${st.user.username})${st.staff_id ? ' - ' + st.staff_id : ''}`
+                          : `@${st.user?.username || st.id}`
+                        }
+                      </option>
+                    ))
+                  }
+                </select>
+              </div>
+
               {subjectType === 'PROFESSIONAL_ELECTIVE' && (
                 <div style={{ marginBottom: '20px', padding: '12px', borderRadius: '8px', backgroundColor: 'var(--bg-secondary)', border: '1px solid var(--border-color)' }}>
                   <label className="form-label" style={{ marginBottom: '6px', fontSize: '13px' }}>
@@ -2140,6 +2190,7 @@ const HODDashboard = ({ activeTab, setActiveTab }) => {
                   <th>Subject Code</th>
                   <th>Subject Name</th>
                   <th>Type</th>
+                  <th>Assigned Staff</th>
                   <th>Actions</th>
                 </tr>
               </thead>
@@ -2164,6 +2215,13 @@ const HODDashboard = ({ activeTab, setActiveTab }) => {
                         </span>
                       ) : (
                         <span className="badge badge-secondary">Theory</span>
+                      )}
+                    </td>
+                    <td>
+                      {s.staff_name ? (
+                        <span className="badge badge-success" style={{ fontWeight: '600' }}>{s.staff_name}</span>
+                      ) : (
+                        <span style={{ color: 'var(--text-muted)', fontSize: '13px', italic: 'true' }}>Unassigned</span>
                       )}
                     </td>
                     <td>

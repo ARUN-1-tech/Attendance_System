@@ -912,3 +912,39 @@ class UserPasswordChangeAndManualAttendanceTestCase(TestCase):
         oe_a.refresh_from_db()
         self.assertEqual(oe_a.name, 'Solar & Renewable Energy')
 
+    def test_subject_staff_assignment_and_my_subjects_portal(self):
+        hod_user = User.objects.create_user(username='hod_test', password='password123', role='hod', department=self.dept)
+        teacher = User.objects.create_user(username='teacher1', password='password123', role='staff', department=self.dept)
+        Staff.objects.create(user=teacher, staff_type='Normal')
+
+        # HOD creates subject and assigns staff
+        self.client.login(username='hod_test', password='password123')
+        payload = {
+            'name': 'Embedded Systems',
+            'code': 'EC401',
+            'subject_type': 'THEORY',
+            'student_class': self.clazz.id,
+            'staff': teacher.id
+        }
+        res_create = self.client.post('/api/subjects/', payload, content_type='application/json')
+        self.assertIn(res_create.status_code, [200, 201])
+        sub_id = res_create.data['id']
+        self.assertEqual(res_create.data['staff_name'], 'teacher1')
+
+        # Teacher logs in and fetches my-subjects
+        self.client.login(username='teacher1', password='password123')
+        res_my = self.client.get('/api/subjects/?my_subjects=true')
+        self.assertEqual(res_my.status_code, 200)
+        self.assertEqual(len(res_my.data), 1)
+        self.assertEqual(res_my.data[0]['id'], sub_id)
+
+        # Teacher fetches student attendance for this subject
+        res_report = self.client.get(f'/api/attendances/advisor-subject-report-json/?subject_id={sub_id}&class_id={self.clazz.id}')
+        self.assertEqual(res_report.status_code, 200)
+
+        # Teacher fetches Excel report export
+        res_excel = self.client.get(f'/api/attendance/reports/export-excel/?report_mode=subject_percentage&subject_id={sub_id}&class_id={self.clazz.id}')
+        self.assertEqual(res_excel.status_code, 200)
+        self.assertIn('spreadsheetml', res_excel['Content-Type'])
+
+

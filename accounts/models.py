@@ -124,6 +124,7 @@ class Subject(models.Model):
     elective_students = models.ManyToManyField('Student', related_name='elective_subjects', blank=True)
     accepted_classes = models.ManyToManyField(Class, related_name='accepted_open_electives', blank=True)
     rejected_classes = models.ManyToManyField(Class, related_name='rejected_open_electives', blank=True)
+    staff = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, blank=True, limit_choices_to={'role__in': ['staff', 'hod']}, related_name='assigned_subjects')
 
     def __str__(self):
         return f"{self.name} ({self.code})" if self.code else self.name
