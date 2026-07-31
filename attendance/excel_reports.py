@@ -27,31 +27,25 @@ def generate_attendance_excel_report(
     ws.views.sheetView[0].showGridLines = True
 
     # Parse dates
-    try:
-        from_date = datetime.datetime.strptime(from_date_str, '%Y-%m-%d').date() if from_date_str else timezone.localdate()
-        to_date = datetime.datetime.strptime(to_date_str, '%Y-%m-%d').date() if to_date_str else from_date
-    except (ValueError, TypeError):
+    from_date = None
+    to_date = None
+    if from_date_str:
+        try:
+            from_date = datetime.datetime.strptime(from_date_str, '%Y-%m-%d').date()
+        except (ValueError, TypeError):
+            pass
+    if to_date_str:
+        try:
+            to_date = datetime.datetime.strptime(to_date_str, '%Y-%m-%d').date()
+        except (ValueError, TypeError):
+            pass
+
+    if report_mode == 'day' and not from_date:
         from_date = timezone.localdate()
         to_date = from_date
 
-    if from_date > to_date:
+    if from_date and to_date and from_date > to_date:
         from_date, to_date = to_date, from_date
-
-    # Determine Student Roster
-    students_qs = Student.objects.all().select_related('user', 'student_class')
-
-    selected_class = None
-    if class_id:
-        try:
-            selected_class = Class.objects.get(pk=class_id)
-            students_qs = students_qs.filter(student_class=selected_class)
-        except Class.DoesNotExist:
-            pass
-
-    if tutor_user:
-        students_qs = students_qs.filter(tutor=tutor_user)
-
-    students = list(students_qs.order_by('reg_no', 'user__username'))
 
     selected_subject = None
     if subject_id:
@@ -59,6 +53,26 @@ def generate_attendance_excel_report(
             selected_subject = Subject.objects.get(pk=subject_id)
         except Subject.DoesNotExist:
             pass
+
+    selected_class = None
+    if class_id:
+        try:
+            selected_class = Class.objects.get(pk=class_id)
+        except Class.DoesNotExist:
+            pass
+
+    # Determine Student Roster
+    if selected_subject and selected_subject.subject_type in ['OPEN_ELECTIVE', 'PROFESSIONAL_ELECTIVE']:
+        students_qs = selected_subject.get_enrolled_students().select_related('user', 'student_class')
+    elif selected_class:
+        students_qs = Student.objects.filter(student_class=selected_class).select_related('user', 'student_class')
+    else:
+        students_qs = Student.objects.all().select_related('user', 'student_class')
+
+    if tutor_user:
+        students_qs = students_qs.filter(tutor=tutor_user)
+
+    students = list(students_qs.order_by('reg_no', 'user__username'))
 
     # Styling Palette
     header_fill = PatternFill(start_color='0F172A', end_color='0F172A', fill_type='solid') # Navy
@@ -296,10 +310,15 @@ def generate_attendance_excel_report(
             schedules_qs = schedules_qs.filter(student_class=selected_class)
 
         # Query actual sessions logged in Attendance table
+        atts_filter = {}
+        if from_date:
+            atts_filter['date__gte'] = from_date
+        if to_date:
+            atts_filter['date__lte'] = to_date
+
         atts = Attendance.objects.filter(
             student__in=students,
-            date__gte=from_date,
-            date__lte=to_date
+            **atts_filter
         )
         if selected_subject:
             atts = atts.filter(schedule__subject=selected_subject)

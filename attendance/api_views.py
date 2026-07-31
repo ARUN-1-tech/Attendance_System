@@ -969,7 +969,16 @@ class AttendanceViewSet(viewsets.ModelViewSet):
         if not (student_username and subject_id):
             return Response({'detail': 'student_username and subject_id are required.'}, status=status.HTTP_400_BAD_REQUEST)
             
-        student = get_object_or_404(Student, user__username=student_username)
+        from django.db.models import Q
+        student = Student.objects.filter(
+            Q(user__username=student_username) |
+            Q(reg_no=student_username) |
+            Q(roll_no=student_username)
+        ).first()
+        if not student and str(student_username).isdigit():
+            student = Student.objects.filter(pk=int(student_username)).first()
+        if not student:
+            return Response({'detail': f'Student {student_username} not found.'}, status=status.HTTP_404_NOT_FOUND)
         records = Attendance.objects.filter(
             student=student,
             schedule__subject_id=subject_id
