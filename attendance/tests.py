@@ -138,8 +138,26 @@ class StaffAttendanceHistoryTests(TestCase):
         response = self.client.post(url, payload, format='json')
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         
-        # Verify in DB
         att1 = Attendance.objects.get(student=self.student1, schedule=self.schedule, date=self.today)
         att2 = Attendance.objects.get(student=self.student2, schedule=self.schedule, date=self.today)
         self.assertEqual(att1.status, 'Absent')
         self.assertEqual(att2.status, 'Present')
+
+    def test_export_excel_report_access_denied_for_normal_staff(self):
+        self.client.force_authenticate(user=self.staff_user)
+        url = f'/api/attendance/reports/export-excel/?from_date={self.today.strftime("%Y-%m-%d")}&class_id={self.clazz.id}'
+        response = self.client.get(url)
+        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
+
+    def test_export_excel_report_success_for_advisor(self):
+        # Assign staff_user as advisor of clazz
+        self.clazz.advisor = self.staff_user
+        self.clazz.save()
+
+        self.client.force_authenticate(user=self.staff_user)
+        url = f'/api/attendance/reports/export-excel/?report_mode=day&from_date={self.today.strftime("%Y-%m-%d")}&to_date={self.today.strftime("%Y-%m-%d")}&class_id={self.clazz.id}'
+        response = self.client.get(url)
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(response['Content-Type'], 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet')
+        self.assertGreater(len(response.content), 0)
+

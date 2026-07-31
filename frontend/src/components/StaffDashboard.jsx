@@ -3850,194 +3850,220 @@ const StaffDashboard = ({ activeTab }) => {
 
 
   if (activeTab === 'reports') {
-    const selectedClassName = classes.find(c => String(c.id) === String(reportClassId))?.name;
+    const isAdvisorOrTutor = (
+      user.staff_details?.staff_type === 'Advisor' || 
+      user.staff_details?.staff_type === 'Tutor' ||
+      user.role === 'hod' ||
+      user.role === 'admin'
+    );
+
+    if (!isAdvisorOrTutor) {
+      return (
+        <div style={{ maxWidth: '600px', margin: '40px auto', textAlign: 'center' }}>
+          <div className="card" style={{ padding: '40px', borderColor: 'var(--warning)' }}>
+            <ShieldAlert size={48} style={{ color: 'var(--warning)', marginBottom: '16px' }} />
+            <h2 style={{ fontSize: '20px', fontWeight: '800', color: 'var(--text-primary)', marginBottom: '8px' }}>
+              Access Restricted
+            </h2>
+            <p style={{ color: 'var(--text-secondary)', fontSize: '14px', lineHeight: '1.6' }}>
+              Attendance Reports generation is reserved exclusively for Class Advisors and Tutors. If you require class reports, please contact your Class Advisor or HOD.
+            </p>
+          </div>
+        </div>
+      );
+    }
 
     return (
-      <div>
-        <div className="header no-print">
-          <h1>Attendance Reports</h1>
-          {reportData.length > 0 && (
-            <div style={{ display: 'flex', gap: '8px' }}>
-              <button className="btn btn-secondary" style={{ display: 'flex', alignItems: 'center', gap: '6px' }} onClick={() => window.print()}>
-                <Printer size={16} />
-                <span>Print Report</span>
-              </button>
-              <button className="btn btn-primary" style={{ display: 'flex', alignItems: 'center', gap: '6px' }} onClick={handleDownloadCSV}>
-                <FileSpreadsheet size={16} />
-                <span>Download CSV</span>
-              </button>
+      <div style={{ maxWidth: '800px', margin: '0 auto', display: 'flex', flexDirection: 'column', gap: '24px' }}>
+        {/* Header Banner */}
+        <div className="card" style={{ padding: '24px', background: 'linear-gradient(135deg, #0F172A 0%, #1E293B 100%)', color: '#FFFFFF' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '14px' }}>
+            <div style={{
+              width: '48px', height: '48px', borderRadius: '12px',
+              backgroundColor: 'rgba(255, 255, 255, 0.1)', color: '#60A5FA',
+              display: 'flex', alignItems: 'center', justifyContent: 'center'
+            }}>
+              <FileSpreadsheet size={26} />
             </div>
-          )}
+            <div>
+              <div style={{ fontSize: '12px', color: '#94A3B8', fontWeight: '800', textTransform: 'uppercase', letterSpacing: '0.06em' }}>
+                Dr. NGP IT ERP • Official Reports Exporter
+              </div>
+              <h1 style={{ fontSize: '24px', fontWeight: '800', color: '#FFFFFF', margin: 0 }}>
+                Attendance Excel Reports Generator
+              </h1>
+              <p style={{ color: '#CBD5E1', fontSize: '14px', margin: '4px 0 0 0' }}>
+                Select parameters below to export complete, auto-formatted Excel spreadsheets (.xlsx) with student records, date/period breakdown, and summary averages.
+              </p>
+            </div>
+          </div>
         </div>
 
-        <div className="grid grid-cols-3" style={{ alignItems: 'start' }}>
-          {/* Query Filter card */}
-          <div className="card no-print" style={{ gridColumn: 'span 1' }}>
-            <h2 style={{ marginBottom: '20px' }}>Filter Criteria</h2>
-            <form onSubmit={handleRunReport}>
-              <div className="form-group">
-                <label className="form-label">Report Mode</label>
-                <select className="input" value={reportMode} onChange={(e) => setReportMode(e.target.value)}>
-                  <option value="day">Day Attendance</option>
-                  <option value="subject_percentage">Subject Percentage</option>
-                </select>
+        {/* Parameter Form Card */}
+        <div className="card" style={{ padding: '28px' }}>
+          <form onSubmit={async (e) => {
+            e.preventDefault();
+            const btn = e.target.querySelector('button[type="submit"]');
+            if (btn) btn.disabled = true;
+            try {
+              const queryParams = new URLSearchParams({
+                report_mode: reportMode,
+                class_id: reportClassId || '',
+                subject_id: reportSubjectId || '',
+                from_date: reportFromDate,
+                to_date: reportToDate || reportFromDate
+              });
+
+              const response = await fetch(`${api.baseUrl}/api/attendance/reports/export-excel/?${queryParams}`, {
+                method: 'GET',
+                credentials: 'include',
+                headers: {
+                  'Authorization': localStorage.getItem('auth_token') ? `Bearer ${localStorage.getItem('auth_token')}` : ''
+                }
+              });
+
+              if (!response.ok) {
+                const errJson = await response.json();
+                throw new Error(errJson.detail || 'Failed to generate Excel report.');
+              }
+
+              const blob = await response.blob();
+              const downloadUrl = window.URL.createObjectURL(blob);
+              const a = document.createElement('a');
+              a.href = downloadUrl;
+              a.download = `Attendance_Report_${reportMode}_${reportFromDate}_to_${reportToDate || reportFromDate}.xlsx`;
+              document.body.appendChild(a);
+              a.click();
+              a.remove();
+              window.URL.revokeObjectURL(downloadUrl);
+            } catch (err) {
+              alert("Excel Export Error: " + (err.message || "Unknown error"));
+            } finally {
+              if (btn) btn.disabled = false;
+            }
+          }}>
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '20px', marginBottom: '24px' }}>
+              <div className="form-group" style={{ gridColumn: 'span 2' }}>
+                <label className="form-label" style={{ fontWeight: '800', color: 'var(--text-primary)' }}>Report Mode</label>
+                <div style={{ display: 'flex', gap: '12px', marginTop: '6px' }}>
+                  <button 
+                    type="button"
+                    onClick={() => setReportMode('day')}
+                    style={{
+                      flex: 1, padding: '14px', borderRadius: '10px',
+                      border: reportMode === 'day' ? '2px solid var(--primary)' : '1px solid var(--border-color)',
+                      backgroundColor: reportMode === 'day' ? 'var(--primary-light)' : 'var(--bg-secondary)',
+                      color: reportMode === 'day' ? 'var(--primary)' : 'var(--text-secondary)',
+                      fontWeight: '800', cursor: 'pointer', textAlign: 'center', transition: 'all 0.15s ease'
+                    }}
+                  >
+                    Day-Wise Attendance Report
+                  </button>
+                  <button 
+                    type="button"
+                    onClick={() => setReportMode('subject_percentage')}
+                    style={{
+                      flex: 1, padding: '14px', borderRadius: '10px',
+                      border: reportMode === 'subject_percentage' ? '2px solid var(--primary)' : '1px solid var(--border-color)',
+                      backgroundColor: reportMode === 'subject_percentage' ? 'var(--primary-light)' : 'var(--bg-secondary)',
+                      color: reportMode === 'subject_percentage' ? 'var(--primary)' : 'var(--text-secondary)',
+                      fontWeight: '800', cursor: 'pointer', textAlign: 'center', transition: 'all 0.15s ease'
+                    }}
+                  >
+                    Subject-Wise Attendance Report
+                  </button>
+                </div>
               </div>
 
               <div className="form-group">
-                <label className="form-label">Report Scope</label>
-                <select className="input" value={reportType} onChange={(e) => setReportType(e.target.value)}>
-                  <option value="class">By Class</option>
-                  {user.staff_details?.staff_type !== 'Normal' && (
-                    <option value="tutored">My Tutored Students</option>
-                  )}
-                  <option value="student">Individual Student</option>
+                <label className="form-label" style={{ fontWeight: '700' }}>Select Class</label>
+                <select 
+                  className="input" 
+                  value={reportClassId} 
+                  onChange={(e) => setReportClassId(e.target.value)}
+                  style={{ height: '44px', fontWeight: '600' }}
+                >
+                  <option value="">-- All Department Classes --</option>
+                  {classes.map(c => (
+                    <option key={c.id} value={c.id}>{c.name} (Sec {c.section})</option>
+                  ))}
                 </select>
               </div>
 
-              {reportType === 'class' && (
+              {reportMode === 'subject_percentage' && (
                 <div className="form-group">
-                  <label className="form-label">Class</label>
-                  <select className="input" value={reportClassId} onChange={(e) => setReportClassId(e.target.value)}>
-                    {classes.map(c => <option key={c.id} value={c.id}>{c.name} (Sec {c.section})</option>)}
-                  </select>
-                </div>
-              )}
-
-              {reportType === 'student' && (
-                <div className="form-group">
-                  <label className="form-label">Student Reg/User ID</label>
-                  <input type="text" className="input" placeholder="e.g. student" value={reportStudentId} onChange={(e) => setReportStudentId(e.target.value)} required />
-                </div>
-              )}
-
-              {reportMode !== 'day' && (
-                <div className="form-group">
-                  <label className="form-label">Subject</label>
-                  <select className="input" value={reportSubjectId} onChange={(e) => setReportSubjectId(e.target.value)}>
+                  <label className="form-label" style={{ fontWeight: '700' }}>Select Subject</label>
+                  <select 
+                    className="input" 
+                    value={reportSubjectId} 
+                    onChange={(e) => setReportSubjectId(e.target.value)}
+                    style={{ height: '44px', fontWeight: '600' }}
+                  >
                     <option value="">-- All Subjects --</option>
-                    {subjects.map(s => <option key={s.id} value={s.id}>{s.name} ({s.code})</option>)}
+                    {subjects.map(s => (
+                      <option key={s.id} value={s.id}>{s.name} ({s.code})</option>
+                    ))}
                   </select>
                 </div>
               )}
 
               <div className="form-group">
-                <label className="form-label">From Date</label>
-                <input type="date" className="input" value={reportFromDate} onChange={(e) => setReportFromDate(e.target.value)} required />
+                <label className="form-label" style={{ fontWeight: '700' }}>From Date *</label>
+                <input 
+                  type="date" 
+                  className="input" 
+                  value={reportFromDate} 
+                  onChange={(e) => setReportFromDate(e.target.value)} 
+                  required 
+                  style={{ height: '44px' }}
+                />
               </div>
 
-              <div className="form-group" style={{ marginBottom: '24px' }}>
-                <label className="form-label">{reportMode === 'day' ? 'To Date (Optional)' : 'To Date'}</label>
-                <input type="date" className="input" value={reportToDate} onChange={(e) => setReportToDate(e.target.value)} required={reportMode !== 'day'} />
-              </div>
-
-              <button type="submit" className="btn btn-primary" style={{ width: '100%', height: '42px' }}>
-                Fetch Report Data
-              </button>
-            </form>
-          </div>
-
-          {/* Results table card */}
-          <div className="card printable-section" style={{ gridColumn: 'span 2' }}>
-            {/* Header & Filter Summary only visible when printing */}
-            <div className="print-only-header" style={{ display: 'none', marginBottom: '20px' }}>
-              <div style={{ textTransform: 'uppercase', fontSize: '18px', fontWeight: '900', color: '#0F172A', letterSpacing: '-0.02em', marginBottom: '2px' }}>
-                Dr. NGP Institute of Technology
-              </div>
-              <div style={{ fontSize: '13px', fontWeight: '700', color: '#475569', textTransform: 'uppercase', letterSpacing: '0.04em', marginBottom: '14px' }}>
-                Autonomous ERP — Official Student Attendance Report
-              </div>
-              
-              <div style={{
-                display: 'grid',
-                gridTemplateColumns: 'repeat(4, 1fr)',
-                gap: '12px',
-                padding: '12px 16px',
-                backgroundColor: '#F8FAFC',
-                border: '1px solid #CBD5E1',
-                borderRadius: '8px',
-                fontSize: '11px',
-                color: '#334155'
-              }}>
-                <div><span style={{ color: '#64748B', fontWeight: '600' }}>Mode: </span><strong style={{ color: '#0F172A' }}>{reportMode === 'day' ? 'Day Attendance' : 'Subject Percentage'}</strong></div>
-                <div><span style={{ color: '#64748B', fontWeight: '600' }}>Scope: </span><strong style={{ color: '#0F172A' }}>{reportType === 'class' ? `Class (${selectedClassName || 'Selected'})` : reportType === 'tutored' ? 'Tutored Students' : `Student (${reportStudentId})`}</strong></div>
-                <div><span style={{ color: '#64748B', fontWeight: '600' }}>Date Range: </span><strong style={{ color: '#0F172A' }}>{reportFromDate}{reportToDate ? ` to ${reportToDate}` : ''}</strong></div>
-                <div><span style={{ color: '#64748B', fontWeight: '600' }}>Total Records: </span><strong style={{ color: '#0F172A' }}>{reportData.length} Students</strong></div>
+              <div className="form-group">
+                <label className="form-label" style={{ fontWeight: '700' }}>To Date *</label>
+                <input 
+                  type="date" 
+                  className="input" 
+                  value={reportToDate} 
+                  onChange={(e) => setReportToDate(e.target.value)} 
+                  required 
+                  style={{ height: '44px' }}
+                />
               </div>
             </div>
 
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }} className="no-print">
-              <h2>Query Output ({reportData.length} records)</h2>
-              {reportData.length > 0 && (
-                <div style={{ display: 'flex', gap: '8px' }}>
-                  <button className="btn btn-secondary" style={{ display: 'flex', alignItems: 'center', gap: '6px' }} onClick={() => window.print()}>
-                    <Printer size={16} />
-                    <span>Print Report</span>
-                  </button>
-                  <button className="btn btn-primary" style={{ display: 'flex', alignItems: 'center', gap: '6px' }} onClick={handleDownloadCSV}>
-                    <FileSpreadsheet size={16} />
-                    <span>Download CSV</span>
-                  </button>
-                </div>
-              )}
+            <div style={{
+              backgroundColor: 'var(--bg-secondary)',
+              padding: '16px 20px',
+              borderRadius: '10px',
+              border: '1px solid var(--border-color)',
+              marginBottom: '24px',
+              fontSize: '13px',
+              color: 'var(--text-secondary)',
+              lineHeight: '1.6'
+            }}>
+              <strong>Excel Output Features:</strong>
+              <ul style={{ margin: '6px 0 0 18px', padding: 0 }}>
+                <li>Auto-arranged, dynamic column widths so headers and content are never clipped.</li>
+                <li>{reportMode === 'day' ? 'Individual Date columns showing whole-day status (P/A/OD).' : 'Individual Session columns showing Date + Period status.'}</li>
+                <li>Comprehensive end summary columns: Total Days/Classes, Present, Absent, OD, and Attendance %.</li>
+                <li>Class Overall Average summary row at bottom of sheet.</li>
+              </ul>
             </div>
 
-            <div className="table-container">
-              <table className="table">
-                <thead>
-                  {reportMode === 'day' ? (
-                    <tr>
-                      <th style={{ width: '60px' }}>S.NO</th>
-                      <th>REG NO</th>
-                      <th>STUDENT NAME</th>
-                      <th>CLASS</th>
-                      <th>DATE</th>
-                      <th>STATUS</th>
-                    </tr>
-                  ) : (
-                    <tr>
-                      <th style={{ width: '60px' }}>S.NO</th>
-                      <th>REG NO</th>
-                      <th>STUDENT NAME</th>
-                      <th>CLASS</th>
-                      <th>SUBJECT</th>
-                      <th>ATTENDANCE PERCENTAGE</th>
-                    </tr>
-                  )}
-                </thead>
-                <tbody>
-                  {reportData.length === 0 ? (
-                    <tr>
-                      <td colSpan={6} style={{ textAlign: 'center', color: 'var(--text-muted)' }}>No report data loaded. Adjust filters and click Fetch.</td>
-                    </tr>
-                  ) : (
-                    reportData.map((r, idx) => (
-                      <tr key={idx}>
-                        <td style={{ fontWeight: '600' }}>{idx + 1}</td>
-                        <td style={{ fontWeight: '700' }}>{r.student_reg_no || r.student_username}</td>
-                        <td style={{ fontWeight: '600' }}>{r.student_name}</td>
-                        <td>{r.class_name}</td>
-                        {reportMode === 'day' ? (
-                          <>
-                            <td>{r.date}</td>
-                            <td>
-                              <span className={`badge ${r.status === 'Present' ? 'badge-present' : (r.status === 'Absent' ? 'badge-absent' : (r.status === 'OD' ? 'badge-od' : (r.status === 'Half Day' ? 'badge-halfday' : 'badge-leave')))}`}>
-                                {r.status}
-                              </span>
-                            </td>
-                          </>
-                        ) : (
-                          <>
-                            <td>{r.subject_name}</td>
-                            <td style={{ fontWeight: '600' }}>{r.percentage}%</td>
-                          </>
-                        )}
-                      </tr>
-                    ))
-                  )}
-                </tbody>
-              </table>
-            </div>
-          </div>
+            <button 
+              type="submit" 
+              className="btn btn-primary" 
+              style={{
+                width: '100%', height: '50px', fontSize: '15px', fontWeight: '800',
+                display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: '10px',
+                backgroundColor: '#16A34A', borderColor: '#15803D'
+              }}
+            >
+              <FileSpreadsheet size={20} />
+              <span>Download Excel Report (.xlsx)</span>
+            </button>
+          </form>
         </div>
       </div>
     );

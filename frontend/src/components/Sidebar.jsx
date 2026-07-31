@@ -123,13 +123,15 @@ const Sidebar = ({ activeTab, setActiveTab, mobileOpen, setMobileOpen }) => {
               <span>Manage Subjects</span>
             </div>
           )}
-          <div 
-            className={`nav-item ${activeTab === 'reports' ? 'active' : ''}`}
-            onClick={() => handleTabClick('reports')}
-          >
-            <Download size={19} />
-            <span>Reports</span>
-          </div>
+          {(user.staff_details?.staff_type === 'Advisor' || user.staff_details?.staff_type === 'Tutor') && (
+            <div 
+              className={`nav-item ${activeTab === 'reports' ? 'active' : ''}`}
+              onClick={() => handleTabClick('reports')}
+            >
+              <Download size={19} />
+              <span>Reports</span>
+            </div>
+          )}
           <div 
             className={`nav-item ${activeTab === 'profile' ? 'active' : ''}`}
             onClick={() => handleTabClick('profile')}

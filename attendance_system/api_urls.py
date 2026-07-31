@@ -12,7 +12,7 @@ from timetable.api_views import ScheduleViewSet
 from attendance.api_views import (
     api_generate_otp, api_verify_otp, api_session_stats,
     api_student_stats, api_attendance_report_data, AttendanceViewSet,
-    api_stop_session
+    api_stop_session, api_export_excel_report
 )
 from leave.api_views import LeaveViewSet
 
@@ -40,6 +40,7 @@ urlpatterns = [
     path('attendance/session-stats/<int:otp_id>/', api_session_stats, name='api_session_stats'),
     path('attendance/student-stats/<str:username>/', api_student_stats, name='api_student_stats'),
     path('attendance/reports/', api_attendance_report_data, name='api_attendance_report_data'),
+    path('attendance/reports/export-excel/', api_export_excel_report, name='api_export_excel_report'),
 
     # HOD Endpoints
     path('hod/dashboard-stats/', api_hod_dashboard_stats, name='api_hod_dashboard_stats'),

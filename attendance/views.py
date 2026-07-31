@@ -284,12 +284,22 @@ import csv
 from django.http import HttpResponse
 
 @login_required
+@login_required
 def download_report(request):
     from accounts.models import Department, Class, Student, Subject
     from django.db.models import Q
-    from leave.models import Leave
-    from timetable.models import Schedule
-    
+    from django.contrib import messages
+    from django.http import HttpResponse
+    from .excel_reports import generate_attendance_excel_report
+
+    if request.user.role == 'staff':
+        staff_type = getattr(request.user.staff, 'staff_type', 'Normal') if hasattr(request.user, 'staff') else 'Normal'
+        is_advisor = Class.objects.filter(advisor=request.user).exists()
+        is_tutor = Student.objects.filter(tutor=request.user).exists()
+        if staff_type not in ['Advisor', 'Tutor'] and not is_advisor and not is_tutor:
+            messages.error(request, 'Reports access is reserved exclusively for Class Advisors and Tutors.')
+            return redirect('staff_dashboard')
+
     context = {}
     if request.user.role == 'hod':
         context['classes'] = Class.objects.filter(department=request.user.department)
@@ -311,302 +321,32 @@ def download_report(request):
         context['students'] = Student.objects.all().select_related('user')
 
     if request.method == 'POST':
-        action_type = request.POST.get('action', 'view')
-        report_type = request.POST.get('report_type', 'department')
         report_mode = request.POST.get('report_mode', 'day')
-        
-        from_date = request.POST.get('from_date') or request.POST.get('date')
-        to_date = request.POST.get('to_date')
-        
-        if report_mode == 'day':
-            if not to_date:
-                to_date = from_date
-            
-        subject_id = request.POST.get('subject_id')
         class_id = request.POST.get('class_id')
-        student_id = request.POST.get('student_id')
+        subject_id = request.POST.get('subject_id')
+        from_date_str = request.POST.get('from_date') or request.POST.get('date')
+        to_date_str = request.POST.get('to_date') or from_date_str
 
-        # Keep values in forms
-        context.update({
-            'selected_report_type': report_type,
-            'selected_report_mode': report_mode,
-            'selected_date': from_date,
-            'selected_from_date': from_date,
-            'selected_to_date': to_date,
-            'selected_subject_id': int(subject_id) if subject_id else '',
-            'selected_class_id': int(class_id) if class_id else '',
-            'selected_student_id': int(student_id) if student_id else '',
-        })
+        tutor_user = request.user if (request.user.role == 'staff' and getattr(request.user.staff, 'staff_type', '') == 'Tutor') else None
 
-        if request.user.role == 'student':
-            if hasattr(request.user, 'student'):
-                records = Attendance.objects.filter(student=request.user.student)
-            else:
-                records = Attendance.objects.none()
-        elif request.user.role == 'hod':
-            records = Attendance.objects.filter(student__student_class__department=request.user.department)
-        elif request.user.role == 'staff':
-            records = Attendance.objects.filter(student__student_class__department=request.user.department)
-        elif request.user.role == 'admin':
-            records = Attendance.objects.all()
-        else:
-            records = Attendance.objects.none()
+        wb = generate_attendance_excel_report(
+            report_mode=report_mode,
+            class_id=class_id,
+            subject_id=subject_id,
+            from_date_str=from_date_str,
+            to_date_str=to_date_str,
+            tutor_user=tutor_user,
+            requested_by_user=request.user
+        )
 
-        validation_error = False
-        if request.user.role == 'staff':
-            is_related = False
-            
-            if report_type == 'class':
-                if class_id:
-                    try:
-                        student_class = Class.objects.get(id=class_id)
-                        is_related = (student_class.advisor == request.user)
-                    except Class.DoesNotExist:
-                        pass
-            elif report_type == 'student':
-                if student_id:
-                    try:
-                        student = Student.objects.get(user_id=student_id)
-                        is_related = (student.tutor == request.user or student.advisor == request.user)
-                    except Student.DoesNotExist:
-                        pass
-            elif report_type == 'tutored':
-                is_related = True
+        response = HttpResponse(
+            content_type='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
+        )
+        filename = f"Attendance_Report_{report_mode}_{from_date_str}_to_{to_date_str}.xlsx"
+        response['Content-Disposition'] = f'attachment; filename="{filename}"'
+        wb.save(response)
+        return response
 
-            if not is_related and report_mode == 'subject_percentage':
-                if not subject_id:
-                    messages.error(request, "Subject selection is required for this report as you are not the tutor or advisor.")
-                    validation_error = True
-                    records = Attendance.objects.none()
-                else:
-                    records = records.filter(schedule__subject_id=subject_id)
-            else:
-                if subject_id and report_mode == 'subject_percentage':
-                    records = records.filter(schedule__subject_id=subject_id)
-        else:
-            if subject_id and report_mode == 'subject_percentage':
-                records = records.filter(schedule__subject_id=subject_id)
-
-        if not validation_error:
-            if from_date:
-                records = records.filter(date__gte=from_date)
-            if to_date:
-                records = records.filter(date__lte=to_date)
-
-            if report_type == 'class' and class_id:
-                records = records.filter(student__student_class_id=class_id)
-            elif report_type == 'tutored':
-                records = records.filter(student__tutor=request.user)
-            elif report_type == 'student' and student_id:
-                records = records.filter(student__user_id=student_id)
-
-        report_rows = []
-        if not validation_error:
-            if report_mode == 'day':
-                students_query = Student.objects.all()
-                if request.user.role == 'hod' or request.user.role == 'staff':
-                    students_query = students_query.filter(user__department=request.user.department)
-                
-                if report_type == 'class' and class_id:
-                    students_query = students_query.filter(student_class_id=class_id)
-                elif report_type == 'tutored':
-                    students_query = students_query.filter(tutor=request.user)
-                elif report_type == 'student' and student_id:
-                    students_query = students_query.filter(user_id=student_id)
-                
-                students_list = list(students_query.select_related('user', 'student_class'))
-                
-                import datetime
-                try:
-                    start_date = datetime.datetime.strptime(from_date, '%Y-%m-%d').date() if from_date else None
-                    end_date = datetime.datetime.strptime(to_date, '%Y-%m-%d').date() if to_date else None
-                except (ValueError, TypeError):
-                    start_date = None
-                    end_date = None
-
-                target_dates = []
-                if start_date and end_date:
-                    if start_date == end_date:
-                        target_dates = [start_date]
-                    else:
-                        db_dates = Attendance.objects.filter(
-                            student__in=students_list,
-                            date__gte=start_date,
-                            date__lte=end_date
-                        ).values_list('date', flat=True).distinct()
-                        target_dates = sorted(list(set(db_dates)))
-                        if not target_dates:
-                            target_dates = [start_date]
-                else:
-                    target_dates = [datetime.date.today()]
-
-                records_in_range = Attendance.objects.filter(
-                    student__in=students_list,
-                    date__in=target_dates
-                ).select_related('student__user', 'student__student_class')
-                from .models import filter_active_attendance
-                records_in_range = filter_active_attendance(records_in_range)
-                
-                from collections import defaultdict
-                student_date_statuses = defaultdict(list)
-                for r in records_in_range:
-                    student_date_statuses[(r.student_id, r.date)].append(r.status)
-                    
-                attendance_map = {}
-                for key, statuses in student_date_statuses.items():
-                    has_present = 'Present' in statuses or 'OD' in statuses
-                    has_absent_or_leave = 'Absent' in statuses or 'Leave' in statuses
-                    if has_present and has_absent_or_leave:
-                        attendance_map[key] = 'Half Day'
-                    elif 'OD' in statuses and not has_absent_or_leave:
-                        attendance_map[key] = 'OD'
-                    elif 'Leave' in statuses and not has_present:
-                        attendance_map[key] = 'Leave'
-                    elif 'Absent' in statuses and not has_present:
-                        attendance_map[key] = 'Absent'
-                    else:
-                        attendance_map[key] = 'Present' if 'Present' in statuses else 'OD'
-                        
-                for d in target_dates:
-                    date_str = d.strftime('%Y-%m-%d')
-                    for student in students_list:
-                        status = attendance_map.get((student.user_id, d), 'Absent')
-                        report_rows.append({
-                            'reg_no': student.reg_no or student.roll_no or student.user.username,
-                            'student_username': student.user.username,
-                            'student_name': f"{student.user.first_name} {student.user.last_name}".strip() or student.user.username,
-                            'department': student.student_class.department.name if student.student_class and student.student_class.department else '',
-                            'year': student.student_class.year if student.student_class else '',
-                            'class_name': student.student_class.name if student.student_class else '',
-                            'section': student.student_class.section if student.student_class else '',
-                            'class': str(student.student_class),
-                            'date': date_str,
-                            'status': status
-                        })
-            else:
-                students_query = Student.objects.all()
-                if request.user.role == 'hod' or request.user.role == 'staff':
-                    students_query = students_query.filter(user__department=request.user.department)
-                
-                if report_type == 'class' and class_id:
-                    students_query = students_query.filter(student_class_id=class_id)
-                elif report_type == 'tutored':
-                    students_query = students_query.filter(tutor=request.user)
-                elif report_type == 'student' and student_id:
-                    students_query = students_query.filter(user_id=student_id)
-                
-                students_list = students_query.select_related('user', 'student_class')
-                
-                for student in students_list:
-                    student_atts = Attendance.objects.filter(student=student)
-                    from .models import filter_active_attendance
-                    student_atts = filter_active_attendance(student_atts)
-                    if from_date:
-                        student_atts = student_atts.filter(date__gte=from_date)
-                    if to_date:
-                        student_atts = student_atts.filter(date__lte=to_date)
-                    
-                    if subject_id:
-                        student_atts = student_atts.filter(schedule__subject_id=subject_id)
-                        try:
-                            subject_label = Subject.objects.get(id=subject_id).name
-                        except Subject.DoesNotExist:
-                            subject_label = 'Subject'
-                    else:
-                        subject_label = 'Overall'
-                        
-                    total_periods = student_atts.count()
-                    if total_periods > 0:
-                        present_periods = student_atts.filter(status='Present').count()
-                        verified_ods = Leave.objects.filter(
-                            student=student, 
-                            leave_type='OD', 
-                            final_status='Approved', 
-                            certificate_verified=True
-                        ).values_list('date', flat=True)
-                        verified_od_count = student_atts.filter(status='OD', date__in=verified_ods).count()
-                        effective_present = present_periods + verified_od_count
-                        percentage = round((effective_present / total_periods * 100), 2)
-                    else:
-                        percentage = 100.0
-                        
-                    report_rows.append({
-                        'reg_no': student.reg_no or student.roll_no or student.user.username,
-                        'student_username': student.user.username,
-                        'student_name': f"{student.user.first_name} {student.user.last_name}".strip() or student.user.username,
-                        'department': student.student_class.department.name if student.student_class and student.student_class.department else '',
-                        'year': student.student_class.year if student.student_class else '',
-                        'class_name': student.student_class.name if student.student_class else '',
-                        'section': student.student_class.section if student.student_class else '',
-                        'class': str(student.student_class),
-                        'subject': subject_label,
-                        'percentage': f"{percentage}%"
-                    })
-
-        if action_type == 'download' and not validation_error:
-            response = HttpResponse(content_type='text/csv')
-            if report_mode == 'day':
-                response['Content-Disposition'] = f'attachment; filename="attendance_{report_type}_day_report.csv"'
-                writer = csv.writer(response)
-                writer.writerow(['Register Number', 'Name', 'Department', 'Year', 'Class', 'Section', 'Date', 'Status'])
-                total_c = 0
-                present_c = 0
-                absent_c = 0
-                od_c = 0
-                leave_c = 0
-                halfday_c = 0
-                for row in report_rows:
-                    writer.writerow([
-                        row['reg_no'], 
-                        row['student_name'], 
-                        row['department'], 
-                        row['year'], 
-                        row['class_name'], 
-                        row['section'], 
-                        row['date'], 
-                        row['status']
-                    ])
-                    total_c += 1
-                    if row['status'] == 'Present':
-                        present_c += 1
-                    elif row['status'] == 'Absent':
-                        absent_c += 1
-                    elif row['status'] == 'OD':
-                        od_c += 1
-                    elif row['status'] == 'Leave':
-                        leave_c += 1
-                    elif row['status'] == 'Half Day':
-                        halfday_c += 1
-                
-                writer.writerow([])
-                writer.writerow(['Summary'])
-                writer.writerow(['Total Students', total_c])
-                writer.writerow(['Present', present_c])
-                writer.writerow(['Absent', absent_c])
-                writer.writerow(['OD', od_c])
-                writer.writerow(['Leave', leave_c])
-                writer.writerow(['Half Day', halfday_c])
-            else:
-                response['Content-Disposition'] = f'attachment; filename="attendance_{report_type}_percentage_report.csv"'
-                writer = csv.writer(response)
-                writer.writerow(['Register Number', 'Name', 'Department', 'Year', 'Class', 'Section', 'Subject', 'Attendance Percentage'])
-                for row in report_rows:
-                    writer.writerow([
-                        row['reg_no'], 
-                        row['student_name'], 
-                        row['department'], 
-                        row['year'], 
-                        row['class_name'], 
-                        row['section'], 
-                        row['subject'], 
-                        row['percentage']
-                    ])
-            return response
-
-        context.update({
-            'report_rows': report_rows,
-            'has_run': True,
-        })
     return render(request, 'attendance/reports.html', context)
 
 @login_required

@@ -760,6 +760,57 @@ def api_attendance_report_data(request):
 
     return Response(result)
 
+@api_view(['GET', 'POST'])
+@permission_classes([IsAuthenticated])
+def api_export_excel_report(request):
+    user = request.user
+    
+    # Restrict report access exclusively to Advisor, Tutor, HOD, Admin
+    if user.role == 'staff':
+        staff_type = user.staff.staff_type if hasattr(user, 'staff') else 'Normal'
+        from accounts.models import Class, Student
+        is_advisor = Class.objects.filter(advisor=user).exists()
+        is_tutor = Student.objects.filter(tutor=user).exists()
+        
+        if staff_type not in ['Advisor', 'Tutor'] and not is_advisor and not is_tutor:
+            return Response(
+                {'detail': 'Reports access is reserved exclusively for Class Advisors and Tutors.'},
+                status=status.HTTP_403_FORBIDDEN
+            )
+    elif user.role not in ['hod', 'admin']:
+        return Response({'detail': 'Access denied.'}, status=status.HTTP_403_FORBIDDEN)
+
+    params = request.data if request.method == 'POST' else request.query_params
+    report_mode = params.get('report_mode', 'day')
+    class_id = params.get('class_id')
+    subject_id = params.get('subject_id')
+    from_date_str = params.get('from_date') or params.get('date')
+    to_date_str = params.get('to_date') or from_date_str
+
+    is_tutor_role = hasattr(user, 'staff') and user.staff.staff_type == 'Tutor'
+    tutor_user = user if (user.role == 'staff' and is_tutor_role) else None
+
+    from .excel_reports import generate_attendance_excel_report
+    wb = generate_attendance_excel_report(
+        report_mode=report_mode,
+        class_id=class_id,
+        subject_id=subject_id,
+        from_date_str=from_date_str,
+        to_date_str=to_date_str,
+        tutor_user=tutor_user,
+        requested_by_user=user
+    )
+
+    from django.http import HttpResponse
+    response = HttpResponse(
+        content_type='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
+    )
+    filename = f"Attendance_Report_{report_mode}_{from_date_str}_to_{to_date_str}.xlsx"
+    response['Content-Disposition'] = f'attachment; filename="{filename}"'
+    
+    wb.save(response)
+    return response
+
 class AttendanceViewSet(viewsets.ModelViewSet):
     queryset = Attendance.objects.all()
     serializer_class = AttendanceSerializer
