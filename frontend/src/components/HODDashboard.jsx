@@ -717,7 +717,7 @@ const HODDashboard = ({ activeTab, setActiveTab }) => {
       name: subjectName,
       code: subjectCode,
       subject_type: subjectType,
-      staff: subjectStaffId || null,
+      staff: subjectStaffId ? parseInt(subjectStaffId, 10) : null,
     };
 
     try {

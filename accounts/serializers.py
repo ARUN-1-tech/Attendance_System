@@ -64,6 +64,11 @@ class SubjectSerializer(serializers.ModelSerializer):
     class Meta:
         model = Subject
         fields = '__all__'
+        extra_kwargs = {
+            'staff': {'required': False, 'allow_null': True},
+            'department': {'required': False, 'allow_null': True},
+            'student_class': {'required': False, 'allow_null': True},
+        }
 
     def get_staff_name(self, obj):
         if obj.staff:

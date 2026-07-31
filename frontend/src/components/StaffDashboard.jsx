@@ -316,8 +316,8 @@ const StaffDashboard = ({ activeTab }) => {
       name: subjectName,
       code: subjectCode,
       subject_type: subjectType,
-      student_class: advisedClass?.id,
-      staff: subjectStaffId || null
+      student_class: advisedClass?.id || editingSubject?.student_class || null,
+      staff: subjectStaffId ? parseInt(subjectStaffId, 10) : null
     };
     try {
       if (editingSubject) {
@@ -339,7 +339,7 @@ const StaffDashboard = ({ activeTab }) => {
       }
     } catch (err) {
       console.error(err);
-      alert("Error saving subject. Make sure code is unique if applicable.");
+      alert(err.message || "Error saving subject. Make sure code is unique if applicable.");
     }
   };
 

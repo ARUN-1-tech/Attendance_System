@@ -215,10 +215,12 @@ class SubjectViewSet(viewsets.ModelViewSet):
         user = self.request.user
         subject = self.get_object()
         if user.role == 'staff':
-            is_creator = subject.student_class and (subject.student_class.advisor == user)
-            if not is_creator:
+            is_advisor_creator = subject.student_class and (subject.student_class.advisor == user)
+            is_assigned_staff = (subject.staff == user)
+            is_dept_advisor = hasattr(user, 'staff') and user.staff.staff_type == 'Advisor' and (subject.department == user.department)
+            if not (is_advisor_creator or is_assigned_staff or is_dept_advisor):
                 from rest_framework.exceptions import PermissionDenied
-                raise PermissionDenied('Only the creator advisor of this subject (or HOD/Admin) can edit it.')
+                raise PermissionDenied('Only the creator advisor or assigned staff of this subject (or HOD/Admin) can edit it.')
         serializer.save()
 
     def perform_destroy(self, instance):
