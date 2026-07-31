@@ -111,6 +111,7 @@ const StaffDashboard = ({ activeTab }) => {
   const [manualAttError, setManualAttError] = useState(null);
   const [recentlyMarked, setRecentlyMarked] = useState([]);
   const [manualPeriod, setManualPeriod] = useState('1');
+  const [selectedManualPeriods, setSelectedManualPeriods] = useState(['1']);
   const [manualIsLocked, setManualIsLocked] = useState(false);
   const [manualLockedByName, setManualLockedByName] = useState('');
   const [manualSearchQuery, setManualSearchQuery] = useState('');
@@ -600,13 +601,30 @@ const StaffDashboard = ({ activeTab }) => {
     }
   }, [activeTab]);
 
+  const fetchManualPeriodLocks = async (classId, dateVal) => {
+    if (!classId || !dateVal) return;
+    try {
+      const res = await api.get(`/api/attendances/class-period-locks/?class_id=${classId}&date=${dateVal}`);
+      setManualLockedPeriods(res.locks || []);
+    } catch (err) {
+      console.error("Failed to fetch period locks:", err);
+    }
+  };
+
   useEffect(() => {
-    if (activeTab === 'manual_attendance' && manualClassId && manualSubjectId && manualDate && manualPeriod) {
-      fetchManualClassStudents(manualClassId, manualSubjectId, manualDate, manualPeriod);
+    if (activeTab === 'manual_attendance' && manualClassId && manualDate) {
+      fetchManualPeriodLocks(manualClassId, manualDate);
+    }
+  }, [activeTab, manualClassId, manualDate]);
+
+  useEffect(() => {
+    const firstPeriod = selectedManualPeriods.length > 0 ? selectedManualPeriods[0] : '1';
+    if (activeTab === 'manual_attendance' && manualClassId && manualSubjectId && manualDate && selectedManualPeriods.length > 0) {
+      fetchManualClassStudents(manualClassId, manualSubjectId, manualDate, firstPeriod);
     } else {
       setManualAttStudents([]);
     }
-  }, [activeTab, manualClassId, manualSubjectId, manualDate, manualPeriod]);
+  }, [activeTab, manualClassId, manualSubjectId, manualDate, selectedManualPeriods]);
 
   useEffect(() => {
     if (activeTab === 'manual_attendance' && user.staff_details?.staff_type === 'Advisor') {
@@ -970,12 +988,11 @@ const StaffDashboard = ({ activeTab }) => {
 
   const handleSaveClassManualAttendance = async (e) => {
     if (e) e.preventDefault();
-    if (!manualClassId || !manualSubjectId || !manualDate || !manualPeriod) return;
-    if (manualIsLocked) {
-      alert('This period is locked. You cannot modify the attendance.');
+    if (!manualClassId || !manualSubjectId || !manualDate || selectedManualPeriods.length === 0) {
+      alert('Please select at least one period to mark attendance.');
       return;
     }
-    if (!window.confirm("Are you sure you want to save the attendance?")) return;
+    if (!window.confirm(`Are you sure you want to save attendance for ${selectedManualPeriods.length} period(s)?`)) return;
     
     setManualAttLoading(true);
     setManualAttMessage(null);
@@ -985,35 +1002,37 @@ const StaffDashboard = ({ activeTab }) => {
         class_id: manualClassId,
         subject_id: manualSubjectId,
         date: manualDate,
-        period: manualPeriod,
+        periods: selectedManualPeriods.map(p => parseInt(p)),
         statuses: manualStatuses
       });
 
       setManualAttMessage(res.detail || 'Attendance updated successfully.');
+      fetchManualPeriodLocks(manualClassId, manualDate);
       
       const nowStr = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' });
       const newEntries = [];
-      
       const subjObj = subjects.find(sub => sub.id.toString() === manualSubjectId.toString());
       const subjectName = subjObj ? subjObj.name : 'Selected Subject';
 
-      Object.keys(manualStatuses).forEach(sId => {
-        const s = manualAttStudents.find(stud => stud.id.toString() === sId.toString());
-        if (s) {
-          newEntries.push({
-            studentName: s.name,
-            regNo: s.reg_no,
-            date: manualDate,
-            period: parseInt(manualPeriod),
-            subjectName: subjectName,
-            status: manualStatuses[sId],
-            timeMarked: nowStr
-          });
-        }
+      selectedManualPeriods.forEach(pStr => {
+        const pNum = parseInt(pStr);
+        Object.keys(manualStatuses).forEach(sId => {
+          const s = manualAttStudents.find(stud => stud.id.toString() === sId.toString());
+          if (s) {
+            newEntries.push({
+              studentName: s.name,
+              regNo: s.reg_no,
+              date: manualDate,
+              period: pNum,
+              subjectName: subjectName,
+              status: manualStatuses[sId],
+              timeMarked: nowStr
+            });
+          }
+        });
       });
 
       setRecentlyMarked(prev => [...newEntries, ...prev]);
-
       setTimeout(() => {
         setManualAttMessage(null);
       }, 4000);
@@ -2757,7 +2776,7 @@ const StaffDashboard = ({ activeTab }) => {
         {(!user.staff_details || user.staff_details.staff_type !== 'Advisor' || manualMode === 'subject') && (
           <div className="card" style={{ marginBottom: '24px' }}>
             <form onSubmit={handleSaveClassManualAttendance}>
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(5, 1fr)', gap: '16px' }}>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '16px', marginBottom: '20px' }}>
               <div className="form-group">
                 <label className="form-label">1. Department</label>
                 <select 
@@ -2835,46 +2854,107 @@ const StaffDashboard = ({ activeTab }) => {
                   required
                 />
               </div>
+            </div>
 
-              <div className="form-group">
-                <label className="form-label">5. Period</label>
-                <select 
-                  className="input" 
-                  value={manualPeriod} 
-                  onChange={(e) => {
-                    setManualPeriod(e.target.value);
-                    setManualAttStudents([]);
-                  }}
-                  disabled={!manualDate}
-                  required
-                >
-                  {[1, 2, 3, 4, 5, 6, 7, 8].map(num => {
-                    const lock = manualLockedPeriods.find(l => l.period === num);
-                    const selectedClassObj = classes.find(c => c.id.toString() === manualClassId);
-                    const isUserAdvisor = selectedClassObj && (selectedClassObj.advisor === user.id || selectedClassObj.advisor?.id === user.id);
-                    
-                    const isLocked = lock && (lock.locked_by_id !== user.id || isUserAdvisor);
-                    
-                    let label = `Period ${num}`;
-                    if (lock) {
-                      if (isLocked) {
-                        label += ` (Locked by ${lock.locked_by_name})`;
-                      } else {
-                        label += ` (Marked by you)`;
-                      }
+            {/* 5. Multi-Period Checkbox Selection */}
+            <div className="form-group" style={{ marginBottom: '24px' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '10px' }}>
+                <label className="form-label" style={{ fontWeight: '800', margin: 0, color: 'var(--text-primary)', fontSize: '14px' }}>
+                  5. Select Period(s) *
+                </label>
+                <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+                  <button 
+                    type="button" 
+                    className="btn btn-secondary btn-sm"
+                    style={{ fontSize: '12px', padding: '4px 10px' }}
+                    onClick={() => {
+                      const available = [1, 2, 3, 4, 5, 6, 7, 8].filter(num => {
+                        const lock = manualLockedPeriods.find(l => l.period === num);
+                        const selectedClassObj = classes.find(c => c.id.toString() === manualClassId);
+                        const isUserAdvisor = selectedClassObj && (selectedClassObj.advisor === user.id || selectedClassObj.advisor?.id === user.id);
+                        const isLocked = lock && (lock.locked_by_id !== user.id || isUserAdvisor);
+                        return !isLocked;
+                      }).map(n => n.toString());
+                      setSelectedManualPeriods(available);
+                    }}
+                  >
+                    Select All Available
+                  </button>
+                  <button 
+                    type="button" 
+                    className="btn btn-secondary btn-sm"
+                    style={{ fontSize: '12px', padding: '4px 10px' }}
+                    onClick={() => setSelectedManualPeriods([])}
+                  >
+                    Deselect All
+                  </button>
+                  <span style={{ fontSize: '12px', color: 'var(--text-secondary)', fontWeight: '600', marginLeft: '6px' }}>
+                    Selected: <strong style={{ color: 'var(--primary)' }}>{selectedManualPeriods.length} Period(s)</strong>
+                  </span>
+                </div>
+              </div>
+
+              <div style={{
+                display: 'grid',
+                gridTemplateColumns: 'repeat(4, 1fr)',
+                gap: '10px'
+              }}>
+                {[1, 2, 3, 4, 5, 6, 7, 8].map(num => {
+                  const pStr = num.toString();
+                  const lock = manualLockedPeriods.find(l => l.period === num);
+                  const selectedClassObj = classes.find(c => c.id.toString() === manualClassId);
+                  const isUserAdvisor = selectedClassObj && (selectedClassObj.advisor === user.id || selectedClassObj.advisor?.id === user.id);
+                  const isLocked = lock && (lock.locked_by_id !== user.id || isUserAdvisor);
+                  const isChecked = selectedManualPeriods.includes(pStr);
+
+                  let lockBadge = null;
+                  if (lock) {
+                    if (isLocked) {
+                      lockBadge = <span style={{ fontSize: '10px', color: 'var(--danger)', fontWeight: '700', display: 'block' }}>Locked by {lock.locked_by_name}</span>;
+                    } else {
+                      lockBadge = <span style={{ fontSize: '10px', color: 'var(--success)', fontWeight: '700', display: 'block' }}>Marked by you</span>;
                     }
-                    
-                    return (
-                      <option 
-                        key={num} 
-                        value={num.toString()} 
-                        disabled={isLocked}
-                      >
-                        {label}
-                      </option>
-                    );
-                  })}
-                </select>
+                  }
+
+                  return (
+                    <label 
+                      key={num}
+                      style={{
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: '10px',
+                        padding: '10px 14px',
+                        borderRadius: '10px',
+                        border: isChecked ? '2px solid var(--primary)' : '1px solid var(--border-color)',
+                        backgroundColor: isChecked ? 'var(--primary-light)' : (isLocked ? 'rgba(0,0,0,0.03)' : 'var(--bg-secondary)'),
+                        opacity: isLocked ? 0.6 : 1,
+                        cursor: isLocked ? 'not-allowed' : 'pointer',
+                        transition: 'all 0.15s ease'
+                      }}
+                    >
+                      <input 
+                        type="checkbox"
+                        value={pStr}
+                        checked={isChecked}
+                        disabled={isLocked || !manualDate}
+                        onChange={(e) => {
+                          if (e.target.checked) {
+                            setSelectedManualPeriods([...selectedManualPeriods, pStr]);
+                          } else {
+                            setSelectedManualPeriods(selectedManualPeriods.filter(p => p !== pStr));
+                          }
+                        }}
+                        style={{ width: '16px', height: '16px', cursor: isLocked ? 'not-allowed' : 'pointer' }}
+                      />
+                      <div>
+                        <span style={{ fontWeight: '700', fontSize: '13px', display: 'block', color: 'var(--text-primary)' }}>
+                          Period {num}
+                        </span>
+                        {lockBadge}
+                      </div>
+                    </label>
+                  );
+                })}
               </div>
             </div>
 
@@ -2892,7 +2972,7 @@ const StaffDashboard = ({ activeTab }) => {
               </div>
             )}
 
-            {!manualAttLoading && manualClassId && manualSubjectId && manualDate && manualPeriod && manualAttStudents.length > 0 && (
+            {!manualAttLoading && manualClassId && manualSubjectId && manualDate && selectedManualPeriods.length > 0 && manualAttStudents.length > 0 && (
               <div style={{ marginTop: '24px' }}>
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', margin: '20px 0 12px 0' }}>
                   <h3 style={{ fontSize: '15px', fontWeight: '600', color: 'var(--text-primary)' }}>Mark Subject Attendance</h3>

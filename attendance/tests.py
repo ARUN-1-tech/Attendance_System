@@ -161,3 +161,27 @@ class StaffAttendanceHistoryTests(TestCase):
         self.assertEqual(response['Content-Type'], 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet')
         self.assertGreater(len(response.content), 0)
 
+    def test_save_class_manual_attendance_multi_period(self):
+        self.client.force_authenticate(user=self.staff_user)
+        url = '/api/attendances/save-class-manual-attendance/'
+        payload = {
+            'class_id': self.clazz.id,
+            'subject_id': self.subject.id,
+            'date': self.today.strftime('%Y-%m-%d'),
+            'periods': [1, 2],
+            'statuses': {
+                self.student_user1.id: 'Present',
+                self.student_user2.id: 'Absent'
+            }
+        }
+        response = self.client.post(url, payload, format='json')
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertTrue(response.json().get('success'))
+
+        # Verify PeriodLocks created for period 1 and 2
+        locks = PeriodLock.objects.filter(student_class=self.clazz, date=self.today, staff=self.staff_user)
+        period_nums = list(locks.values_list('period', flat=True))
+        self.assertIn(1, period_nums)
+        self.assertIn(2, period_nums)
+
+
