@@ -1576,3 +1576,231 @@ class AttendanceViewSet(viewsets.ModelViewSet):
                 })
         except Exception as e:
             return Response({'detail': f'Error saving manual attendance: {str(e)}'}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+    @action(detail=False, methods=['get'], url_path='staff-marked-history')
+    def staff_marked_history(self, request):
+        user = request.user
+        if user.role != 'staff' and user.role != 'hod':
+            return Response({'detail': 'Only staff members can view marked attendance history.'}, status=status.HTTP_403_FORBIDDEN)
+        
+        from .models import PeriodLock, Attendance
+        from timetable.models import Schedule
+        from accounts.models import Student
+
+        # Fetch locks where staff = user
+        locks = PeriodLock.objects.filter(staff=user).select_related('student_class').order_by('-date', 'period')
+        
+        # Group sessions by date string
+        history_by_date = {}
+        
+        for lock in locks:
+            d_str = lock.date.strftime('%Y-%m-%d')
+            if d_str not in history_by_date:
+                history_by_date[d_str] = {
+                    'date': d_str,
+                    'formatted_date': lock.date.strftime('%A, %d %B %Y'),
+                    'sessions': []
+                }
+            
+            # Find matching schedule for subject details
+            weekday = lock.date.strftime('%A')
+            sched = Schedule.objects.filter(
+                student_class=lock.student_class,
+                period=lock.period,
+                day=weekday
+            ).select_related('subject').first()
+            
+            if not sched:
+                att_first = Attendance.objects.filter(
+                    student__student_class=lock.student_class,
+                    date=lock.date,
+                    schedule__period=lock.period
+                ).select_related('schedule__subject').first()
+                if att_first:
+                    sched = att_first.schedule
+
+            subject_name = sched.subject.name if (sched and sched.subject) else "General"
+            subject_code = sched.subject.code if (sched and sched.subject) else "GEN"
+
+            # Count attendance stats for this session
+            atts = Attendance.objects.filter(
+                student__student_class=lock.student_class,
+                date=lock.date,
+                schedule__period=lock.period
+            )
+            
+            total_students = Student.objects.filter(student_class=lock.student_class).count()
+            present_count = atts.filter(status='Present').count()
+            absent_count = atts.filter(status='Absent').count()
+            od_count = atts.filter(status='OD').count()
+            leave_count = atts.filter(status='Leave').count()
+
+            history_by_date[d_str]['sessions'].append({
+                'period': lock.period,
+                'class_id': lock.student_class.id,
+                'class_name': lock.student_class.name,
+                'subject_code': subject_code,
+                'subject_name': subject_name,
+                'present_count': present_count,
+                'absent_count': absent_count,
+                'od_count': od_count,
+                'leave_count': leave_count,
+                'total_students': total_students,
+                'marked_at': lock.date.strftime('%Y-%m-%d')
+            })
+
+        # Transform into list and calculate S.No (1 to max 8) for each date's sessions
+        history_list = []
+        for d_str, data in history_by_date.items():
+            sorted_sessions = sorted(data['sessions'], key=lambda x: x['period'])
+            # Ensure period limit max 8 periods
+            sessions_capped = sorted_sessions[:8]
+            for index, session in enumerate(sessions_capped, start=1):
+                session['s_no'] = index
+                
+            data['sessions'] = sessions_capped
+            data['total_sessions'] = len(sessions_capped)
+            history_list.append(data)
+
+        return Response({'history': history_list})
+
+    @action(detail=False, methods=['get'], url_path='staff-history-session-detail')
+    def staff_history_session_detail(self, request):
+        user = request.user
+        if user.role != 'staff' and user.role != 'hod':
+            return Response({'detail': 'Only staff members can view session details.'}, status=status.HTTP_403_FORBIDDEN)
+
+        date_str = request.query_params.get('date')
+        class_id = request.query_params.get('class_id')
+        period_val = request.query_params.get('period')
+
+        if not date_str or not class_id or not period_val:
+            return Response({'detail': 'Missing required query parameters: date, class_id, period.'}, status=status.HTTP_400_BAD_REQUEST)
+
+        try:
+            target_date = datetime.datetime.strptime(date_str, '%Y-%m-%d').date()
+            period_num = int(period_val)
+        except ValueError:
+            return Response({'detail': 'Invalid date format or period number.'}, status=status.HTTP_400_BAD_REQUEST)
+
+        from accounts.models import Class, Student
+        from timetable.models import Schedule
+
+        student_class = get_object_or_404(Class, pk=class_id)
+        weekday = target_date.strftime('%A')
+
+        sched = Schedule.objects.filter(student_class=student_class, period=period_num, day=weekday).select_related('subject').first()
+        
+        subject_name = sched.subject.name if (sched and sched.subject) else "General"
+        subject_code = sched.subject.code if (sched and sched.subject) else "GEN"
+
+        students = Student.objects.filter(student_class=student_class).select_related('user').order_by('reg_no', 'user__username')
+
+        atts = Attendance.objects.filter(
+            student__student_class=student_class,
+            date=target_date,
+            schedule__period=period_num
+        )
+        att_dict = {a.student_id: a.status for a in atts}
+
+        student_list = []
+        for idx, s in enumerate(students, start=1):
+            status_val = att_dict.get(s.user_id, 'Absent')
+            student_list.append({
+                's_no': idx,
+                'student_id': s.user_id,
+                'db_student_id': s.user_id,
+                'roll_no': s.roll_no or '',
+                'reg_no': s.reg_no or s.user.username,
+                'name': f"{s.user.first_name} {s.user.last_name}".strip() or s.user.username,
+                'status': status_val
+            })
+
+        return Response({
+            'date': date_str,
+            'formatted_date': target_date.strftime('%A, %d %B %Y'),
+            'class_id': student_class.id,
+            'class_name': student_class.name,
+            'period': period_num,
+            'subject_code': subject_code,
+            'subject_name': subject_name,
+            'students': student_list
+        })
+
+    @action(detail=False, methods=['post'], url_path='update-staff-history-session')
+    def update_staff_history_session(self, request):
+        user = request.user
+        if user.role != 'staff' and user.role != 'hod':
+            return Response({'detail': 'Only staff members can update session attendance.'}, status=status.HTTP_403_FORBIDDEN)
+
+        date_str = request.data.get('date')
+        class_id = request.data.get('class_id')
+        period_val = request.data.get('period')
+        statuses = request.data.get('statuses', {})
+
+        if not date_str or not class_id or period_val is None:
+            return Response({'detail': 'Missing date, class_id, or period.'}, status=status.HTTP_400_BAD_REQUEST)
+
+        try:
+            target_date = datetime.datetime.strptime(date_str, '%Y-%m-%d').date()
+            period_num = int(period_val)
+            weekday = target_date.strftime('%A')
+        except ValueError:
+            return Response({'detail': 'Invalid date format or period number.'}, status=status.HTTP_400_BAD_REQUEST)
+
+        from accounts.models import Class, Student
+        from timetable.models import Schedule
+        from .models import PeriodLock
+
+        student_class = get_object_or_404(Class, pk=class_id)
+
+        # Check or update lock to staff user
+        PeriodLock.objects.update_or_create(
+            student_class=student_class,
+            date=target_date,
+            period=period_num,
+            defaults={'staff': user}
+        )
+
+        sched = Schedule.objects.filter(student_class=student_class, period=period_num, day=weekday).first()
+        if not sched:
+            from accounts.models import Subject
+            subject = Subject.objects.filter(student_class=student_class).first() or Subject.objects.filter(department=student_class.department).first()
+            if not subject:
+                subject, _ = Subject.objects.get_or_create(name="General", code="GEN", department=student_class.department)
+            
+            start_hour = 9 + (period_num - 1)
+            if period_num >= 5:
+                start_hour += 1
+            sched = Schedule.objects.create(
+                student_class=student_class,
+                subject=subject,
+                period=period_num,
+                day=weekday,
+                start_time=datetime.time(start_hour, 0),
+                end_time=datetime.time(start_hour + 1, 0)
+            )
+
+        students = Student.objects.filter(student_class=student_class)
+        from django.db import transaction
+        with transaction.atomic():
+            for student in students:
+                st_status = (
+                    statuses.get(str(student.user_id)) or
+                    statuses.get(str(student.id)) or
+                    statuses.get(student.user_id) or
+                    statuses.get(student.id)
+                )
+                if st_status and st_status in ['Present', 'Absent', 'OD', 'Leave']:
+                    Attendance.objects.update_or_create(
+                        student=student,
+                        schedule=sched,
+                        date=target_date,
+                        defaults={'status': st_status}
+                    )
+
+        return Response({
+            'success': True,
+            'detail': f'Session attendance updated successfully for Class {student_class.name}, Period {period_num}.'
+        })
+

@@ -803,3 +803,12 @@ def manual_attendance(request):
         'error_message': error_message
     }
     return render(request, 'staff/manual_attendance.html', context)
+
+@login_required
+def attendance_history(request):
+    if request.user.role not in ['staff', 'hod']:
+        messages.error(request, 'Only staff members can view attendance history.')
+        return redirect('staff_dashboard')
+        
+    return render(request, 'staff/attendance_history.html')
+

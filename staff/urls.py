@@ -16,4 +16,5 @@ urlpatterns = [
     path('profile/', views.staff_profile, name='staff_profile'),
     path('edit-timetable/', views.edit_timetable, name='edit_timetable'),
     path('advisor-live/', views.advisor_live_attendance, name='advisor_live_attendance'),
+    path('attendance-history/', views.attendance_history, name='staff_attendance_history'),
 ]

@@ -3,7 +3,7 @@ import { useAuth } from '../AuthContext';
 import { 
   LayoutDashboard, User, Calendar, FileText, 
   LogOut, CheckSquare, Users, Download, 
-  BookOpen, ShieldCheck, Sparkles
+  BookOpen, ShieldCheck, Sparkles, History
 } from 'lucide-react';
 
 const Sidebar = ({ activeTab, setActiveTab, mobileOpen, setMobileOpen }) => {
@@ -79,6 +79,13 @@ const Sidebar = ({ activeTab, setActiveTab, mobileOpen, setMobileOpen }) => {
           >
             <CheckSquare size={19} />
             <span>Manual Attendance</span>
+          </div>
+          <div 
+            className={`nav-item ${activeTab === 'attendance_history' ? 'active' : ''}`}
+            onClick={() => handleTabClick('attendance_history')}
+          >
+            <History size={19} />
+            <span>Attendance History</span>
           </div>
           {user.staff_details?.staff_type !== 'Normal' && (
             <div 

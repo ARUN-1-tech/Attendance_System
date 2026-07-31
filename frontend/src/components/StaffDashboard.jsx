@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { api } from '../api';
 import { useAuth } from '../AuthContext';
+import StaffAttendanceHistory from './StaffAttendanceHistory';
 import { 
   Play, Check, X, ShieldAlert, Award, FileSpreadsheet, 
   Trash2, Plus, Calendar, User, Eye, Edit, UserPlus,
@@ -2522,6 +2523,10 @@ const StaffDashboard = ({ activeTab }) => {
         )}
       </div>
     );
+  }
+
+  if (activeTab === 'attendance_history') {
+    return <StaffAttendanceHistory />;
   }
 
   if (activeTab === 'manual_attendance') {

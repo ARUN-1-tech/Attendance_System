@@ -1,0 +1,320 @@
+{% extends 'base.html' %}
+
+{% block page_title %}Marked Attendance History{% endblock %}
+
+{% block content %}
+<div class="glass-panel" style="padding: 24px; max-width: 1000px; margin: 0 auto;">
+    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 24px; flex-wrap: wrap; gap: 12px;">
+        <div>
+            <h2 style="margin: 0 0 6px 0; font-size: 1.5rem; font-weight: 800;">Marked Attendance History</h2>
+            <p style="color: var(--text-secondary); font-size: 0.9rem; margin: 0;">Day-wise breakdown of attendance marked by you with editable student records and CSV download.</p>
+        </div>
+        <button id="refreshBtn" onclick="loadHistory()" class="btn btn-secondary" style="padding: 8px 16px;">Refresh</button>
+    </div>
+
+    <!-- Main Container for Views -->
+    <div id="historyContainer">
+        <div style="text-align: center; padding: 40px; color: var(--text-secondary);">
+            Loading attendance history...
+        </div>
+    </div>
+</div>
+
+<script>
+let currentHistoryData = [];
+let activeSessionDetail = null;
+
+async function loadHistory() {
+    const container = document.getElementById('historyContainer');
+    container.innerHTML = '<div style="text-align: center; padding: 40px; color: var(--text-secondary);">Loading attendance history...</div>';
+    
+    try {
+        const response = await fetch('/api/attendances/staff-marked-history/', {
+            headers: {
+                'X-Requested-With': 'XMLHttpRequest'
+            }
+        });
+        if (!response.ok) throw new Error('Failed to load marked attendance history.');
+        
+        const data = await response.json();
+        currentHistoryData = data.history || [];
+        renderHistoryList(currentHistoryData);
+    } catch (err) {
+        container.innerHTML = `<div style="text-align: center; padding: 40px; color: #EF4444;">Error: ${err.message}</div>`;
+    }
+}
+
+function renderHistoryList(history) {
+    const container = document.getElementById('historyContainer');
+    if (!history || history.length === 0) {
+        container.innerHTML = `
+            <div style="text-align: center; padding: 40px; border: 1px dashed var(--border-color); border-radius: 12px;">
+                <h4 style="margin-bottom: 8px;">No Marked Attendance Records</h4>
+                <p style="color: var(--text-secondary); font-size: 0.9rem;">Once you mark attendance via OTP or Manual Attendance, your history will appear here grouped day-wise.</p>
+            </div>
+        `;
+        return;
+    }
+
+    let html = '<div style="display: flex; flex-direction: column; gap: 16px;">';
+    
+    history.forEach((dayGroup, dIdx) => {
+        const isFirst = dIdx === 0;
+        html += `
+            <div class="card" style="padding: 0; overflow: hidden; border: 1px solid var(--border-color);">
+                <div onclick="toggleDayAccordion('${dayGroup.date}')" style="padding: 16px 20px; background: rgba(255,255,255,0.03); display: flex; justify-content: space-between; align-items: center; cursor: pointer; user-select: none;">
+                    <div>
+                        <strong style="font-size: 1.1rem; color: var(--text-primary); display: block;">${dayGroup.formatted_date}</strong>
+                        <span style="font-size: 0.8rem; color: var(--text-secondary);">Date: ${dayGroup.date}</span>
+                    </div>
+                    <div style="display: flex; align-items: center; gap: 12px;">
+                        <span class="badge" style="background: rgba(79, 70, 229, 0.15); color: #818CF8; padding: 4px 10px; border-radius: 20px; font-weight: 700;">
+                            ${dayGroup.total_sessions} Session${dayGroup.total_sessions !== 1 ? 's' : ''}
+                        </span>
+                        <span id="arrow_${dayGroup.date}" style="font-size: 1.2rem; transition: transform 0.2s;">${isFirst ? '▼' : '▶'}</span>
+                    </div>
+                </div>
+                
+                <div id="body_${dayGroup.date}" style="display: ${isFirst ? 'block' : 'none'}; padding: 16px 20px; border-top: 1px solid var(--border-color);">
+                    <div style="overflow-x: auto;">
+                        <table style="width: 100%; border-collapse: collapse; text-align: left; font-size: 0.9rem;">
+                            <thead>
+                                <tr style="border-bottom: 2px solid var(--border-color); color: var(--text-secondary);">
+                                    <th style="padding: 10px;">S.No</th>
+                                    <th style="padding: 10px;">Class</th>
+                                    <th style="padding: 10px;">Period</th>
+                                    <th style="padding: 10px;">Subject</th>
+                                    <th style="padding: 10px; text-align: center;">Summary (P / A / OD)</th>
+                                    <th style="padding: 10px; text-align: right;">Action</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+        `;
+
+        dayGroup.sessions.forEach(sess => {
+            html += `
+                <tr onclick="loadSessionDetail('${dayGroup.date}', ${sess.class_id}, ${sess.period})" style="border-bottom: 1px solid var(--border-color); cursor: pointer;" onmouseover="this.style.background='rgba(255,255,255,0.04)'" onmouseout="this.style.background='transparent'">
+                    <td style="padding: 12px 10px; font-weight: 700; color: var(--text-secondary);">${sess.s_no}</td>
+                    <td style="padding: 12px 10px; font-weight: 700; color: var(--text-primary);">${sess.class_name}</td>
+                    <td style="padding: 12px 10px; font-weight: 700; color: #6366F1;">Period ${sess.period}</td>
+                    <td style="padding: 12px 10px;">
+                        <div style="font-weight: 700;">${sess.subject_code}</div>
+                        <div style="font-size: 0.8rem; color: var(--text-secondary);">${sess.subject_name}</div>
+                    </td>
+                    <td style="padding: 12px 10px; text-align: center;">
+                        <span style="color: #22C55E; font-weight: 800; margin-right: 8px;">P: ${sess.present_count}</span>
+                        <span style="color: #EF4444; font-weight: 800; margin-right: 8px;">A: ${sess.absent_count}</span>
+                        <span style="color: #F59E0B; font-weight: 800;">OD: ${sess.od_count}</span>
+                    </td>
+                    <td style="padding: 12px 10px; text-align: right;">
+                        <button class="btn btn-outline" style="padding: 4px 10px; font-size: 0.8rem;">View / Edit</button>
+                    </td>
+                </tr>
+            `;
+        });
+
+        html += `
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        `;
+    });
+
+    html += '</div>';
+    container.innerHTML = html;
+}
+
+function toggleDayAccordion(dStr) {
+    const body = document.getElementById(`body_${dStr}`);
+    const arrow = document.getElementById(`arrow_${dStr}`);
+    if (body.style.display === 'none') {
+        body.style.display = 'block';
+        if (arrow) arrow.innerText = '▼';
+    } else {
+        body.style.display = 'none';
+        if (arrow) arrow.innerText = '▶';
+    }
+}
+
+async function loadSessionDetail(dateStr, classId, period) {
+    const container = document.getElementById('historyContainer');
+    container.innerHTML = '<div style="text-align: center; padding: 40px; color: var(--text-secondary);">Loading session details...</div>';
+
+    try {
+        const res = await fetch(`/api/attendances/staff-history-session-detail/?date=${dateStr}&class_id=${classId}&period=${period}`);
+        if (!res.ok) throw new Error('Failed to load session details.');
+        
+        activeSessionDetail = await res.json();
+        renderSessionDetailView(activeSessionDetail);
+    } catch (err) {
+        alert("Error: " + err.message);
+        renderHistoryList(currentHistoryData);
+    }
+}
+
+function renderSessionDetailView(detail) {
+    const container = document.getElementById('historyContainer');
+
+    let html = `
+        <div style="display: flex; flex-direction: column; gap: 20px;">
+            <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 12px;">
+                <button onclick="renderHistoryList(currentHistoryData)" class="btn btn-secondary" style="padding: 8px 16px;">← Back to Days</button>
+                <div style="display: flex; gap: 10px;">
+                    <button onclick="downloadCSVReport()" class="btn btn-outline" style="color: #22C55E; border-color: #22C55E;">Download CSV</button>
+                    <button onclick="saveSessionChanges()" class="btn btn-primary">Save Changes</button>
+                </div>
+            </div>
+
+            <div style="background: linear-gradient(135deg, #0F172A 0%, #1E293B 100%); color: white; padding: 20px; border-radius: 12px;">
+                <div style="font-size: 0.85rem; color: #94A3B8; font-weight: 700; text-transform: uppercase;">
+                    ${detail.formatted_date} • Period ${detail.period}
+                </div>
+                <h3 style="margin: 4px 0 0 0; color: white; font-size: 1.3rem;">
+                    ${detail.class_name} — ${detail.subject_code} (${detail.subject_name})
+                </h3>
+            </div>
+
+            <div style="display: flex; justify-content: space-between; align-items: center; gap: 12px; flex-wrap: wrap;">
+                <div style="display: flex; gap: 8px;">
+                    <button onclick="bulkSetStatus('Present')" class="btn btn-secondary" style="padding: 6px 12px; font-size: 0.8rem;">Mark All Present</button>
+                    <button onclick="bulkSetStatus('Absent')" class="btn btn-secondary" style="padding: 6px 12px; font-size: 0.8rem;">Mark All Absent</button>
+                </div>
+                <div id="saveNotice" style="color: #22C55E; font-weight: 700;"></div>
+            </div>
+
+            <div class="card" style="padding: 0; overflow: hidden;">
+                <table style="width: 100%; border-collapse: collapse; text-align: left; font-size: 0.9rem;">
+                    <thead>
+                        <tr style="border-bottom: 2px solid var(--border-color); color: var(--text-secondary); background: rgba(255,255,255,0.02);">
+                            <th style="padding: 10px;">S.No</th>
+                            <th style="padding: 10px;">Reg No</th>
+                            <th style="padding: 10px;">Roll No</th>
+                            <th style="padding: 10px;">Name</th>
+                            <th style="padding: 10px; text-align: center;">Status</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+    `;
+
+    detail.students.forEach(st => {
+        html += `
+            <tr style="border-bottom: 1px solid var(--border-color);">
+                <td style="padding: 10px; font-weight: 700; color: var(--text-secondary);">${st.s_no}</td>
+                <td style="padding: 10px; font-weight: 600;">${st.reg_no}</td>
+                <td style="padding: 10px; color: var(--text-secondary);">${st.roll_no || '-'}</td>
+                <td style="padding: 10px; font-weight: 700;">${st.name}</td>
+                <td style="padding: 10px; text-align: center;">
+                    <select id="status_${st.student_id}" class="form-control" style="width: auto; display: inline-block; padding: 4px 8px;">
+                        <option value="Present" ${st.status === 'Present' ? 'selected' : ''}>Present</option>
+                        <option value="Absent" ${st.status === 'Absent' ? 'selected' : ''}>Absent</option>
+                        <option value="OD" ${st.status === 'OD' ? 'selected' : ''}>OD</option>
+                        <option value="Leave" ${st.status === 'Leave' ? 'selected' : ''}>Leave</option>
+                    </select>
+                </td>
+            </tr>
+        `;
+    });
+
+    html += `
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    `;
+
+    container.innerHTML = html;
+}
+
+function bulkSetStatus(statusVal) {
+    if (!activeSessionDetail || !activeSessionDetail.students) return;
+    activeSessionDetail.students.forEach(st => {
+        const el = document.getElementById(`status_${st.student_id}`);
+        if (el) el.value = statusVal;
+    });
+}
+
+async function saveSessionChanges() {
+    if (!activeSessionDetail) return;
+    const statuses = {};
+    activeSessionDetail.students.forEach(st => {
+        const el = document.getElementById(`status_${st.student_id}`);
+        if (el) statuses[st.student_id] = el.value;
+    });
+
+    const notice = document.getElementById('saveNotice');
+    if (notice) notice.innerText = 'Saving changes...';
+
+    try {
+        const response = await fetch('/api/attendances/update-staff-history-session/', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-CSRFToken': getCookie('csrftoken')
+            },
+            body: JSON.stringify({
+                date: activeSessionDetail.date,
+                class_id: activeSessionDetail.class_id,
+                period: activeSessionDetail.period,
+                statuses: statuses
+            })
+        });
+        const resData = await response.json();
+        if (!response.ok) throw new Error(resData.detail || 'Failed to save changes.');
+
+        if (notice) notice.innerText = resData.detail || 'Attendance updated successfully!';
+        setTimeout(() => { if (notice) notice.innerText = ''; }, 3000);
+    } catch (err) {
+        alert("Failed to save: " + err.message);
+        if (notice) notice.innerText = '';
+    }
+}
+
+function downloadCSVReport() {
+    if (!activeSessionDetail || !activeSessionDetail.students) return;
+
+    const headers = ["S.No", "Roll Number", "Register Number", "Student Name", "Status", "Class", "Period", "Subject", "Date"];
+    const rows = activeSessionDetail.students.map(st => {
+        const el = document.getElementById(`status_${st.student_id}`);
+        const currentStatus = el ? el.value : st.status;
+        return [
+            st.s_no,
+            `"${st.roll_no || ''}"`,
+            `"${st.reg_no || ''}"`,
+            `"${st.name.replace(/"/g, '""')}"`,
+            currentStatus,
+            `"${activeSessionDetail.class_name}"`,
+            activeSessionDetail.period,
+            `"${activeSessionDetail.subject_code} - ${activeSessionDetail.subject_name}"`,
+            activeSessionDetail.date
+        ];
+    });
+
+    const csvContent = "data:text/csv;charset=utf-8," + [headers.join(","), ...rows.map(e => e.join(","))].join("\n");
+    const link = document.createElement("a");
+    link.setAttribute("href", encodeURI(csvContent));
+    link.setAttribute("download", `Attendance_${activeSessionDetail.class_name.replace(/\s+/g, '_')}_P${activeSessionDetail.period}_${activeSessionDetail.date}.csv`);
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+}
+
+function getCookie(name) {
+    let cookieValue = null;
+    if (document.cookie && document.cookie !== '') {
+        const cookies = document.cookie.split(';');
+        for (let i = 0; i < cookies.length; i++) {
+            const cookie = cookies[i].trim();
+            if (cookie.substring(0, name.length + 1) === (name + '=')) {
+                cookieValue = decodeURIComponent(cookie.substring(name.length + 1));
+                break;
+            }
+        }
+    }
+    return cookieValue;
+}
+
+document.addEventListener('DOMContentLoaded', loadHistory);
+</script>
+{% endblock %}

@@ -35,6 +35,7 @@
             <li><a href="{% url 'advisor_live_attendance' %}" class="{% if request.resolver_match.url_name == 'advisor_live_attendance' %}active{% endif %}">Advisor Live Grid</a></li>
             {% endif %}
             <li><a href="{% url 'manual_attendance' %}" class="{% if request.resolver_match.url_name == 'manual_attendance' %}active{% endif %}">Manual Attendance</a></li>
+            <li><a href="{% url 'staff_attendance_history' %}" class="{% if request.resolver_match.url_name == 'staff_attendance_history' %}active{% endif %}">Attendance History</a></li>
             <li><a href="{% url 'download_report' %}">Class Reports</a></li>
             {% elif request.user.role == 'hod' %}
             <li><a href="{% url 'hod_dashboard' %}" class="{% if request.resolver_match.url_name == 'hod_dashboard' %}active{% endif %}">HOD Dashboard</a></li>
