@@ -871,20 +871,39 @@ class UserPasswordChangeAndManualAttendanceTestCase(TestCase):
         )
         oe_a.accepted_classes.add(class_a)
 
-        # Advisor B accepts OE_A
+        # Initially, OE_A appears in Advisor B's available open electives
         self.client.login(username='advisor_b', password='password123')
+        resp_avail = self.client.get('/api/subjects/available-open-electives/')
+        self.assertEqual(resp_avail.status_code, 200)
+        self.assertEqual(len(resp_avail.data), 1)
+
+        # Advisor B accepts OE_A -> moves to configured and vanishes from available
         resp_accept = self.client.post(f'/api/subjects/{oe_a.id}/toggle-acceptance/', {'accept': True}, content_type='application/json')
         self.assertEqual(resp_accept.status_code, 200)
         self.assertTrue(oe_a.accepted_classes.filter(id=class_b.id).exists())
+
+        resp_avail2 = self.client.get('/api/subjects/available-open-electives/')
+        self.assertEqual(len(resp_avail2.data), 0)
 
         # Advisor B attempts to edit OE_A definition -> should be forbidden (403)
         resp_edit_b = self.client.put(f'/api/subjects/{oe_a.id}/', {'name': 'Modified By B', 'code': 'OE101', 'subject_type': 'OPEN_ELECTIVE'}, content_type='application/json')
         self.assertEqual(resp_edit_b.status_code, 403)
 
-        # Advisor B rejects (unaccepts) OE_A -> should succeed (200)
-        resp_reject = self.client.post(f'/api/subjects/{oe_a.id}/toggle-acceptance/', {'accept': False}, content_type='application/json')
-        self.assertEqual(resp_reject.status_code, 200)
+        # Advisor B unaccepts OE_A from Configured Subjects (from_configured=True) -> returns to available list
+        resp_unaccept = self.client.post(f'/api/subjects/{oe_a.id}/toggle-acceptance/', {'accept': False, 'from_configured': True}, content_type='application/json')
+        self.assertEqual(resp_unaccept.status_code, 200)
         self.assertFalse(oe_a.accepted_classes.filter(id=class_b.id).exists())
+
+        resp_avail3 = self.client.get('/api/subjects/available-open-electives/')
+        self.assertEqual(len(resp_avail3.data), 1)
+
+        # Advisor B rejects OE_A directly from Available list (from_configured=False) -> vanishes
+        resp_reject = self.client.post(f'/api/subjects/{oe_a.id}/toggle-acceptance/', {'accept': False, 'from_configured': False}, content_type='application/json')
+        self.assertEqual(resp_reject.status_code, 200)
+        self.assertTrue(oe_a.rejected_classes.filter(id=class_b.id).exists())
+
+        resp_avail4 = self.client.get('/api/subjects/available-open-electives/')
+        self.assertEqual(len(resp_avail4.data), 0)
 
         # Advisor A edits OE_A -> should succeed (200)
         self.client.login(username='advisor_a', password='password123')

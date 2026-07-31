@@ -123,6 +123,7 @@ class Subject(models.Model):
     semester = models.IntegerField(null=True, blank=True)
     elective_students = models.ManyToManyField('Student', related_name='elective_subjects', blank=True)
     accepted_classes = models.ManyToManyField(Class, related_name='accepted_open_electives', blank=True)
+    rejected_classes = models.ManyToManyField(Class, related_name='rejected_open_electives', blank=True)
 
     def __str__(self):
         return f"{self.name} ({self.code})" if self.code else self.name

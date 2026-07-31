@@ -195,9 +195,9 @@ const StaffDashboard = ({ activeTab }) => {
     }
   };
 
-  const handleToggleAcceptOpenElective = async (subjectId, accept) => {
+  const handleToggleAcceptOpenElective = async (subjectId, accept, fromConfigured = false) => {
     try {
-      await api.post(`/api/subjects/${subjectId}/toggle-acceptance/`, { accept });
+      await api.post(`/api/subjects/${subjectId}/toggle-acceptance/`, { accept, from_configured: fromConfigured });
       if (advisedClass) {
         fetchAdvisedSubjects(advisedClass.id);
         fetchAvailableOpenElectives(advisedClass.id);
@@ -3594,7 +3594,7 @@ const StaffDashboard = ({ activeTab }) => {
                                       <button 
                                         className="btn btn-secondary btn-sm" 
                                         style={{ padding: '4px 8px', display: 'flex', alignItems: 'center', gap: '4px', color: 'var(--danger)', borderColor: 'rgba(239, 68, 68, 0.3)' }}
-                                        onClick={() => handleToggleAcceptOpenElective(sub.id, false)}
+                                        onClick={() => handleToggleAcceptOpenElective(sub.id, false, true)}
                                         title="Reject / Unaccept open elective for your class"
                                       >
                                         <XCircle size={14} />
@@ -3634,7 +3634,7 @@ const StaffDashboard = ({ activeTab }) => {
               </div>
             )}
 
-            {advisedClass && availableOpenElectives.length > 0 && (
+            {advisedClass && availableOpenElectives && availableOpenElectives.length > 0 && (
               <div className="card" style={{ marginTop: '24px' }}>
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
                   <div>
@@ -3674,13 +3674,7 @@ const StaffDashboard = ({ activeTab }) => {
                               <span className="badge badge-info">{oe.class_enrolled_count} / {oe.total_enrolled_count} Total</span>
                             </td>
                             <td>
-                              {oe.is_accepted ? (
-                                <span className="badge badge-success" style={{ backgroundColor: 'rgba(16, 185, 129, 0.15)', color: 'var(--success)', border: '1px solid rgba(16, 185, 129, 0.3)' }}>
-                                  Accepted
-                                </span>
-                              ) : (
-                                <span className="badge badge-warning">Not Accepted</span>
-                              )}
+                              <span className="badge badge-warning">Not Accepted</span>
                             </td>
                             <td style={{ textAlign: 'right' }}>
                               <div style={{ display: 'flex', gap: '8px', justifyContent: 'flex-end' }}>
@@ -3706,25 +3700,23 @@ const StaffDashboard = ({ activeTab }) => {
                                     </button>
                                   </>
                                 )}
-                                {oe.is_accepted ? (
-                                  <button 
-                                    className="btn btn-secondary btn-sm" 
-                                    style={{ padding: '4px 12px', display: 'flex', alignItems: 'center', gap: '4px', color: 'var(--danger)', borderColor: 'rgba(239, 68, 68, 0.3)' }}
-                                    onClick={() => handleToggleAcceptOpenElective(oe.id, false)}
-                                  >
-                                    <XCircle size={14} />
-                                    <span>Reject for Class</span>
-                                  </button>
-                                ) : (
-                                  <button 
-                                    className="btn btn-primary btn-sm" 
-                                    style={{ padding: '4px 12px', display: 'flex', alignItems: 'center', gap: '4px' }}
-                                    onClick={() => handleToggleAcceptOpenElective(oe.id, true)}
-                                  >
-                                    <CheckCircle size={14} />
-                                    <span>Accept for Class</span>
-                                  </button>
-                                )}
+                                <button 
+                                  className="btn btn-primary btn-sm" 
+                                  style={{ padding: '4px 12px', display: 'flex', alignItems: 'center', gap: '4px' }}
+                                  onClick={() => handleToggleAcceptOpenElective(oe.id, true, false)}
+                                >
+                                  <CheckCircle size={14} />
+                                  <span>Accept for Class</span>
+                                </button>
+                                <button 
+                                  className="btn btn-secondary btn-sm" 
+                                  style={{ padding: '4px 12px', display: 'flex', alignItems: 'center', gap: '4px', color: 'var(--danger)', borderColor: 'rgba(239, 68, 68, 0.3)' }}
+                                  onClick={() => handleToggleAcceptOpenElective(oe.id, false, false)}
+                                  title="Reject and hide this elective for your class"
+                                >
+                                  <XCircle size={14} />
+                                  <span>Reject</span>
+                                </button>
                               </div>
                             </td>
                           </tr>

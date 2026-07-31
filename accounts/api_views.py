@@ -240,11 +240,15 @@ class SubjectViewSet(viewsets.ModelViewSet):
         if not target_class:
             return Response([], status=status.HTTP_200_OK)
 
-        # Get all OPEN_ELECTIVE subjects offered for target_class.year
+        # Get all OPEN_ELECTIVE subjects offered for target_class.year that are neither accepted nor rejected by target_class
         subjects = Subject.objects.filter(
             subject_type='OPEN_ELECTIVE',
             year=target_class.year
-        ).select_related('student_class', 'department', 'student_class__advisor').prefetch_related('accepted_classes', 'elective_students')
+        ).exclude(
+            accepted_classes=target_class
+        ).exclude(
+            rejected_classes=target_class
+        ).select_related('student_class', 'department', 'student_class__advisor').prefetch_related('accepted_classes', 'rejected_classes', 'elective_students')
 
         data = []
         for sub in subjects:
@@ -290,17 +294,31 @@ class SubjectViewSet(viewsets.ModelViewSet):
             return Response({'detail': 'No class found.'}, status=status.HTTP_400_BAD_REQUEST)
 
         accept = request.data.get('accept', True)
+        from_configured = request.data.get('from_configured', False)
+
         if accept:
             subject.accepted_classes.add(target_class)
+            subject.rejected_classes.remove(target_class)
+            detail_msg = f'Open elective accepted for {target_class.name}.'
         else:
             subject.accepted_classes.remove(target_class)
+            if from_configured:
+                # Removing/rejecting from Configured Subjects resets it back to Available list
+                subject.rejected_classes.remove(target_class)
+                detail_msg = f'Open elective unaccepted for {target_class.name}.'
+            else:
+                # Rejecting directly from Available Open Electives marks it as rejected so it vanishes
+                subject.rejected_classes.add(target_class)
+                detail_msg = f'Open elective rejected for {target_class.name}.'
+
             # Remove all students of target_class from elective_students
             class_students = target_class.get_students()
             subject.elective_students.remove(*class_students)
 
         return Response({
-            'detail': f'Open elective {"accepted" if accept else "rejected"} for {target_class.name}.',
-            'is_accepted': accept
+            'detail': detail_msg,
+            'is_accepted': target_class in subject.accepted_classes.all(),
+            'is_rejected': target_class in subject.rejected_classes.all()
         })
 
     @action(detail=True, methods=['get', 'post'], url_path='enrolled-students')
