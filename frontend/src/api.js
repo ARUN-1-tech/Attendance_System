@@ -75,11 +75,59 @@ async function request(endpoint, options = {}) {
   }
 }
 
+export async function downloadFile(endpoint, defaultFilename = 'report.xlsx') {
+  const url = `${API_BASE_URL}${endpoint}`;
+  const authToken = localStorage.getItem('auth_token');
+  const headers = {};
+  if (authToken) {
+    headers['Authorization'] = `Bearer ${authToken}`;
+  }
+  const csrfToken = getCookie('csrftoken');
+  if (csrfToken) {
+    headers['X-CSRFToken'] = csrfToken;
+  }
+
+  const response = await fetch(url, {
+    method: 'GET',
+    credentials: 'include',
+    headers,
+  });
+
+  if (!response.ok) {
+    let errorMsg = `Download failed with status ${response.status}`;
+    try {
+      const data = await response.json();
+      if (data && data.detail) errorMsg = data.detail;
+    } catch (_) {}
+    throw new Error(errorMsg);
+  }
+
+  let filename = defaultFilename;
+  const disposition = response.headers.get('content-disposition');
+  if (disposition && disposition.includes('filename=')) {
+    const filenameMatch = disposition.match(/filename[^;=\n]*=((['"]).*?\2|[^;\n]*)/);
+    if (filenameMatch && filenameMatch[1]) {
+      filename = filenameMatch[1].replace(/['"]/g, '');
+    }
+  }
+
+  const blob = await response.blob();
+  const downloadUrl = window.URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = downloadUrl;
+  a.download = filename;
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  window.URL.revokeObjectURL(downloadUrl);
+}
+
 export const api = {
   get: (endpoint, options = {}) => request(endpoint, { ...options, method: 'GET' }),
   post: (endpoint, body, options = {}) => request(endpoint, { ...options, method: 'POST', body }),
   put: (endpoint, body, options = {}) => request(endpoint, { ...options, method: 'PUT', body }),
   patch: (endpoint, body, options = {}) => request(endpoint, { ...options, method: 'PATCH', body }),
   delete: (endpoint, options = {}) => request(endpoint, { ...options, method: 'DELETE' }),
+  downloadFile,
   baseUrl: API_BASE_URL,
 };

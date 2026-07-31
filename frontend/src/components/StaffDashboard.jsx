@@ -261,9 +261,15 @@ const StaffDashboard = ({ activeTab }) => {
     }
   };
 
-  const handleDownloadSemesterExcel = (subjectId, classId, subjectCode) => {
-    const url = `${api.baseUrl}/api/attendance/reports/export-excel/?report_mode=subject_percentage&subject_id=${subjectId}${classId ? `&class_id=${classId}` : ''}`;
-    window.open(url, '_blank');
+  const handleDownloadSemesterExcel = async (subjectId, classId, subjectCode) => {
+    try {
+      const endpoint = `/api/attendance/reports/export-excel/?report_mode=subject_percentage&subject_id=${subjectId}${classId ? `&class_id=${classId}` : ''}`;
+      const filename = `${subjectCode || 'Subject'}_Semester_Summary.xlsx`;
+      await api.downloadFile(endpoint, filename);
+    } catch (err) {
+      console.error('Failed to download Excel report:', err);
+      alert('Failed to download Excel report: ' + (err.message || 'Error occurred.'));
+    }
   };
 
   const handleStaffStudentRowClick = async (username, subjectId) => {

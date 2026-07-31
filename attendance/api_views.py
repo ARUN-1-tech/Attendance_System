@@ -761,9 +761,20 @@ def api_attendance_report_data(request):
     return Response(result)
 
 @api_view(['GET', 'POST'])
-@permission_classes([IsAuthenticated])
 def api_export_excel_report(request):
     user = request.user
+    if not user or user.is_anonymous:
+        token_str = request.query_params.get('token') or request.query_params.get('auth_token')
+        if token_str:
+            try:
+                from rest_framework_simplejwt.authentication import JWTAuthentication
+                jwt_auth = JWTAuthentication()
+                validated_token = jwt_auth.get_validated_token(token_str)
+                user = jwt_auth.get_user(validated_token)
+            except Exception:
+                pass
+    if not user or user.is_anonymous:
+        return Response({'detail': 'Authentication credentials were not provided.'}, status=status.HTTP_401_UNAUTHORIZED)
     
     params = request.data if request.method == 'POST' else request.query_params
     report_mode = params.get('report_mode', 'day')
