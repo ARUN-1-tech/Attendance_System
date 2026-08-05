@@ -1890,15 +1890,19 @@ class AttendanceViewSet(viewsets.ModelViewSet):
         attendances = Attendance.objects.filter(
             student__student_class_id__in=class_ids,
             date__in=dates
-        ).select_related('schedule__subject')
+        ).select_related('student', 'schedule__subject')
         
         # Group by (class_id, date, period) -> list of statuses
         from collections import defaultdict
         att_status_map = defaultdict(list)
+        lock_schedule_map = {}
         for att in attendances:
             period = att.schedule.period if att.schedule else None
             if period:
-                att_status_map[(att.student.student_class_id, att.date, period)].append(att.status)
+                class_id = att.student.student_class_id
+                att_status_map[(class_id, att.date, period)].append(att.status)
+                if (class_id, att.date, period) not in lock_schedule_map and att.schedule:
+                    lock_schedule_map[(class_id, att.date, period)] = att.schedule
                 
         # Group sessions by date string
         history_by_date = {}
@@ -1916,14 +1920,7 @@ class AttendanceViewSet(viewsets.ModelViewSet):
             sched = schedule_map.get((lock.student_class_id, weekday, lock.period))
             
             if not sched:
-                # Fallback to check if any attendance has schedule
-                statuses_records = Attendance.objects.filter(
-                    student__student_class=lock.student_class,
-                    date=lock.date,
-                    schedule__period=lock.period
-                ).select_related('schedule__subject').first()
-                if statuses_records:
-                    sched = statuses_records.schedule
+                sched = lock_schedule_map.get((lock.student_class_id, lock.date, lock.period))
 
             subject_name = sched.subject.name if (sched and sched.subject) else "General"
             subject_code = sched.subject.code if (sched and sched.subject) else "GEN"
