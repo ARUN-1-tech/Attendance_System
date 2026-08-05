@@ -15,7 +15,9 @@ def generate_attendance_excel_report(
     from_date_str=None,
     to_date_str=None,
     tutor_user=None,
-    requested_by_user=None
+    requested_by_user=None,
+    report_type='class',
+    student_id=None
 ):
     """
     Generates a beautifully styled openpyxl Workbook for Day-wise or Subject-wise attendance.
@@ -97,6 +99,18 @@ def generate_attendance_excel_report(
 
     if tutor_user:
         students_qs = students_qs.filter(tutor=tutor_user)
+
+    if report_type == 'student' and student_id:
+        from django.db.models import Q
+        students_qs = students_qs.filter(Q(user__username=student_id) | Q(reg_no=student_id))
+        try:
+            single_student = Student.objects.select_related('student_class').get(Q(user__username=student_id) | Q(reg_no=student_id))
+            if not selected_class:
+                selected_class = single_student.student_class
+        except Student.DoesNotExist:
+            pass
+    elif report_type == 'tutored':
+        students_qs = students_qs.filter(tutor=requested_by_user)
 
     students = list(students_qs.order_by('student_class__name', 'student_class__section', 'reg_no', 'user__username'))
 
@@ -599,6 +613,11 @@ def generate_attendance_excel_report(
         filename_parts.append("Subject_Summary")
     else:
         filename_parts.append(str(report_mode).capitalize())
+
+    if report_type == 'student' and student_id:
+        filename_parts.append(f"Student_{student_id}")
+    elif report_type == 'tutored':
+        filename_parts.append("Tutored_Group")
 
     if selected_class:
         cls_name = str(selected_class).replace(" - ", "_").replace(" ", "_")

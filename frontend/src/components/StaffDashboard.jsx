@@ -4566,7 +4566,9 @@ const StaffDashboard = ({ activeTab }) => {
             try {
               const queryParams = new URLSearchParams({
                 report_mode: reportMode,
-                class_id: reportClassId || '',
+                report_type: reportType,
+                student_id: reportType === 'student' ? reportStudentId : '',
+                class_id: reportType === 'class' ? (reportClassId || '') : '',
                 subject_id: reportSubjectId || '',
                 from_date: reportFromDate,
                 to_date: reportToDate || reportFromDate
@@ -4587,9 +4589,21 @@ const StaffDashboard = ({ activeTab }) => {
 
               const blob = await response.blob();
               const downloadUrl = window.URL.createObjectURL(blob);
+              
+              // Extract filename from Content-Disposition header if available
+              let filename = `Attendance_Report_${reportMode}_${reportFromDate}_to_${reportToDate || reportFromDate}.xlsx`;
+              const disposition = response.headers.get('content-disposition');
+              if (disposition && disposition.indexOf('attachment') !== -1) {
+                const filenameRegex = /filename[^;=\n]*=((['"]).*?\2|[^;\n]*)/;
+                const matches = filenameRegex.exec(disposition);
+                if (matches != null && matches[1]) { 
+                  filename = matches[1].replace(/['"]/g, '');
+                }
+              }
+
               const a = document.createElement('a');
               a.href = downloadUrl;
-              a.download = `Attendance_Report_${reportMode}_${reportFromDate}_to_${reportToDate || reportFromDate}.xlsx`;
+              a.download = filename;
               document.body.appendChild(a);
               a.click();
               a.remove();
@@ -4602,54 +4616,74 @@ const StaffDashboard = ({ activeTab }) => {
           }}>
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '20px', marginBottom: '24px' }}>
               <div className="form-group" style={{ gridColumn: 'span 2' }}>
-                <label className="form-label" style={{ fontWeight: '800', color: 'var(--text-primary)' }}>Report Mode</label>
-                <div style={{ display: 'flex', gap: '12px', marginTop: '6px' }}>
-                  <button 
-                    type="button"
-                    onClick={() => setReportMode('day')}
-                    style={{
-                      flex: 1, padding: '14px', borderRadius: '10px',
-                      border: reportMode === 'day' ? '2px solid var(--primary)' : '1px solid var(--border-color)',
-                      backgroundColor: reportMode === 'day' ? 'var(--primary-light)' : 'var(--bg-secondary)',
-                      color: reportMode === 'day' ? 'var(--primary)' : 'var(--text-secondary)',
-                      fontWeight: '800', cursor: 'pointer', textAlign: 'center', transition: 'all 0.15s ease'
-                    }}
-                  >
-                    Day-Wise Attendance Report
-                  </button>
-                  <button 
-                    type="button"
-                    onClick={() => setReportMode('subject_percentage')}
-                    style={{
-                      flex: 1, padding: '14px', borderRadius: '10px',
-                      border: reportMode === 'subject_percentage' ? '2px solid var(--primary)' : '1px solid var(--border-color)',
-                      backgroundColor: reportMode === 'subject_percentage' ? 'var(--primary-light)' : 'var(--bg-secondary)',
-                      color: reportMode === 'subject_percentage' ? 'var(--primary)' : 'var(--text-secondary)',
-                      fontWeight: '800', cursor: 'pointer', textAlign: 'center', transition: 'all 0.15s ease'
-                    }}
-                  >
-                    Subject-Wise Attendance Report
-                  </button>
-                </div>
-              </div>
-
-              <div className="form-group">
-                <label className="form-label" style={{ fontWeight: '700' }}>Select Class</label>
+                <label className="form-label" style={{ fontWeight: '700' }}>Report Mode</label>
                 <select 
                   className="input" 
-                  value={reportClassId} 
-                  onChange={(e) => setReportClassId(e.target.value)}
+                  value={reportMode} 
+                  onChange={(e) => setReportMode(e.target.value)}
                   style={{ height: '44px', fontWeight: '600' }}
                 >
-                  <option value="">-- All Department Classes --</option>
-                  {classes.map(c => (
-                    <option key={c.id} value={c.id}>{c.name} (Sec {c.section})</option>
-                  ))}
+                  <option value="day">Day-Wise Attendance Report</option>
+                  <option value="subject_percentage">Subject-Wise Attendance Report</option>
                 </select>
               </div>
 
+              <div className="form-group" style={{ gridColumn: 'span 2' }}>
+                <label className="form-label" style={{ fontWeight: '700' }}>Select Scope</label>
+                <select 
+                  className="input" 
+                  value={reportType} 
+                  onChange={(e) => {
+                    setReportType(e.target.value);
+                    setReportStudentId('');
+                  }}
+                  style={{ height: '44px', fontWeight: '600' }}
+                >
+                  {user.staff_details?.staff_type !== 'Tutor' && <option value="class">Whole Class</option>}
+                  <option value="tutored">Tutored Students</option>
+                  <option value="student">Individual Student</option>
+                </select>
+              </div>
+
+              {reportType === 'class' && (
+                <div className="form-group" style={{ gridColumn: 'span 2' }}>
+                  <label className="form-label" style={{ fontWeight: '700' }}>Select Class</label>
+                  <select 
+                    className="input" 
+                    value={reportClassId} 
+                    onChange={(e) => setReportClassId(e.target.value)}
+                    style={{ height: '44px', fontWeight: '600' }}
+                  >
+                    <option value="">-- All Department Classes --</option>
+                    {classes.map(c => (
+                      <option key={c.id} value={c.id}>{c.name} (Sec {c.section})</option>
+                    ))}
+                  </select>
+                </div>
+              )}
+
+              {reportType === 'student' && (
+                <div className="form-group" style={{ gridColumn: 'span 2' }}>
+                  <label className="form-label" style={{ fontWeight: '700' }}>Select Student</label>
+                  <select 
+                    className="input" 
+                    value={reportStudentId} 
+                    onChange={(e) => setReportStudentId(e.target.value)}
+                    style={{ height: '44px', fontWeight: '600' }}
+                    required
+                  >
+                    <option value="">-- Choose Student --</option>
+                    {students.map(s => (
+                      <option key={s.user.id} value={s.reg_no || s.user.username}>
+                        {s.user.first_name} {s.user.last_name} ({s.reg_no || s.user.username})
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              )}
+
               {reportMode === 'subject_percentage' && (
-                <div className="form-group">
+                <div className="form-group" style={{ gridColumn: 'span 2' }}>
                   <label className="form-label" style={{ fontWeight: '700' }}>Select Subject</label>
                   <select 
                     className="input" 

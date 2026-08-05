@@ -778,6 +778,8 @@ def api_export_excel_report(request):
     
     params = request.data if request.method == 'POST' else request.query_params
     report_mode = params.get('report_mode', 'day')
+    report_type = params.get('report_type', 'class')
+    student_id = params.get('student_id')
     class_id = params.get('class_id')
     subject_id = params.get('subject_id')
     from_date_str = params.get('from_date') or params.get('date')
@@ -810,7 +812,9 @@ def api_export_excel_report(request):
         from_date_str=from_date_str,
         to_date_str=to_date_str,
         tutor_user=tutor_user,
-        requested_by_user=user
+        requested_by_user=user,
+        report_type=report_type,
+        student_id=student_id
     )
 
     from django.http import HttpResponse
