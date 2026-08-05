@@ -4419,13 +4419,29 @@ const StaffDashboard = ({ activeTab }) => {
                     </span>
                   )}
                 </div>
-                <button 
-                  className="btn btn-secondary" 
-                  style={{ padding: '6px 14px', fontSize: '13px', fontWeight: '700' }} 
-                  onClick={() => setStaffStudentDetailModalOpen(false)}
-                >
-                  Close
-                </button>
+                <div style={{ display: 'flex', gap: '8px' }}>
+                  {staffStudentDetailData?.student_details && staffStudentDetailData?.subject_details && (
+                    <button 
+                      className="btn btn-primary" 
+                      style={{ padding: '6px 14px', fontSize: '13px', fontWeight: '700', display: 'flex', alignItems: 'center', gap: '6px' }} 
+                      onClick={() => handleDownloadSubjectDetailCSV(
+                        staffStudentDetailData.student_details.username,
+                        staffStudentDetailData.subject_details.id,
+                        staffStudentDetailData.subject_details.code
+                      )}
+                    >
+                      <Download size={14} />
+                      <span>Download CSV</span>
+                    </button>
+                  )}
+                  <button 
+                    className="btn btn-secondary" 
+                    style={{ padding: '6px 14px', fontSize: '13px', fontWeight: '700' }} 
+                    onClick={() => setStaffStudentDetailModalOpen(false)}
+                  >
+                    Close
+                  </button>
+                </div>
               </div>
 
               {staffStudentDetailLoading ? (
