@@ -841,88 +841,85 @@ const HODDashboard = ({ activeTab, setActiveTab }) => {
     }
   };
 
-  // Download morning attendance CSV in browser
-  const handleDownloadMorningCSV = () => {
-    if (morningData.length === 0) return;
-
-    const headers = ['Class', 'Year', 'Section', 'Total Students', 'Present', 'Absent', 'On Duty'];
-    const csvRows = [headers.join(',')];
-
-    morningData.forEach(r => {
-      const row = [
-        `"${r.class_name}"`,
-        r.year,
-        `"${r.section}"`,
-        r.total_students,
-        r.present_count,
-        r.absent_count,
-        r.od_count
-      ];
-      csvRows.push(row.join(','));
-    });
-
-    const blob = new Blob([csvRows.join('\n')], { type: 'text/csv' });
-    const url = window.URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.setAttribute('href', url);
-    a.setAttribute('download', `Class_Attendance_Report_${new Date().toISOString().substring(0,10)}.csv`);
-    document.body.appendChild(a);
-    a.click();
-    document.body.removeChild(a);
+  // Download morning attendance Excel in browser
+  const handleDownloadMorningCSV = async () => {
+    try {
+      const response = await fetch(`${api.baseUrl}/api/hod/morning-status-excel/`, {
+        method: 'GET',
+        credentials: 'include',
+        headers: {
+          'Authorization': localStorage.getItem('auth_token') ? `Bearer ${localStorage.getItem('auth_token')}` : ''
+        }
+      });
+      if (!response.ok) throw new Error('Download failed');
+      const blob = await response.blob();
+      const url = window.URL.createObjectURL(blob);
+      
+      let filename = `Morning_Attendance_Report_${new Date().toISOString().substring(0, 10)}.xlsx`;
+      const disposition = response.headers.get('content-disposition');
+      if (disposition && disposition.indexOf('attachment') !== -1) {
+        const filenameRegex = /filename[^;=\n]*=((['"]).*?\2|[^;\n]*)/;
+        const matches = filenameRegex.exec(disposition);
+        if (matches != null && matches[1]) { 
+          filename = matches[1].replace(/['"]/g, '');
+        }
+      }
+      
+      const link = document.createElement('a');
+      link.href = url;
+      link.setAttribute('download', filename);
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      window.URL.revokeObjectURL(url);
+    } catch (err) {
+      console.error('Failed to download morning status Excel:', err);
+      alert('Failed to download Excel report.');
+    }
   };
 
   const handleDownloadYearCSV = async (year) => {
     try {
       const todayStr = new Date().toISOString().substring(0, 10);
-      const data = await api.get(`/api/attendance/reports/?from_date=${todayStr}&to_date=${todayStr}&year=${year}`);
-      if (data.length === 0) {
-        alert(`No attendance records found for today in Year ${year}`);
-        return;
-      }
-      const headers = ['Register Number', 'Name', 'Department', 'Year', 'Class', 'Section', 'Date', 'Period', 'Subject', 'Status'];
-      const csvRows = [headers.join(',')];
-      let total = 0, present = 0, absent = 0, od = 0, leave = 0, halfday = 0;
-      data.forEach(r => {
-        const row = [
-          r.student_reg_no || r.student_username,
-          `"${r.student_name}"`,
-          `"${r.department_name || ''}"`,
-          r.year || '',
-          `"${r.class_only_name || ''}"`,
-          `"${r.section || ''}"`,
-          r.date,
-          r.period || '-',
-          `"${r.subject_name || '-'}"`,
-          r.status
-        ];
-        csvRows.push(row.join(','));
-        total++;
-        if (r.status === 'Present') present++;
-        else if (r.status === 'Absent') absent++;
-        else if (r.status === 'OD') od++;
-        else if (r.status === 'Leave') leave++;
-        else if (r.status === 'Half Day') halfday++;
+      const queryParams = new URLSearchParams({
+        report_mode: 'day',
+        report_type: 'department',
+        from_date: todayStr,
+        to_date: todayStr,
+        year: year
       });
-
-      csvRows.push('');
-      csvRows.push('Summary');
-      csvRows.push(`Total Students,${total}`);
-      csvRows.push(`Present,${present}`);
-      csvRows.push(`Absent,${absent}`);
-      csvRows.push(`OD,${od}`);
-      csvRows.push(`Leave,${leave}`);
-      csvRows.push(`Half Day,${halfday}`);
-
-      const blob = new Blob([csvRows.join('\n')], { type: 'text/csv' });
+      
+      const response = await fetch(`${api.baseUrl}/api/attendance/reports/export-excel/?${queryParams}`, {
+        method: 'GET',
+        credentials: 'include',
+        headers: {
+          'Authorization': localStorage.getItem('auth_token') ? `Bearer ${localStorage.getItem('auth_token')}` : ''
+        }
+      });
+      if (!response.ok) throw new Error('Download failed');
+      const blob = await response.blob();
       const url = window.URL.createObjectURL(blob);
-      const a = document.createElement('a');
-      a.setAttribute('href', url);
-      a.setAttribute('download', `Year_${year}_Attendance_Report_${todayStr}.csv`);
-      document.body.appendChild(a);
-      a.click();
-      document.body.removeChild(a);
+      
+      let filename = `Year_${year}_Attendance_Report_${todayStr}.xlsx`;
+      const disposition = response.headers.get('content-disposition');
+      if (disposition && disposition.indexOf('attachment') !== -1) {
+        const filenameRegex = /filename[^;=\n]*=((['"]).*?\2|[^;\n]*)/;
+        const matches = filenameRegex.exec(disposition);
+        if (matches != null && matches[1]) { 
+          filename = matches[1].replace(/['"]/g, '');
+        }
+      }
+      
+      const link = document.createElement('a');
+      link.href = url;
+      link.setAttribute('download', filename);
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      window.URL.revokeObjectURL(url);
     } catch (err) {
-      alert(err.message || 'Failed to download year-wise CSV.');
+      console.error('Failed to download year Excel:', err);
+      alert('Failed to download Excel report.');
     }
   };
 
@@ -1113,10 +1110,10 @@ const HODDashboard = ({ activeTab, setActiveTab }) => {
                               e.stopPropagation();
                               handleDownloadYearCSV(yearStat.year);
                             }}
-                            title="Download Year CSV"
+                            title="Download Year Excel"
                           >
                             <Download size={12} />
-                            <span>CSV</span>
+                            <span>Excel</span>
                           </button>
                         </div>
                         <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
@@ -1864,7 +1861,7 @@ const HODDashboard = ({ activeTab, setActiveTab }) => {
                         onClick={() => handleDownloadSubjectDetailCSV(subjectDetailData.student_details.username, subjectDetailData.subject_details.id, subjectDetailData.subject_details.code)}
                       >
                         <Download size={14} />
-                        Download CSV
+                        Download Excel
                       </button>
                     </div>
 

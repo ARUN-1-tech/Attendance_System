@@ -2601,7 +2601,7 @@ const StaffDashboard = ({ activeTab }) => {
                       onClick={() => handleDownloadSubjectDetailCSV(subjectDetailData.student_details.username, subjectDetailData.subject_details.id, subjectDetailData.subject_details.code)}
                     >
                       <Download size={14} />
-                      Download CSV
+                      Download Excel
                     </button>
                   </div>
 
@@ -3738,10 +3738,10 @@ const StaffDashboard = ({ activeTab }) => {
                                   className="btn btn-secondary btn-sm" 
                                   style={{ padding: '4px 8px', display: 'flex', alignItems: 'center', gap: '4px' }}
                                   onClick={() => handleDownloadSubjectCSVBySubjectId(sub.id, sub.code)}
-                                  title="Download subject attendance CSV"
+                                  title="Download subject attendance Excel report"
                                 >
                                   <Download size={14} />
-                                  <span>Download CSV</span>
+                                  <span>Download Excel</span>
                                 </button>
                                 {(() => {
                                   const isCreator = (!sub.student_class || sub.student_class === advisedClass?.id || sub.creator_advisor_id === user.id);
@@ -4440,7 +4440,7 @@ const StaffDashboard = ({ activeTab }) => {
                       )}
                     >
                       <Download size={14} />
-                      <span>Download CSV</span>
+                      <span>Download Excel</span>
                     </button>
                   )}
                   <button 

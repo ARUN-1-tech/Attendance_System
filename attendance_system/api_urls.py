@@ -12,7 +12,7 @@ from timetable.api_views import ScheduleViewSet
 from attendance.api_views import (
     api_generate_otp, api_verify_otp, api_session_stats,
     api_student_stats, api_attendance_report_data, AttendanceViewSet,
-    api_stop_session, api_export_excel_report
+    api_stop_session, api_export_excel_report, api_morning_status_excel
 )
 from leave.api_views import LeaveViewSet
 
@@ -45,6 +45,7 @@ urlpatterns = [
     # HOD Endpoints
     path('hod/dashboard-stats/', api_hod_dashboard_stats, name='api_hod_dashboard_stats'),
     path('hod/morning-attendance/', api_hod_morning_attendance, name='api_hod_morning_attendance'),
+    path('hod/morning-status-excel/', api_morning_status_excel, name='api_morning_status_excel'),
 
     # Staff Advisor Endpoints
     path('staff/advisor-live/', api_advisor_live_attendance, name='api_advisor_live_attendance'),

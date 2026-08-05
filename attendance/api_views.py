@@ -782,6 +782,7 @@ def api_export_excel_report(request):
     student_id = params.get('student_id')
     class_id = params.get('class_id')
     subject_id = params.get('subject_id')
+    year = params.get('year')
     from_date_str = params.get('from_date') or params.get('date')
     to_date_str = params.get('to_date') or from_date_str
 
@@ -814,7 +815,8 @@ def api_export_excel_report(request):
         tutor_user=tutor_user,
         requested_by_user=user,
         report_type=report_type,
-        student_id=student_id
+        student_id=student_id,
+        year=year
     )
 
     from django.http import HttpResponse
@@ -823,6 +825,145 @@ def api_export_excel_report(request):
     )
     response['Content-Disposition'] = f'attachment; filename="{filename}"'
     
+    wb.save(response)
+    return response
+
+@api_view(['GET'])
+@permission_classes([IsAuthenticated])
+def api_morning_status_excel(request):
+    if request.user.role != 'hod':
+        return Response({'detail': 'Unauthorized'}, status=status.HTTP_403_FORBIDDEN)
+        
+    from accounts.models import Class, Student
+    from attendance.models import Attendance
+    import datetime
+    from django.db.models import Count
+    
+    today = datetime.date.today()
+    classes = Class.objects.filter(department=request.user.department).select_related('advisor')
+    
+    student_counts = Student.objects.filter(student_class__in=classes).values('student_class_id').annotate(count=Count('user_id'))
+    att_counts = Attendance.objects.filter(
+        student__student_class__in=classes, 
+        date=today, 
+        schedule__period=1
+    ).values('student__student_class_id', 'status').annotate(count=Count('id'))
+    
+    student_count_map = {item['student_class_id']: item['count'] for item in student_counts}
+    att_count_map = {}
+    for item in att_counts:
+        class_id = item['student__student_class_id']
+        status_val = item['status']
+        count = item['count']
+        if class_id not in att_count_map:
+            att_count_map[class_id] = {'Present': 0, 'Absent': 0, 'OD': 0, 'Leave': 0, 'Half Day': 0}
+        att_count_map[class_id][status_val] = count
+        
+    morning_data = []
+    for c in classes:
+        counts = att_count_map.get(c.id, {'Present': 0, 'Absent': 0, 'OD': 0, 'Leave': 0, 'Half Day': 0})
+        total_students = student_count_map.get(c.id, 0)
+        morning_data.append({
+            'class_name': str(c),
+            'year': c.year,
+            'section': c.section,
+            'total_students': total_students,
+            'present_count': counts['Present'],
+            'absent_count': counts['Absent'],
+            'od_count': counts['OD']
+        })
+        
+    # Generate openpyxl workbook
+    import openpyxl
+    from openpyxl.styles import Font, Alignment, PatternFill, Border, Side
+    wb = openpyxl.Workbook()
+    ws = wb.active
+    ws.title = "Morning Attendance Summary"
+    ws.views.sheetView[0].showGridLines = True
+    
+    # Institution Header
+    ws.merge_cells('A1:G1')
+    ws['A1'] = "DR. NGP INSTITUTE OF TECHNOLOGY (AUTONOMOUS)"
+    ws['A1'].font = Font(name='Calibri', size=14, bold=True, color='FFFFFF')
+    ws['A1'].fill = PatternFill(start_color='0F172A', end_color='0F172A', fill_type='solid')
+    ws['A1'].alignment = Alignment(horizontal='center', vertical='center')
+    
+    ws.merge_cells('A2:G2')
+    ws['A2'] = f"MORNING ATTENDANCE REPORT (1st Period) - {today.strftime('%d-%b-%Y')}"
+    ws['A2'].font = Font(name='Calibri', size=11, bold=True, color='0F172A')
+    ws['A2'].alignment = Alignment(horizontal='center', vertical='center')
+    
+    # Headers
+    headers = ['Class Name', 'Year', 'Section', 'Total Students', 'Present', 'Absent', 'On Duty (OD)']
+    ws.append([]) # empty row
+    ws.append(headers)
+    
+    header_fill = PatternFill(start_color='1E293B', end_color='1E293B', fill_type='solid')
+    header_font = Font(name='Calibri', size=11, bold=True, color='FFFFFF')
+    thin_border = Border(
+        left=Side(style='thin', color='CBD5E1'),
+        right=Side(style='thin', color='CBD5E1'),
+        top=Side(style='thin', color='CBD5E1'),
+        bottom=Side(style='thin', color='CBD5E1')
+    )
+    
+    for col in range(1, 8):
+        cell = ws.cell(row=4, column=col)
+        cell.fill = header_fill
+        cell.font = header_font
+        cell.alignment = Alignment(horizontal='center', vertical='center')
+        cell.border = thin_border
+        
+    # Data Rows
+    for r_idx, row in enumerate(morning_data, start=5):
+        ws.append([
+            row['class_name'],
+            row['year'],
+            row['section'],
+            row['total_students'],
+            row['present_count'],
+            row['absent_count'],
+            row['od_count']
+        ])
+        
+        row_fill = PatternFill(start_color='F8FAFC' if r_idx % 2 == 0 else 'FFFFFF', end_color='F8FAFC' if r_idx % 2 == 0 else 'FFFFFF', fill_type='solid')
+        
+        for col in range(1, 8):
+            cell = ws.cell(row=r_idx, column=col)
+            cell.fill = row_fill
+            cell.border = thin_border
+            cell.font = Font(name='Calibri', size=10)
+            if col in [1, 3]:
+                cell.alignment = Alignment(horizontal='left')
+            else:
+                cell.alignment = Alignment(horizontal='center')
+                
+            # Status colored formatting for columns 5, 6, 7
+            if col == 5 and cell.value > 0: # Present
+                cell.fill = PatternFill(start_color='DCFCE7', end_color='DCFCE7', fill_type='solid')
+                cell.font = Font(name='Calibri', size=10, color='15803D', bold=True)
+            elif col == 6 and cell.value > 0: # Absent
+                cell.fill = PatternFill(start_color='FEE2E2', end_color='FEE2E2', fill_type='solid')
+                cell.font = Font(name='Calibri', size=10, color='B91C1C', bold=True)
+            elif col == 7 and cell.value > 0: # OD
+                cell.fill = PatternFill(start_color='FEF3C7', end_color='FEF3C7', fill_type='solid')
+                cell.font = Font(name='Calibri', size=10, color='B45309', bold=True)
+
+    # Auto fit column widths
+    for col in ws.columns:
+        vals = [str(cell.value or '') for cell in col if cell.value is not None]
+        max_len = max(len(v) for v in vals) if vals else 10
+        col_letter = openpyxl.utils.get_column_letter(col[0].column)
+        ws.column_dimensions[col_letter].width = max(max_len + 3, 12)
+        
+    ws.row_dimensions[1].height = 35
+    ws.row_dimensions[2].height = 25
+    ws.row_dimensions[4].height = 25
+    
+    filename = f"Morning_Attendance_Report_{today.strftime('%Y-%m-%d')}.xlsx"
+    from django.http import HttpResponse
+    response = HttpResponse(content_type='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet')
+    response['Content-Disposition'] = f'attachment; filename="{filename}"'
     wb.save(response)
     return response
 
@@ -1198,6 +1339,34 @@ class AttendanceViewSet(viewsets.ModelViewSet):
             'subject_type': subject.subject_type,
             'students': student_data
         })
+
+    @action(detail=False, methods=['get'], url_path='session-download')
+    def session_download(self, request):
+        user = self.request.user
+        if user.role not in ['staff', 'hod']:
+            return Response({'detail': 'Unauthorized'}, status=status.HTTP_403_FORBIDDEN)
+            
+        class_id = request.query_params.get('class_id')
+        period = request.query_params.get('period')
+        date = request.query_params.get('date')
+        
+        if not (class_id and period and date):
+            return Response({'detail': 'class_id, period, and date are required.'}, status=status.HTTP_400_BAD_REQUEST)
+            
+        records = Attendance.objects.filter(
+            schedule__student_class_id=class_id,
+            schedule__period=period,
+            date=date
+        ).select_related('student__user', 'student__student_class', 'student__student_class__department', 'schedule__subject')
+        
+        from .excel_reports import generate_subject_attendance_excel
+        wb, filename = generate_subject_attendance_excel(records)
+        
+        from django.http import HttpResponse
+        response = HttpResponse(content_type='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet')
+        response['Content-Disposition'] = f'attachment; filename="{filename}"'
+        wb.save(response)
+        return response
 
     @action(detail=False, methods=['get'], url_path='advisor-live-download')
     def advisor_live_download(self, request):

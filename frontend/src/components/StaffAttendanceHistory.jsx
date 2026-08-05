@@ -141,33 +141,42 @@ const StaffAttendanceHistory = () => {
     }
   };
 
-  // Download session report as CSV file
-  const handleDownloadCSV = () => {
-    if (!sessionDetail || !sessionDetail.students) return;
-
-    const headers = ["S.No", "Roll Number", "Register Number", "Student Name", "Status", "Class", "Period", "Subject", "Date"];
-    const rows = sessionDetail.students.map(st => [
-      st.s_no,
-      `"${st.roll_no || ''}"`,
-      `"${st.reg_no || ''}"`,
-      `"${st.name.replace(/"/g, '""')}"`,
-      st.status,
-      `"${sessionDetail.class_name}"`,
-      sessionDetail.period,
-      `"${sessionDetail.subject_code} - ${sessionDetail.subject_name}"`,
-      sessionDetail.date
-    ]);
-
-    const csvContent = "data:text/csv;charset=utf-8," 
-      + [headers.join(","), ...rows.map(e => e.join(","))].join("\n");
-
-    const encodedUri = encodeURI(csvContent);
-    const link = document.createElement("a");
-    link.setAttribute("href", encodedUri);
-    link.setAttribute("download", `Attendance_${sessionDetail.class_name.replace(/\s+/g, '_')}_P${sessionDetail.period}_${sessionDetail.date}.csv`);
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
+  // Download session report as Excel file
+  const handleDownloadCSV = async () => {
+    if (!selectedSession) return;
+    try {
+      const response = await fetch(`${api.baseUrl}/api/attendances/session-download/?class_id=${selectedSession.class_id}&period=${selectedSession.period}&date=${selectedSession.dateStr}`, {
+        method: 'GET',
+        credentials: 'include',
+        headers: {
+          'Authorization': localStorage.getItem('auth_token') ? `Bearer ${localStorage.getItem('auth_token')}` : ''
+        }
+      });
+      if (!response.ok) throw new Error('Download failed');
+      const blob = await response.blob();
+      const url = window.URL.createObjectURL(blob);
+      
+      let filename = `Attendance_${sessionDetail.class_name.replace(/\s+/g, '_')}_P${sessionDetail.period}_${sessionDetail.date}.xlsx`;
+      const disposition = response.headers.get('content-disposition');
+      if (disposition && disposition.indexOf('attachment') !== -1) {
+        const filenameRegex = /filename[^;=\n]*=((['"]).*?\2|[^;\n]*)/;
+        const matches = filenameRegex.exec(disposition);
+        if (matches != null && matches[1]) { 
+          filename = matches[1].replace(/['"]/g, '');
+        }
+      }
+      
+      const link = document.createElement('a');
+      link.href = url;
+      link.setAttribute('download', filename);
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      window.URL.revokeObjectURL(url);
+    } catch (err) {
+      console.error('Failed to download session Excel:', err);
+      alert('Failed to download Excel report.');
+    }
   };
 
   // Filter students in detail view search
@@ -224,7 +233,7 @@ const StaffAttendanceHistory = () => {
                 style={{ display: 'inline-flex', alignItems: 'center', gap: '6px', fontWeight: '700', color: '#059669', borderColor: '#10B981' }}
               >
                 <Download size={16} />
-                <span>Download CSV Report</span>
+                <span>Download Excel Report</span>
               </button>
               <button 
                 className="btn btn-primary"

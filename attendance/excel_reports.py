@@ -17,7 +17,8 @@ def generate_attendance_excel_report(
     tutor_user=None,
     requested_by_user=None,
     report_type='class',
-    student_id=None
+    student_id=None,
+    year=None
 ):
     """
     Generates a beautifully styled openpyxl Workbook for Day-wise or Subject-wise attendance.
@@ -111,6 +112,12 @@ def generate_attendance_excel_report(
             pass
     elif report_type == 'tutored':
         students_qs = students_qs.filter(tutor=requested_by_user)
+
+    if year:
+        try:
+            students_qs = students_qs.filter(student_class__year=int(year))
+        except (ValueError, TypeError):
+            pass
 
     students = list(students_qs.order_by('student_class__name', 'student_class__section', 'reg_no', 'user__username'))
 
