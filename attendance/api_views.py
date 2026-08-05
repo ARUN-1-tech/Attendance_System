@@ -1698,8 +1698,37 @@ class AttendanceViewSet(viewsets.ModelViewSet):
         from accounts.models import Student
 
         # Fetch locks where staff = user
-        locks = PeriodLock.objects.filter(staff=user).select_related('student_class').order_by('-date', 'period')
+        locks = list(PeriodLock.objects.filter(staff=user).select_related('student_class').order_by('-date', 'period'))
         
+        class_ids = set(lock.student_class_id for lock in locks)
+        dates = set(lock.date for lock in locks)
+        
+        # 1. Fetch schedules for these classes in batch
+        schedules = Schedule.objects.filter(student_class_id__in=class_ids).select_related('subject')
+        schedule_map = {}
+        for s in schedules:
+            schedule_map[(s.student_class_id, s.day, s.period)] = s
+            
+        # 2. Fetch all student counts for these classes in batch
+        from django.db.models import Count
+        class_student_counts = dict(Student.objects.filter(
+            student_class_id__in=class_ids
+        ).values('student_class_id').annotate(count=Count('user_id')).values_list('student_class_id', 'count'))
+        
+        # 3. Fetch all attendance statuses in batch
+        attendances = Attendance.objects.filter(
+            student__student_class_id__in=class_ids,
+            date__in=dates
+        ).select_related('schedule__subject')
+        
+        # Group by (class_id, date, period) -> list of statuses
+        from collections import defaultdict
+        att_status_map = defaultdict(list)
+        for att in attendances:
+            period = att.schedule.period if att.schedule else None
+            if period:
+                att_status_map[(att.student.student_class_id, att.date, period)].append(att.status)
+                
         # Group sessions by date string
         history_by_date = {}
         
@@ -1712,38 +1741,33 @@ class AttendanceViewSet(viewsets.ModelViewSet):
                     'sessions': []
                 }
             
-            # Find matching schedule for subject details
             weekday = lock.date.strftime('%A')
-            sched = Schedule.objects.filter(
-                student_class=lock.student_class,
-                period=lock.period,
-                day=weekday
-            ).select_related('subject').first()
+            sched = schedule_map.get((lock.student_class_id, weekday, lock.period))
             
             if not sched:
-                att_first = Attendance.objects.filter(
+                # Fallback to check if any attendance has schedule
+                statuses_records = Attendance.objects.filter(
                     student__student_class=lock.student_class,
                     date=lock.date,
                     schedule__period=lock.period
                 ).select_related('schedule__subject').first()
-                if att_first:
-                    sched = att_first.schedule
+                if statuses_records:
+                    sched = statuses_records.schedule
 
             subject_name = sched.subject.name if (sched and sched.subject) else "General"
             subject_code = sched.subject.code if (sched and sched.subject) else "GEN"
 
-            # Count attendance stats for this session
-            atts = Attendance.objects.filter(
-                student__student_class=lock.student_class,
-                date=lock.date,
-                schedule__period=lock.period
-            )
+            # Get statuses from pre-fetched map
+            statuses = att_status_map.get((lock.student_class_id, lock.date, lock.period), [])
+            total_students = class_student_counts.get(lock.student_class_id, 0)
             
-            total_students = Student.objects.filter(student_class=lock.student_class).count()
-            present_count = atts.filter(status='Present').count()
-            absent_count = atts.filter(status='Absent').count()
-            od_count = atts.filter(status='OD').count()
-            leave_count = atts.filter(status='Leave').count()
+            present_count = statuses.count('Present')
+            absent_count = statuses.count('Absent')
+            od_count = statuses.count('OD')
+            leave_count = statuses.count('Leave')
+
+            if total_students == 0 and statuses:
+                total_students = len(statuses)
 
             history_by_date[d_str]['sessions'].append({
                 'period': lock.period,

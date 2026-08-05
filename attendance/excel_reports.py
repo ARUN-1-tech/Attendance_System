@@ -164,12 +164,13 @@ def generate_attendance_excel_report(
     # DAY-WISE REPORT GENERATION
     # ==========================================
     if report_mode == 'day':
-        # Collect distinct dates in range
-        target_dates = []
-        curr = from_date
-        while curr <= to_date:
-            target_dates.append(curr)
-            curr += datetime.timedelta(days=1)
+        # Collect distinct dates in range where attendance actually exists for these students
+        db_dates = Attendance.objects.filter(
+            student__in=students,
+            date__gte=from_date,
+            date__lte=to_date
+        ).values_list('date', flat=True).distinct()
+        target_dates = sorted(list(set(db_dates)))
 
         # Base Columns
         headers = ["S.No", "Student Name", "Register Number", "Roll Number", "Class"]
@@ -212,6 +213,11 @@ def generate_attendance_excel_report(
         class_total_a = 0
         class_total_od = 0
         class_total_possible_days = 0
+
+        # Initialize daily summaries
+        day_p_counts = {d: 0.0 for d in target_dates}
+        day_a_counts = {d: 0.0 for d in target_dates}
+        day_od_counts = {d: 0.0 for d in target_dates}
 
         # Populate Student Rows
         for idx, student in enumerate(students, start=1):
@@ -270,6 +276,17 @@ def generate_attendance_excel_report(
                         day_status = "A"
                         st_a += 1
 
+                # Update daily count summaries
+                if day_status == "P":
+                    day_p_counts[d_obj] += 1
+                elif day_status == "A":
+                    day_a_counts[d_obj] += 1
+                elif day_status == "OD":
+                    day_od_counts[d_obj] += 1
+                elif day_status == "HD":
+                    day_p_counts[d_obj] += 0.5
+                    day_a_counts[d_obj] += 0.5
+
                 cell = ws.cell(row=row_num, column=d_idx, value=day_status)
                 cell.alignment = align_center
                 cell.border = grid_border
@@ -320,10 +337,27 @@ def generate_attendance_excel_report(
             ws.cell(row=current_row, column=2).alignment = align_left
             ws.cell(row=current_row, column=2).border = grid_border
 
-            for c in range(3, 6 + len(target_dates)):
+            for c in range(3, 6):
                 cell = ws.cell(row=current_row, column=c, value="-")
                 cell.alignment = align_center
                 cell.font = bold_font
+                cell.border = grid_border
+                cell.fill = summary_row_fill
+
+            for d_idx, d_obj in enumerate(target_dates, start=6):
+                p_sum = day_p_counts[d_obj]
+                a_sum = day_a_counts[d_obj]
+                od_sum = day_od_counts[d_obj]
+
+                p_str = int(p_sum) if p_sum.is_integer() else p_sum
+                a_str = int(a_sum) if a_sum.is_integer() else a_sum
+                od_str = int(od_sum) if od_sum.is_integer() else od_sum
+
+                sum_text = f"P:{p_str}\nA:{a_str}\nO:{od_str}"
+
+                cell = ws.cell(row=current_row, column=d_idx, value=sum_text)
+                cell.alignment = Alignment(horizontal='center', vertical='center', wrap_text=True)
+                cell.font = Font(name='Calibri', size=9, bold=True, color='475569')
                 cell.border = grid_border
                 cell.fill = summary_row_fill
 
@@ -342,7 +376,7 @@ def generate_attendance_excel_report(
                 cell_obj.fill = summary_row_fill
                 cell_obj.border = grid_border
 
-            ws.row_dimensions[current_row].height = 24
+            ws.row_dimensions[current_row].height = 42
 
     # ==========================================
     # SUBJECT-WISE REPORT GENERATION
@@ -404,6 +438,11 @@ def generate_attendance_excel_report(
         class_total_od = 0
         class_total_possible_classes = 0
 
+        # Initialize session summaries
+        session_p_counts = {session: 0.0 for session in sorted_sessions}
+        session_a_counts = {session: 0.0 for session in sorted_sessions}
+        session_od_counts = {session: 0.0 for session in sorted_sessions}
+
         # Populate Student Rows
         for idx, student in enumerate(students, start=1):
             row_num = current_row
@@ -450,12 +489,15 @@ def generate_attendance_excel_report(
                 if status_code == "P":
                     cell.fill = present_fill
                     cell.font = present_font
+                    session_p_counts[(d_obj, p_num, sched_id)] += 1
                 elif status_code == "A":
                     cell.fill = absent_fill
                     cell.font = absent_font
+                    session_a_counts[(d_obj, p_num, sched_id)] += 1
                 elif status_code == "OD":
                     cell.fill = od_fill
                     cell.font = od_font
+                    session_od_counts[(d_obj, p_num, sched_id)] += 1
 
             st_effective_present = st_p + st_verified_od
             att_pct = round((st_effective_present / st_total_classes * 100), 1) if st_total_classes > 0 else 0.0
@@ -489,10 +531,27 @@ def generate_attendance_excel_report(
             ws.cell(row=current_row, column=2).alignment = align_left
             ws.cell(row=current_row, column=2).border = grid_border
 
-            for c in range(3, 7 + len(sorted_sessions)):
+            for c in range(3, 7):
                 cell = ws.cell(row=current_row, column=c, value="-")
                 cell.alignment = align_center
                 cell.font = bold_font
+                cell.border = grid_border
+                cell.fill = summary_row_fill
+
+            for s_idx, session in enumerate(sorted_sessions, start=7):
+                p_sum = session_p_counts[session]
+                a_sum = session_a_counts[session]
+                od_sum = session_od_counts[session]
+
+                p_str = int(p_sum) if p_sum.is_integer() else p_sum
+                a_str = int(a_sum) if a_sum.is_integer() else a_sum
+                od_str = int(od_sum) if od_sum.is_integer() else od_sum
+
+                sum_text = f"P:{p_str}\nA:{a_str}\nO:{od_str}"
+
+                cell = ws.cell(row=current_row, column=s_idx, value=sum_text)
+                cell.alignment = Alignment(horizontal='center', vertical='center', wrap_text=True)
+                cell.font = Font(name='Calibri', size=9, bold=True, color='475569')
                 cell.border = grid_border
                 cell.fill = summary_row_fill
 
@@ -511,7 +570,7 @@ def generate_attendance_excel_report(
                 cell_obj.fill = summary_row_fill
                 cell_obj.border = grid_border
 
-            ws.row_dimensions[current_row].height = 24
+            ws.row_dimensions[current_row].height = 42
 
     # ==========================================
     # AUTO ARRANGE COLUMN WIDTHS ACCORDING TO CONTENT

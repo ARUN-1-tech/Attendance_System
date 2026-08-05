@@ -129,13 +129,22 @@ class StudentSerializer(serializers.ModelSerializer):
                 student_id__in=student_ids
             ).filter(
                 ~Q(schedule__period=8) | Q(schedule__period=8, status='Present')
-            ).select_related('schedule__subject').prefetch_related('schedule__subject__elective_students')
+            ).select_related('schedule__subject')
+
+            # Fetch elective student mappings in one query
+            student_electives = Subject.elective_students.through.objects.filter(
+                student_id__in=student_ids
+            ).values_list('student_id', 'subject_id')
+
+            student_elective_map = defaultdict(set)
+            for sid, sub_id in student_electives:
+                student_elective_map[sid].add(sub_id)
 
             active_atts = []
             for att in active_atts_qs:
                 subj = att.schedule.subject if att.schedule else None
                 if subj and subj.subject_type in ['OPEN_ELECTIVE', 'PROFESSIONAL_ELECTIVE']:
-                    if any(s.user_id == att.student_id for s in subj.elective_students.all()):
+                    if subj.id in student_elective_map[att.student_id]:
                         active_atts.append({'student_id': att.student_id, 'status': att.status, 'date': att.date})
                 else:
                     active_atts.append({'student_id': att.student_id, 'status': att.status, 'date': att.date})
@@ -184,24 +193,38 @@ class StudentSerializer(serializers.ModelSerializer):
         from attendance.models import Attendance, filter_active_attendance
         from leave.models import Leave
         
-        attendances = Attendance.objects.filter(student=obj)
-        attendances = filter_active_attendance(attendances)
-        total_periods = attendances.count()
+        attendances = list(filter_active_attendance(Attendance.objects.filter(student=obj).select_related('schedule__subject')))
+        total_periods = len(attendances)
         if total_periods == 0:
             return 100.0
             
-        present_periods = attendances.filter(status='Present').count()
-        verified_ods = Leave.objects.filter(
+        elective_subject_ids = set(obj.elective_subjects.values_list('id', flat=True))
+        
+        valid_attendances = []
+        for att in attendances:
+            subj = att.schedule.subject if att.schedule else None
+            if subj and subj.subject_type in ['OPEN_ELECTIVE', 'PROFESSIONAL_ELECTIVE']:
+                if subj.id in elective_subject_ids:
+                    valid_attendances.append(att)
+            else:
+                valid_attendances.append(att)
+                
+        total_periods = len(valid_attendances)
+        if total_periods == 0:
+            return 100.0
+            
+        present_periods = sum(1 for att in valid_attendances if att.status == 'Present')
+        
+        verified_ods = set(Leave.objects.filter(
             student=obj, 
             leave_type='OD', 
             final_status='Approved', 
             certificate_verified=True
-        ).values_list('date', flat=True)
+        ).values_list('date', flat=True))
         
-        verified_od_count = attendances.filter(status='OD', date__in=verified_ods).count()
+        verified_od_count = sum(1 for att in valid_attendances if att.status == 'OD' and att.date in verified_ods)
         effective_present = present_periods + verified_od_count
-        percentage = (effective_present / total_periods * 100)
-        return round(percentage, 2)
+        return round((effective_present / total_periods * 100), 2)
 
     def create(self, validated_data):
         user_data = validated_data.pop('user')
