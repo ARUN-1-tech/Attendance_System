@@ -515,99 +515,19 @@ def morning_attendance(request):
         target_class = get_object_or_404(Class, id=class_id, department=request.user.department)
         matrix = get_live_class_attendance_matrix(target_class)
         
-        action = request.GET.get('action')
         if action in ['download_1st', 'download_grid']:
-            import csv
-            from django.http import HttpResponse
             session_date = matrix['date']
-            response = HttpResponse(content_type='text/csv')
-            
-            dept = target_class.department.name if target_class.department else ''
-            year = target_class.year
-            cls = target_class.name
-            section = target_class.section
+            from django.http import HttpResponse
+            from attendance.excel_reports import generate_hod_1st_period_excel, generate_hod_live_grid_excel
 
             if action == 'download_1st':
-                response['Content-Disposition'] = f'attachment; filename="1st_Period_Attendance_{target_class.name.replace(" ", "_")}_{session_date}.csv"'
-                writer = csv.writer(response)
-                writer.writerow(['Register Number', 'Name', 'Department', 'Year', 'Class', 'Section', 'Date', 'Status'])
-                
-                period1_sched = None
-                for s in matrix['schedules']:
-                    if s.period == 1:
-                        period1_sched = s
-                        break
-                
-                total = 0
-                present = 0
-                absent = 0
-                od = 0
-                        
-                for row in matrix['student_rows']:
-                    status_text = '-'
-                    if period1_sched:
-                        for st in row['statuses']:
-                            if st['schedule_id'] == period1_sched.id:
-                                status_text = st['status']
-                                break
-                        if status_text == '-':
-                            status_text = 'Absent'
-                    writer.writerow([row['reg_no'], row['name'], dept, year, cls, section, session_date.strftime('%Y-%m-%d'), status_text])
-                    total += 1
-                    if status_text == 'Present':
-                        present += 1
-                    elif status_text == 'Absent':
-                        absent += 1
-                    elif status_text == 'OD':
-                        od += 1
-
-                writer.writerow([])
-                writer.writerow(['Summary'])
-                writer.writerow(['Total Students', total])
-                writer.writerow(['Present', present])
-                writer.writerow(['Absent', absent])
-                writer.writerow(['OD', od])
+                wb, filename = generate_hod_1st_period_excel(target_class, session_date, matrix)
             else:
-                response['Content-Disposition'] = f'attachment; filename="Live_Grid_{target_class.name.replace(" ", "_")}_{session_date}.csv"'
-                writer = csv.writer(response)
-                headers = ['Register Number', 'Name', 'Department', 'Year', 'Class', 'Section']
-                for s in matrix['schedules']:
-                    headers.append(f"Period {s.period} ({s.subject.name})")
-                writer.writerow(headers)
-                
-                for row in matrix['student_rows']:
-                    row_data = [row['reg_no'], row['name'], dept, year, cls, section]
-                    for s in matrix['schedules']:
-                        status_text = '-'
-                        for st in row['statuses']:
-                            if st['schedule_id'] == s.id:
-                                status_text = st['status']
-                                break
-                        row_data.append(status_text)
-                    writer.writerow(row_data)
+                wb, filename = generate_hod_live_grid_excel(target_class, session_date, matrix)
 
-                writer.writerow([])
-                writer.writerow(['Summary'])
-                writer.writerow(['Total Students', len(matrix['student_rows'])])
-                
-                present_row = ['Present', '', '', '', '', '']
-                absent_row = ['Absent', '', '', '', '', '']
-                od_row = ['OD', '', '', '', '', '']
-                
-                for s in matrix['schedules']:
-                    col_sum = next((cs for cs in matrix['columns_summary'] if cs['schedule_id'] == s.id), None)
-                    if col_sum:
-                        present_row.append(col_sum['present'])
-                        absent_row.append(col_sum['absent'])
-                        od_row.append(col_sum['od'])
-                    else:
-                        present_row.append(0)
-                        absent_row.append(0)
-                        od_row.append(0)
-                
-                writer.writerow(present_row)
-                writer.writerow(absent_row)
-                writer.writerow(od_row)
+            response = HttpResponse(content_type='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet')
+            response['Content-Disposition'] = f'attachment; filename="{filename}"'
+            wb.save(response)
             return response
 
         context = {

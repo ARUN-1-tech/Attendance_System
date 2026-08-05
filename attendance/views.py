@@ -372,47 +372,11 @@ def download_session(request, otp_id):
     )
     
     from django.http import HttpResponse
-    import csv
-    response = HttpResponse(content_type='text/csv')
-    filename = f"Attendance_{otp.schedule.student_class.name}_{otp.schedule.subject.code}_Period_{otp.schedule.period}_{session_date}.csv"
+    from .excel_reports import generate_subject_attendance_excel
+    wb, filename = generate_subject_attendance_excel(records)
+    response = HttpResponse(content_type='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet')
     response['Content-Disposition'] = f'attachment; filename="{filename}"'
-    
-    writer = csv.writer(response)
-    writer.writerow(['Register Number', 'Name', 'Department', 'Year', 'Class', 'Section', 'Date', 'Time', 'Subject', 'Status'])
-    
-    total = 0
-    present = 0
-    absent = 0
-    od = 0
-    
-    for r in records:
-        reg_no = r.student.reg_no or r.student.roll_no or r.student.user.username
-        full_name = f"{r.student.user.first_name} {r.student.user.last_name}".strip() or r.student.user.username
-        time_str = otp.schedule.start_time.strftime('%H:%M') if otp.schedule.start_time else ''
-        subject_str = otp.schedule.subject.name
-        
-        dept = r.student.student_class.department.name if r.student.student_class and r.student.student_class.department else ''
-        yr = r.student.student_class.year if r.student.student_class else ''
-        cls = r.student.student_class.name if r.student.student_class else ''
-        sec = r.student.student_class.section if r.student.student_class else ''
-        
-        writer.writerow([reg_no, full_name, dept, yr, cls, sec, session_date.strftime('%Y-%m-%d'), time_str, subject_str, r.status])
-        
-        total += 1
-        if r.status == 'Present':
-            present += 1
-        elif r.status == 'Absent':
-            absent += 1
-        elif r.status == 'OD':
-            od += 1
-            
-    writer.writerow([])
-    writer.writerow(['Summary'])
-    writer.writerow(['Total Students', total])
-    writer.writerow(['Present', present])
-    writer.writerow(['Absent', absent])
-    writer.writerow(['OD', od])
-        
+    wb.save(response)
     return response
 
 @login_required

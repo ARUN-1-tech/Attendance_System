@@ -194,42 +194,11 @@ def subject_reports(request):
             date=date
         ).select_related('student__user', 'student__student_class', 'student__student_class__department', 'schedule__subject')
         
-        response = HttpResponse(content_type='text/csv')
-        c_name = records.first().student.student_class.name if records.exists() else "Class"
-        s_code = records.first().schedule.subject.code if records.exists() else "Subject"
-        response['Content-Disposition'] = f'attachment; filename="Subject_Attendance_{c_name}_{s_code}_Period_{period}_{date}.csv"'
-        
-        writer = csv.writer(response)
-        writer.writerow(['Register Number', 'Name', 'Department', 'Year', 'Class', 'Section', 'Date', 'Time', 'Subject', 'Status'])
-        total_c = 0
-        present_c = 0
-        absent_c = 0
-        od_c = 0
-        for r in records:
-            reg_no = r.student.reg_no or r.student.roll_no or r.student.user.username
-            full_name = f"{r.student.user.first_name} {r.student.user.last_name}".strip() or r.student.user.username
-            time_str = r.schedule.start_time.strftime('%H:%M') if r.schedule.start_time else ''
-            subject_str = r.schedule.subject.name
-            dept = r.student.student_class.department.name if r.student.student_class and r.student.student_class.department else ''
-            yr = r.student.student_class.year if r.student.student_class else ''
-            cls = r.student.student_class.name if r.student.student_class else ''
-            sec = r.student.student_class.section if r.student.student_class else ''
-            
-            writer.writerow([reg_no, full_name, dept, yr, cls, sec, r.date.strftime('%Y-%m-%d'), time_str, subject_str, r.status])
-            total_c += 1
-            if r.status == 'Present':
-                present_c += 1
-            elif r.status == 'Absent':
-                absent_c += 1
-            elif r.status == 'OD':
-                od_c += 1
-                
-        writer.writerow([])
-        writer.writerow(['Summary'])
-        writer.writerow(['Total Students', total_c])
-        writer.writerow(['Present', present_c])
-        writer.writerow(['Absent', absent_c])
-        writer.writerow(['OD', od_c])
+        from attendance.excel_reports import generate_subject_attendance_excel
+        wb, filename = generate_subject_attendance_excel(records)
+        response = HttpResponse(content_type='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet')
+        response['Content-Disposition'] = f'attachment; filename="{filename}"'
+        wb.save(response)
         return response
 
     grouped_data = Attendance.objects.filter(
@@ -267,74 +236,18 @@ def advisor_reports(request):
             date=date
         ).select_related('student__user', 'student__student_class', 'student__student_class__department', 'schedule')
         
-        import csv
+        import datetime
         from django.http import HttpResponse
-        response = HttpResponse(content_type='text/csv')
+        from accounts.models import Class
+        from attendance.excel_reports import generate_advisor_daily_excel
+        
         c = Class.objects.get(id=class_id)
-        response['Content-Disposition'] = f'attachment; filename="Advisor_Daily_Report_{c.name}_{date}.csv"'
+        date_parsed = datetime.datetime.strptime(date, '%Y-%m-%d').date()
+        wb, filename = generate_advisor_daily_excel(c, date_parsed, records)
         
-        writer = csv.writer(response)
-        writer.writerow(['Register Number', 'Name', 'Department', 'Year', 'Class', 'Section', 'Period 1', 'Period 2', 'Period 3', 'Period 4', 'Period 5', 'Period 6', 'Period 7', 'Period 8'])
-        
-        student_data = {}
-        for r in records:
-            username = r.student.user.username
-            if username not in student_data:
-                student_data[username] = {
-                    'name': f"{r.student.user.first_name} {r.student.user.last_name}".strip(),
-                    'department': r.student.student_class.department.name if r.student.student_class and r.student.student_class.department else '',
-                    'year': r.student.student_class.year if r.student.student_class else '',
-                    'class_name': r.student.student_class.name if r.student.student_class else '',
-                    'section': r.student.student_class.section if r.student.student_class else '',
-                    'periods': {str(p): '-' for p in range(1, 9)}
-                }
-            student_data[username]['periods'][str(r.schedule.period)] = r.status
-            
-        for username, data in student_data.items():
-            writer.writerow([
-                username, 
-                data['name'], 
-                data['department'],
-                data['year'],
-                data['class_name'],
-                data['section'],
-                data['periods']['1'], data['periods']['2'], data['periods']['3'], 
-                data['periods']['4'], data['periods']['5'], data['periods']['6'], 
-                data['periods']['7'], data['periods']['8']
-            ])
-            
-        total_st = len(student_data)
-        period_present = {str(p): 0 for p in range(1, 9)}
-        period_absent = {str(p): 0 for p in range(1, 9)}
-        period_od = {str(p): 0 for p in range(1, 9)}
-        
-        for username, data in student_data.items():
-            for p in range(1, 9):
-                status = data['periods'][str(p)]
-                if status == 'Present':
-                    period_present[str(p)] += 1
-                elif status == 'Absent':
-                    period_absent[str(p)] += 1
-                elif status == 'OD':
-                    period_od[str(p)] += 1
-                    
-        writer.writerow([])
-        writer.writerow(['Summary'])
-        writer.writerow(['Total Students', total_st])
-        
-        p_row = ['Present', '', '', '', '', '']
-        a_row = ['Absent', '', '', '', '', '']
-        o_row = ['OD', '', '', '', '', '']
-        
-        for p in range(1, 9):
-            p_row.append(period_present[str(p)])
-            a_row.append(period_absent[str(p)])
-            o_row.append(period_od[str(p)])
-            
-        writer.writerow(p_row)
-        writer.writerow(a_row)
-        writer.writerow(o_row)
-            
+        response = HttpResponse(content_type='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet')
+        response['Content-Disposition'] = f'attachment; filename="{filename}"'
+        wb.save(response)
         return response
 
     return render(request, 'staff/advisor_reports.html', {'advised_classes': advised_classes})

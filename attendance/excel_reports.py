@@ -639,3 +639,753 @@ def generate_attendance_excel_report(
     filename = f"{clean_filename}.xlsx"
 
     return wb, filename
+
+
+def generate_student_subject_detail_excel(student, subject, records, stats, verified_ods):
+    import openpyxl
+    from openpyxl.styles import PatternFill, Font, Alignment, Border, Side
+    from openpyxl.utils import get_column_letter
+
+    wb = openpyxl.Workbook()
+    ws = wb.active
+    ws.title = "Subject Attendance Log"
+    ws.views.sheetView[0].showGridLines = True
+
+    # Styling Palette
+    header_fill = PatternFill(start_color='0F172A', end_color='0F172A', fill_type='solid') # Navy
+    header_font = Font(name='Calibri', size=11, bold=True, color='FFFFFF')
+
+    title_font = Font(name='Calibri', size=14, bold=True, color='0F172A')
+    subtitle_font = Font(name='Calibri', size=11, bold=True, color='475569')
+    meta_font = Font(name='Calibri', size=10, italic=True, color='64748B')
+    bold_font = Font(name='Calibri', size=11, bold=True, color='0F172A')
+    regular_font = Font(name='Calibri', size=11, color='1E293B')
+
+    present_fill = PatternFill(start_color='DCFCE7', end_color='DCFCE7', fill_type='solid')
+    present_font = Font(name='Calibri', size=11, bold=True, color='15803D')
+
+    absent_fill = PatternFill(start_color='FEE2E2', end_color='FEE2E2', fill_type='solid')
+    absent_font = Font(name='Calibri', size=11, bold=True, color='B91C1C')
+
+    od_fill = PatternFill(start_color='FEF3C7', end_color='FEF3C7', fill_type='solid')
+    od_font = Font(name='Calibri', size=11, bold=True, color='B45309')
+
+    zebra_fill = PatternFill(start_color='F8FAFC', end_color='F8FAFC', fill_type='solid')
+    summary_row_fill = PatternFill(start_color='F1F5F9', end_color='F1F5F9', fill_type='solid')
+
+    thin_side = Side(style='thin', color='CBD5E1')
+    grid_border = Border(left=thin_side, right=thin_side, top=thin_side, bottom=thin_side)
+
+    align_center = Alignment(horizontal='center', vertical='center')
+    align_left = Alignment(horizontal='left', vertical='center')
+
+    # Institutional Header Block
+    ws['A1'] = "DR. NGP INSTITUTE OF TECHNOLOGY (AUTONOMOUS)"
+    ws['A1'].font = title_font
+    ws['A2'] = f"DEPARTMENT OF {(student.student_class.department.name.upper() if student.student_class and student.student_class.department else 'ENGINEERING')}"
+    ws['A2'].font = subtitle_font
+    ws['A3'] = "STUDENT ATTENDANCE DETAILED LOG"
+    ws['A3'].font = Font(name='Calibri', size=12, bold=True, color='1D4ED8')
+
+    class_str = student.student_class.name if student.student_class else "N/A"
+    ws['A4'] = f"Student: {student.user.get_full_name()} ({student.reg_no or student.user.username}) | Class: {class_str} | Subject: {subject.code} - {subject.name}"
+    ws['A4'].font = meta_font
+
+    # Stats Row
+    ws['A6'] = "TOTAL HOURS"
+    ws['B6'] = "PRESENT"
+    ws['C6'] = "ABSENT"
+    ws['D6'] = "PERCENTAGE"
+    for col in ['A', 'B', 'C', 'D']:
+        cell = ws[f"{col}6"]
+        cell.font = Font(name='Calibri', size=9, bold=True, color='64748B')
+        cell.alignment = align_center
+        cell.fill = summary_row_fill
+        cell.border = grid_border
+
+    ws['A7'] = stats['total_hours']
+    ws['B7'] = stats['effective_present']
+    ws['C7'] = stats['absent_count']
+    ws['D7'] = f"{stats['percentage']}%"
+    
+    ws['A7'].font = bold_font
+    ws['B7'].font = Font(name='Calibri', size=11, bold=True, color='15803D')
+    ws['C7'].font = Font(name='Calibri', size=11, bold=True, color='B91C1C')
+    ws['D7'].font = Font(name='Calibri', size=11, bold=True, color='1D4ED8' if stats['percentage'] >= 75 else 'B91C1C')
+    
+    for col in ['A', 'B', 'C', 'D']:
+        ws[f"{col}7"].alignment = align_center
+        ws[f"{col}7"].border = grid_border
+
+    # Table Headers
+    headers = ["S.No", "Date", "Period", "Status", "Note"]
+    start_row = 9
+    for col_idx, text in enumerate(headers, start=1):
+        cell = ws.cell(row=start_row, column=col_idx, value=text)
+        cell.fill = header_fill
+        cell.font = header_font
+        cell.alignment = align_center if col_idx != 2 else align_left
+        cell.border = grid_border
+    
+    ws.row_dimensions[start_row].height = 24
+    
+    current_row = 10
+    for idx, r in enumerate(records, start=1):
+        ws.cell(row=current_row, column=1, value=idx).alignment = align_center
+        ws.cell(row=current_row, column=2, value=r.date.strftime('%Y-%m-%d')).alignment = align_left
+        ws.cell(row=current_row, column=3, value=f"Period {r.schedule.period}").alignment = align_center
+        
+        status_cell = ws.cell(row=current_row, column=4, value=r.status)
+        status_cell.alignment = align_center
+        if r.status == 'Present':
+            status_cell.fill = present_fill
+            status_cell.font = present_font
+        elif r.status == 'Absent':
+            status_cell.fill = absent_fill
+            status_cell.font = absent_font
+        elif r.status == 'OD':
+            status_cell.fill = od_fill
+            status_cell.font = od_font
+            
+        note = 'Ignored (Optional 8th Period)' if (r.schedule.period == 8 and r.status != 'Present') else '-'
+        ws.cell(row=current_row, column=5, value=note).alignment = align_left
+        
+        for c in range(1, 6):
+            cell = ws.cell(row=current_row, column=c)
+            cell.border = grid_border
+            if c != 4:
+                cell.font = regular_font
+            if idx % 2 == 0:
+                cell.fill = zebra_fill
+                
+        ws.row_dimensions[current_row].height = 20
+        current_row += 1
+
+    # Auto Column Widths
+    for col in ws.columns:
+        max_len = 0
+        col_letter = get_column_letter(col[0].column)
+        for cell in col:
+            if cell.row < 9:
+                continue
+            val_str = str(cell.value or '')
+            if len(val_str) > max_len:
+                max_len = len(val_str)
+        ws.column_dimensions[col_letter].width = max(max_len + 4, 12)
+
+    filename = f"Attendance_Log_{student.reg_no or student.user.username}_{subject.code}.xlsx"
+    return wb, filename
+
+
+def generate_subject_attendance_excel(records):
+    import openpyxl
+    from openpyxl.styles import PatternFill, Font, Alignment, Border, Side
+    from openpyxl.utils import get_column_letter
+
+    wb = openpyxl.Workbook()
+    ws = wb.active
+    ws.title = "Subject Attendance"
+    ws.views.sheetView[0].showGridLines = True
+
+    # Styling Palette
+    header_fill = PatternFill(start_color='0F172A', end_color='0F172A', fill_type='solid') # Navy
+    header_font = Font(name='Calibri', size=11, bold=True, color='FFFFFF')
+
+    title_font = Font(name='Calibri', size=14, bold=True, color='0F172A')
+    subtitle_font = Font(name='Calibri', size=11, bold=True, color='475569')
+    meta_font = Font(name='Calibri', size=10, italic=True, color='64748B')
+    bold_font = Font(name='Calibri', size=11, bold=True, color='0F172A')
+    regular_font = Font(name='Calibri', size=11, color='1E293B')
+
+    present_fill = PatternFill(start_color='DCFCE7', end_color='DCFCE7', fill_type='solid')
+    present_font = Font(name='Calibri', size=11, bold=True, color='15803D')
+
+    absent_fill = PatternFill(start_color='FEE2E2', end_color='FEE2E2', fill_type='solid')
+    absent_font = Font(name='Calibri', size=11, bold=True, color='B91C1C')
+
+    od_fill = PatternFill(start_color='FEF3C7', end_color='FEF3C7', fill_type='solid')
+    od_font = Font(name='Calibri', size=11, bold=True, color='B45309')
+
+    zebra_fill = PatternFill(start_color='F8FAFC', end_color='F8FAFC', fill_type='solid')
+    summary_row_fill = PatternFill(start_color='F1F5F9', end_color='F1F5F9', fill_type='solid')
+
+    thin_side = Side(style='thin', color='CBD5E1')
+    grid_border = Border(left=thin_side, right=thin_side, top=thin_side, bottom=thin_side)
+
+    align_center = Alignment(horizontal='center', vertical='center')
+    align_left = Alignment(horizontal='left', vertical='center')
+
+    # Get metadata from first record if exists
+    first = records.first() if hasattr(records, 'first') and records.exists() else None
+    dept_str = first.student.student_class.department.name.upper() if first and first.student.student_class and first.student.student_class.department else 'ENGINEERING'
+    
+    ws['A1'] = "DR. NGP INSTITUTE OF TECHNOLOGY (AUTONOMOUS)"
+    ws['A1'].font = title_font
+    ws['A2'] = f"DEPARTMENT OF {dept_str}"
+    ws['A2'].font = subtitle_font
+    ws['A3'] = "SUBJECT-WISE ATTENDANCE LOG"
+    ws['A3'].font = Font(name='Calibri', size=12, bold=True, color='1D4ED8')
+    
+    c_name = first.student.student_class.name if first and first.student.student_class else 'N/A'
+    s_code = first.schedule.subject.code if first and first.schedule else 'N/A'
+    s_name = first.schedule.subject.name if first and first.schedule else 'N/A'
+    date_str = first.date.strftime('%Y-%m-%d') if first else 'N/A'
+    period_str = str(first.schedule.period) if first and first.schedule else 'N/A'
+    ws['A4'] = f"Class: {c_name} | Subject: {s_code} - {s_name} | Period: {period_str} | Date: {date_str}"
+    ws['A4'].font = meta_font
+
+    headers = ['S.No', 'Register Number', 'Name', 'Department', 'Year', 'Class', 'Section', 'Date', 'Time', 'Subject', 'Status']
+    start_row = 6
+    for col_idx, text in enumerate(headers, start=1):
+        cell = ws.cell(row=start_row, column=col_idx, value=text)
+        cell.fill = header_fill
+        cell.font = header_font
+        cell.alignment = align_center if col_idx != 3 else align_left
+        cell.border = grid_border
+
+    ws.row_dimensions[start_row].height = 24
+    
+    current_row = 7
+    total_c = 0
+    present_c = 0
+    absent_c = 0
+    od_c = 0
+    
+    for idx, r in enumerate(records, start=1):
+        reg_no = r.student.reg_no or r.student.roll_no or r.student.user.username
+        full_name = f"{r.student.user.first_name} {r.student.user.last_name}".strip() or r.student.user.username
+        time_str = r.schedule.start_time.strftime('%H:%M') if r.schedule.start_time else ''
+        subject_str = r.schedule.subject.name
+        dept = r.student.student_class.department.name if r.student.student_class and r.student.student_class.department else ''
+        yr = r.student.student_class.year if r.student.student_class else ''
+        cls = r.student.student_class.name if r.student.student_class else ''
+        sec = r.student.student_class.section if r.student.student_class else ''
+        
+        ws.cell(row=current_row, column=1, value=idx).alignment = align_center
+        ws.cell(row=current_row, column=2, value=reg_no).alignment = align_center
+        ws.cell(row=current_row, column=3, value=full_name).alignment = align_left
+        ws.cell(row=current_row, column=4, value=dept).alignment = align_center
+        ws.cell(row=current_row, column=5, value=yr).alignment = align_center
+        ws.cell(row=current_row, column=6, value=cls).alignment = align_center
+        ws.cell(row=current_row, column=7, value=sec).alignment = align_center
+        ws.cell(row=current_row, column=8, value=r.date.strftime('%Y-%m-%d')).alignment = align_center
+        ws.cell(row=current_row, column=9, value=time_str).alignment = align_center
+        ws.cell(row=current_row, column=10, value=subject_str).alignment = align_center
+        
+        status_cell = ws.cell(row=current_row, column=11, value=r.status)
+        status_cell.alignment = align_center
+        if r.status == 'Present':
+            status_cell.fill = present_fill
+            status_cell.font = present_font
+            present_c += 1
+        elif r.status == 'Absent':
+            status_cell.fill = absent_fill
+            status_cell.font = absent_font
+            absent_c += 1
+        elif r.status == 'OD':
+            status_cell.fill = od_fill
+            status_cell.font = od_font
+            od_c += 1
+            
+        total_c += 1
+        
+        for c in range(1, 12):
+            cell = ws.cell(row=current_row, column=c)
+            cell.border = grid_border
+            if c != 11:
+                cell.font = regular_font
+            if idx % 2 == 0:
+                cell.fill = zebra_fill
+                
+        ws.row_dimensions[current_row].height = 20
+        current_row += 1
+
+    # Summary Row
+    ws.cell(row=current_row, column=1, value="").border = grid_border
+    ws.cell(row=current_row, column=2, value="SUMMARY").font = bold_font
+    ws.cell(row=current_row, column=2).alignment = align_left
+    ws.cell(row=current_row, column=2).border = grid_border
+    
+    for c in range(3, 8):
+        ws.cell(row=current_row, column=c, value="-").border = grid_border
+        ws.cell(row=current_row, column=c).fill = summary_row_fill
+        ws.cell(row=current_row, column=c).alignment = align_center
+        
+    ws.cell(row=current_row, column=8, value=f"Total: {total_c}").font = bold_font
+    ws.cell(row=current_row, column=8).border = grid_border
+    ws.cell(row=current_row, column=8).alignment = align_center
+    
+    ws.cell(row=current_row, column=9, value=f"P: {present_c}").font = Font(name='Calibri', size=11, bold=True, color='15803D')
+    ws.cell(row=current_row, column=9).border = grid_border
+    ws.cell(row=current_row, column=9).alignment = align_center
+    
+    ws.cell(row=current_row, column=10, value=f"A: {absent_c}").font = Font(name='Calibri', size=11, bold=True, color='B91C1C')
+    ws.cell(row=current_row, column=10).border = grid_border
+    ws.cell(row=current_row, column=10).alignment = align_center
+    
+    ws.cell(row=current_row, column=11, value=f"O: {od_c}").font = Font(name='Calibri', size=11, bold=True, color='B45309')
+    ws.cell(row=current_row, column=11).border = grid_border
+    ws.cell(row=current_row, column=11).alignment = align_center
+    
+    ws.row_dimensions[current_row].height = 24
+    
+    # Auto column widths
+    for col in ws.columns:
+        max_len = 0
+        col_letter = get_column_letter(col[0].column)
+        for cell in col:
+            if cell.row < 6:
+                continue
+            val_str = str(cell.value or '')
+            if len(val_str) > max_len:
+                max_len = len(val_str)
+        ws.column_dimensions[col_letter].width = max(max_len + 4, 12)
+        
+    filename = f"Subject_Attendance_{c_name}_{s_code}_Period_{period_str}_{date_str}.xlsx"
+    return wb, filename
+
+
+def generate_advisor_daily_excel(class_obj, date_obj, records):
+    import openpyxl
+    from openpyxl.styles import PatternFill, Font, Alignment, Border, Side
+    from openpyxl.utils import get_column_letter
+
+    wb = openpyxl.Workbook()
+    ws = wb.active
+    ws.title = "Advisor Daily Attendance"
+    ws.views.sheetView[0].showGridLines = True
+
+    # Styling Palette
+    header_fill = PatternFill(start_color='0F172A', end_color='0F172A', fill_type='solid') # Navy
+    header_font = Font(name='Calibri', size=11, bold=True, color='FFFFFF')
+
+    title_font = Font(name='Calibri', size=14, bold=True, color='0F172A')
+    subtitle_font = Font(name='Calibri', size=11, bold=True, color='475569')
+    meta_font = Font(name='Calibri', size=10, italic=True, color='64748B')
+    bold_font = Font(name='Calibri', size=11, bold=True, color='0F172A')
+    regular_font = Font(name='Calibri', size=11, color='1E293B')
+
+    present_fill = PatternFill(start_color='DCFCE7', end_color='DCFCE7', fill_type='solid')
+    present_font = Font(name='Calibri', size=11, bold=True, color='15803D')
+
+    absent_fill = PatternFill(start_color='FEE2E2', end_color='FEE2E2', fill_type='solid')
+    absent_font = Font(name='Calibri', size=11, bold=True, color='B91C1C')
+
+    od_fill = PatternFill(start_color='FEF3C7', end_color='FEF3C7', fill_type='solid')
+    od_font = Font(name='Calibri', size=11, bold=True, color='B45309')
+
+    zebra_fill = PatternFill(start_color='F8FAFC', end_color='F8FAFC', fill_type='solid')
+    summary_row_fill = PatternFill(start_color='F1F5F9', end_color='F1F5F9', fill_type='solid')
+
+    thin_side = Side(style='thin', color='CBD5E1')
+    grid_border = Border(left=thin_side, right=thin_side, top=thin_side, bottom=thin_side)
+
+    align_center = Alignment(horizontal='center', vertical='center')
+    align_left = Alignment(horizontal='left', vertical='center')
+
+    # Headers
+    dept_str = class_obj.department.name.upper() if class_obj and class_obj.department else 'ENGINEERING'
+    ws['A1'] = "DR. NGP INSTITUTE OF TECHNOLOGY (AUTONOMOUS)"
+    ws['A1'].font = title_font
+    ws['A2'] = f"DEPARTMENT OF {dept_str}"
+    ws['A2'].font = subtitle_font
+    ws['A3'] = "ADVISOR DAILY ATTENDANCE LOG"
+    ws['A3'].font = Font(name='Calibri', size=12, bold=True, color='1D4ED8')
+    ws['A4'] = f"Class: {class_obj.name} (Sec {class_obj.section}) | Date: {date_obj.strftime('%d-%b-%Y')}"
+    ws['A4'].font = meta_font
+
+    headers = ['S.No', 'Register Number', 'Name', 'Department', 'Year', 'Class', 'Section']
+    for p in range(1, 9):
+        headers.append(f"Period {p}")
+        
+    start_row = 6
+    for col_idx, text in enumerate(headers, start=1):
+        cell = ws.cell(row=start_row, column=col_idx, value=text)
+        cell.fill = header_fill
+        cell.font = header_font
+        cell.alignment = align_center if col_idx != 3 else align_left
+        cell.border = grid_border
+
+    ws.row_dimensions[start_row].height = 24
+    
+    # Process student rows
+    student_data = {}
+    for r in records:
+        username = r.student.user.username
+        if username not in student_data:
+            student_data[username] = {
+                'reg_no': r.student.reg_no or r.student.roll_no or username,
+                'name': f"{r.student.user.first_name} {r.student.user.last_name}".strip() or username,
+                'dept': r.student.student_class.department.name if r.student.student_class and r.student.student_class.department else '',
+                'year': r.student.student_class.year if r.student.student_class else '',
+                'cls': r.student.student_class.name if r.student.student_class else '',
+                'sec': r.student.student_class.section if r.student.student_class else '',
+                'periods': {str(p): '-' for p in range(1, 9)}
+            }
+        if r.schedule:
+            student_data[username]['periods'][str(r.schedule.period)] = r.status
+
+    current_row = 7
+    sorted_students = sorted(student_data.values(), key=lambda x: x['reg_no'])
+    
+    for idx, st in enumerate(sorted_students, start=1):
+        ws.cell(row=current_row, column=1, value=idx).alignment = align_center
+        ws.cell(row=current_row, column=2, value=st['reg_no']).alignment = align_center
+        ws.cell(row=current_row, column=3, value=st['name']).alignment = align_left
+        ws.cell(row=current_row, column=4, value=st['dept']).alignment = align_center
+        ws.cell(row=current_row, column=5, value=st['year']).alignment = align_center
+        ws.cell(row=current_row, column=6, value=st['cls']).alignment = align_center
+        ws.cell(row=current_row, column=7, value=st['sec']).alignment = align_center
+        
+        for p in range(1, 9):
+            p_val = st['periods'][str(p)]
+            cell = ws.cell(row=current_row, column=7 + p, value=p_val)
+            cell.alignment = align_center
+            if p_val == 'Present':
+                cell.fill = present_fill
+                cell.font = present_font
+            elif p_val == 'Absent':
+                cell.fill = absent_fill
+                cell.font = absent_font
+            elif p_val == 'OD':
+                cell.fill = od_fill
+                cell.font = od_font
+                
+        for c in range(1, 16):
+            cell = ws.cell(row=current_row, column=c)
+            cell.border = grid_border
+            if c < 8 or cell.value not in ['Present', 'Absent', 'OD']:
+                cell.font = regular_font
+            if idx % 2 == 0:
+                cell.fill = zebra_fill
+                
+        ws.row_dimensions[current_row].height = 20
+        current_row += 1
+
+    # Auto column widths
+    for col in ws.columns:
+        max_len = 0
+        col_letter = get_column_letter(col[0].column)
+        for cell in col:
+            if cell.row < 6:
+                continue
+            val_str = str(cell.value or '')
+            if len(val_str) > max_len:
+                max_len = len(val_str)
+        ws.column_dimensions[col_letter].width = max(max_len + 4, 12)
+
+    filename = f"Advisor_Daily_Report_{class_obj.name}_{date_obj.strftime('%Y-%m-%d')}.xlsx"
+    return wb, filename
+
+
+def generate_hod_1st_period_excel(target_class, date_obj, matrix):
+    import openpyxl
+    from openpyxl.styles import PatternFill, Font, Alignment, Border, Side
+    from openpyxl.utils import get_column_letter
+
+    wb = openpyxl.Workbook()
+    ws = wb.active
+    ws.title = "1st Period Attendance"
+    ws.views.sheetView[0].showGridLines = True
+
+    # Styling Palette
+    header_fill = PatternFill(start_color='0F172A', end_color='0F172A', fill_type='solid') # Navy
+    header_font = Font(name='Calibri', size=11, bold=True, color='FFFFFF')
+
+    title_font = Font(name='Calibri', size=14, bold=True, color='0F172A')
+    subtitle_font = Font(name='Calibri', size=11, bold=True, color='475569')
+    meta_font = Font(name='Calibri', size=10, italic=True, color='64748B')
+    bold_font = Font(name='Calibri', size=11, bold=True, color='0F172A')
+    regular_font = Font(name='Calibri', size=11, color='1E293B')
+
+    present_fill = PatternFill(start_color='DCFCE7', end_color='DCFCE7', fill_type='solid')
+    present_font = Font(name='Calibri', size=11, bold=True, color='15803D')
+
+    absent_fill = PatternFill(start_color='FEE2E2', end_color='FEE2E2', fill_type='solid')
+    absent_font = Font(name='Calibri', size=11, bold=True, color='B91C1C')
+
+    od_fill = PatternFill(start_color='FEF3C7', end_color='FEF3C7', fill_type='solid')
+    od_font = Font(name='Calibri', size=11, bold=True, color='B45309')
+
+    zebra_fill = PatternFill(start_color='F8FAFC', end_color='F8FAFC', fill_type='solid')
+    summary_row_fill = PatternFill(start_color='F1F5F9', end_color='F1F5F9', fill_type='solid')
+
+    thin_side = Side(style='thin', color='CBD5E1')
+    grid_border = Border(left=thin_side, right=thin_side, top=thin_side, bottom=thin_side)
+
+    align_center = Alignment(horizontal='center', vertical='center')
+    align_left = Alignment(horizontal='left', vertical='center')
+
+    # Headers
+    dept_str = target_class.department.name.upper() if target_class and target_class.department else 'ENGINEERING'
+    ws['A1'] = "DR. NGP INSTITUTE OF TECHNOLOGY (AUTONOMOUS)"
+    ws['A1'].font = title_font
+    ws['A2'] = f"DEPARTMENT OF {dept_str}"
+    ws['A2'].font = subtitle_font
+    ws['A3'] = "1ST PERIOD MORNING ATTENDANCE REPORT"
+    ws['A3'].font = Font(name='Calibri', size=12, bold=True, color='1D4ED8')
+    ws['A4'] = f"Class: {target_class.name} (Sec {target_class.section}) | Date: {date_obj.strftime('%d-%b-%Y')}"
+    ws['A4'].font = meta_font
+
+    headers = ['S.No', 'Register Number', 'Name', 'Department', 'Year', 'Class', 'Section', 'Date', 'Status']
+    start_row = 6
+    for col_idx, text in enumerate(headers, start=1):
+        cell = ws.cell(row=start_row, column=col_idx, value=text)
+        cell.fill = header_fill
+        cell.font = header_font
+        cell.alignment = align_center if col_idx != 3 else align_left
+        cell.border = grid_border
+
+    ws.row_dimensions[start_row].height = 24
+    
+    period1_sched = None
+    for s in matrix['schedules']:
+        if s.period == 1:
+            period1_sched = s
+            break
+            
+    current_row = 7
+    total = 0
+    present = 0
+    absent = 0
+    od = 0
+    
+    for idx, row in enumerate(matrix['student_rows'], start=1):
+        status_text = '-'
+        if period1_sched:
+            for st in row['statuses']:
+                if st['schedule_id'] == period1_sched.id:
+                    status_text = st['status']
+                    break
+            if status_text == '-':
+                status_text = 'Absent'
+                
+        ws.cell(row=current_row, column=1, value=idx).alignment = align_center
+        ws.cell(row=current_row, column=2, value=row['reg_no']).alignment = align_center
+        ws.cell(row=current_row, column=3, value=row['name']).alignment = align_left
+        ws.cell(row=current_row, column=4, value=target_class.department.name if target_class.department else '').alignment = align_center
+        ws.cell(row=current_row, column=5, value=target_class.year).alignment = align_center
+        ws.cell(row=current_row, column=6, value=target_class.name).alignment = align_center
+        ws.cell(row=current_row, column=7, value=target_class.section).alignment = align_center
+        ws.cell(row=current_row, column=8, value=date_obj.strftime('%Y-%m-%d')).alignment = align_center
+        
+        status_cell = ws.cell(row=current_row, column=9, value=status_text)
+        status_cell.alignment = align_center
+        if status_text == 'Present':
+            status_cell.fill = present_fill
+            status_cell.font = present_font
+            present += 1
+        elif status_text == 'Absent':
+            status_cell.fill = absent_fill
+            status_cell.font = absent_font
+            absent += 1
+        elif status_text == 'OD':
+            status_cell.fill = od_fill
+            status_cell.font = od_font
+            od += 1
+            
+        total += 1
+        
+        for c in range(1, 10):
+            cell = ws.cell(row=current_row, column=c)
+            cell.border = grid_border
+            if c != 9:
+                cell.font = regular_font
+            if idx % 2 == 0:
+                cell.fill = zebra_fill
+                
+        ws.row_dimensions[current_row].height = 20
+        current_row += 1
+
+    # Summary Row
+    ws.cell(row=current_row, column=1, value="").border = grid_border
+    ws.cell(row=current_row, column=2, value="SUMMARY").font = bold_font
+    ws.cell(row=current_row, column=2).alignment = align_left
+    ws.cell(row=current_row, column=2).border = grid_border
+    
+    for c in range(3, 6):
+        ws.cell(row=current_row, column=c, value="-").border = grid_border
+        ws.cell(row=current_row, column=c).fill = summary_row_fill
+        ws.cell(row=current_row, column=c).alignment = align_center
+        
+    ws.cell(row=current_row, column=6, value=f"Total: {total}").font = bold_font
+    ws.cell(row=current_row, column=6).border = grid_border
+    ws.cell(row=current_row, column=6).alignment = align_center
+    
+    ws.cell(row=current_row, column=7, value=f"P: {present}").font = Font(name='Calibri', size=11, bold=True, color='15803D')
+    ws.cell(row=current_row, column=7).border = grid_border
+    ws.cell(row=current_row, column=7).alignment = align_center
+    
+    ws.cell(row=current_row, column=8, value=f"A: {absent}").font = Font(name='Calibri', size=11, bold=True, color='B91C1C')
+    ws.cell(row=current_row, column=8).border = grid_border
+    ws.cell(row=current_row, column=8).alignment = align_center
+    
+    ws.cell(row=current_row, column=9, value=f"O: {od}").font = Font(name='Calibri', size=11, bold=True, color='B45309')
+    ws.cell(row=current_row, column=9).border = grid_border
+    ws.cell(row=current_row, column=9).alignment = align_center
+    
+    ws.row_dimensions[current_row].height = 24
+    
+    # Auto column widths
+    for col in ws.columns:
+        max_len = 0
+        col_letter = get_column_letter(col[0].column)
+        for cell in col:
+            if cell.row < 6:
+                continue
+            val_str = str(cell.value or '')
+            if len(val_str) > max_len:
+                max_len = len(val_str)
+        ws.column_dimensions[col_letter].width = max(max_len + 4, 12)
+        
+    filename = f"1st_Period_Attendance_{target_class.name.replace(' ', '_')}_{date_obj.strftime('%Y-%m-%d')}.xlsx"
+    return wb, filename
+
+
+def generate_hod_live_grid_excel(target_class, date_obj, matrix):
+    import openpyxl
+    from openpyxl.styles import PatternFill, Font, Alignment, Border, Side
+    from openpyxl.utils import get_column_letter
+
+    wb = openpyxl.Workbook()
+    ws = wb.active
+    ws.title = "Live Attendance Grid"
+    ws.views.sheetView[0].showGridLines = True
+
+    # Styling Palette
+    header_fill = PatternFill(start_color='0F172A', end_color='0F172A', fill_type='solid') # Navy
+    header_font = Font(name='Calibri', size=11, bold=True, color='FFFFFF')
+
+    title_font = Font(name='Calibri', size=14, bold=True, color='0F172A')
+    subtitle_font = Font(name='Calibri', size=11, bold=True, color='475569')
+    meta_font = Font(name='Calibri', size=10, italic=True, color='64748B')
+    bold_font = Font(name='Calibri', size=11, bold=True, color='0F172A')
+    regular_font = Font(name='Calibri', size=11, color='1E293B')
+
+    present_fill = PatternFill(start_color='DCFCE7', end_color='DCFCE7', fill_type='solid')
+    present_font = Font(name='Calibri', size=11, bold=True, color='15803D')
+
+    absent_fill = PatternFill(start_color='FEE2E2', end_color='FEE2E2', fill_type='solid')
+    absent_font = Font(name='Calibri', size=11, bold=True, color='B91C1C')
+
+    od_fill = PatternFill(start_color='FEF3C7', end_color='FEF3C7', fill_type='solid')
+    od_font = Font(name='Calibri', size=11, bold=True, color='B45309')
+
+    zebra_fill = PatternFill(start_color='F8FAFC', end_color='F8FAFC', fill_type='solid')
+    summary_row_fill = PatternFill(start_color='F1F5F9', end_color='F1F5F9', fill_type='solid')
+
+    thin_side = Side(style='thin', color='CBD5E1')
+    grid_border = Border(left=thin_side, right=thin_side, top=thin_side, bottom=thin_side)
+
+    align_center = Alignment(horizontal='center', vertical='center')
+    align_left = Alignment(horizontal='left', vertical='center')
+
+    # Headers
+    dept_str = target_class.department.name.upper() if target_class and target_class.department else 'ENGINEERING'
+    ws['A1'] = "DR. NGP INSTITUTE OF TECHNOLOGY (AUTONOMOUS)"
+    ws['A1'].font = title_font
+    ws['A2'] = f"DEPARTMENT OF {dept_str}"
+    ws['A2'].font = subtitle_font
+    ws['A3'] = "LIVE ATTENDANCE MATRIX GRID"
+    ws['A3'].font = Font(name='Calibri', size=12, bold=True, color='1D4ED8')
+    ws['A4'] = f"Class: {target_class.name} (Sec {target_class.section}) | Date: {date_obj.strftime('%d-%b-%Y')}"
+    ws['A4'].font = meta_font
+
+    headers = ['S.No', 'Register Number', 'Name', 'Department', 'Year', 'Class', 'Section']
+    for s in matrix['schedules']:
+        headers.append(f"Period {s.period} ({s.subject.code})")
+        
+    start_row = 6
+    for col_idx, text in enumerate(headers, start=1):
+        cell = ws.cell(row=start_row, column=col_idx, value=text)
+        cell.fill = header_fill
+        cell.font = header_font
+        cell.alignment = align_center if col_idx != 3 else align_left
+        cell.border = grid_border
+
+    ws.row_dimensions[start_row].height = 24
+    
+    current_row = 7
+    for idx, row in enumerate(matrix['student_rows'], start=1):
+        ws.cell(row=current_row, column=1, value=idx).alignment = align_center
+        ws.cell(row=current_row, column=2, value=row['reg_no']).alignment = align_center
+        ws.cell(row=current_row, column=3, value=row['name']).alignment = align_left
+        ws.cell(row=current_row, column=4, value=target_class.department.name if target_class.department else '').alignment = align_center
+        ws.cell(row=current_row, column=5, value=target_class.year).alignment = align_center
+        ws.cell(row=current_row, column=6, value=target_class.name).alignment = align_center
+        ws.cell(row=current_row, column=7, value=target_class.section).alignment = align_center
+        
+        for p_idx, s in enumerate(matrix['schedules'], start=8):
+            status_text = '-'
+            for st in row['statuses']:
+                if st['schedule_id'] == s.id:
+                    status_text = st['status']
+                    break
+            cell = ws.cell(row=current_row, column=p_idx, value=status_text)
+            cell.alignment = align_center
+            if status_text == 'Present':
+                cell.fill = present_fill
+                cell.font = present_font
+            elif status_text == 'Absent':
+                cell.fill = absent_fill
+                cell.font = absent_font
+            elif status_text == 'OD':
+                cell.fill = od_fill
+                cell.font = od_font
+                
+        num_cols = 7 + len(matrix['schedules'])
+        for c in range(1, num_cols + 1):
+            cell = ws.cell(row=current_row, column=c)
+            cell.border = grid_border
+            if c < 8 or cell.value not in ['Present', 'Absent', 'OD']:
+                cell.font = regular_font
+            if idx % 2 == 0:
+                cell.fill = zebra_fill
+                
+        ws.row_dimensions[current_row].height = 20
+        current_row += 1
+
+    # Add Class Summary Row at Bottom
+    ws.cell(row=current_row, column=1, value="").border = grid_border
+    ws.cell(row=current_row, column=2, value="TOTAL STUDENTS").font = bold_font
+    ws.cell(row=current_row, column=2).alignment = align_left
+    ws.cell(row=current_row, column=2).border = grid_border
+    
+    ws.cell(row=current_row, column=3, value=len(matrix['student_rows'])).font = bold_font
+    ws.cell(row=current_row, column=3).alignment = align_center
+    ws.cell(row=current_row, column=3).border = grid_border
+    
+    for c in range(4, 8):
+        ws.cell(row=current_row, column=c, value="-").border = grid_border
+        ws.cell(row=current_row, column=c).fill = summary_row_fill
+        ws.cell(row=current_row, column=c).alignment = align_center
+
+    for p_idx, s in enumerate(matrix['schedules'], start=8):
+        col_sum = next((cs for cs in matrix['columns_summary'] if cs['schedule_id'] == s.id), None)
+        p_val = col_sum['present'] if col_sum else 0
+        a_val = col_sum['absent'] if col_sum else 0
+        o_val = col_sum['od'] if col_sum else 0
+        sum_text = f"P:{p_val}\nA:{a_val}\nO:{o_val}"
+        
+        cell = ws.cell(row=current_row, column=p_idx, value=sum_text)
+        cell.alignment = Alignment(horizontal='center', vertical='center', wrap_text=True)
+        cell.font = Font(name='Calibri', size=9, bold=True, color='475569')
+        cell.border = grid_border
+        cell.fill = summary_row_fill
+        
+    ws.row_dimensions[current_row].height = 42
+
+    # Auto column widths
+    for col in ws.columns:
+        max_len = 0
+        col_letter = get_column_letter(col[0].column)
+        for cell in col:
+            if cell.row < 6:
+                continue
+            val_str = str(cell.value or '')
+            if len(val_str) > max_len:
+                max_len = len(val_str)
+        ws.column_dimensions[col_letter].width = max(max_len + 4, 12)
+
+    filename = f"Live_Grid_{target_class.name.replace(' ', '_')}_{date_obj.strftime('%Y-%m-%d')}.xlsx"
+    return wb, filename

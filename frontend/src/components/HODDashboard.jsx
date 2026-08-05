@@ -152,18 +152,37 @@ const HODDashboard = ({ activeTab, setActiveTab }) => {
 
   const handleDownloadSubjectDetailCSV = async (studentUsername, subjectId, subjectCode) => {
     try {
-      const csvText = await api.get(`/api/attendances/subject-detail/?student_username=${studentUsername}&subject_id=${subjectId}&download=true`);
-      const blob = new Blob([csvText], { type: 'text/csv' });
+      const response = await fetch(`${api.baseUrl}/api/attendances/subject-detail/?student_username=${studentUsername}&subject_id=${subjectId}&download=true`, {
+        method: 'GET',
+        credentials: 'include',
+        headers: {
+          'Authorization': localStorage.getItem('auth_token') ? `Bearer ${localStorage.getItem('auth_token')}` : ''
+        }
+      });
+      if (!response.ok) throw new Error('Download failed');
+      const blob = await response.blob();
       const url = window.URL.createObjectURL(blob);
+      
+      let filename = `Attendance_${studentUsername}_${subjectCode}.xlsx`;
+      const disposition = response.headers.get('content-disposition');
+      if (disposition && disposition.indexOf('attachment') !== -1) {
+        const filenameRegex = /filename[^;=\n]*=((['"]).*?\2|[^;\n]*)/;
+        const matches = filenameRegex.exec(disposition);
+        if (matches != null && matches[1]) { 
+          filename = matches[1].replace(/['"]/g, '');
+        }
+      }
+      
       const link = document.createElement('a');
       link.href = url;
-      link.setAttribute('download', `Attendance_${studentUsername}_${subjectCode}.csv`);
+      link.setAttribute('download', filename);
       document.body.appendChild(link);
       link.click();
       link.remove();
+      window.URL.revokeObjectURL(url);
     } catch (err) {
-      console.error('Failed to download subject CSV:', err);
-      alert('Failed to download CSV report.');
+      console.error('Failed to download student subject Excel:', err);
+      alert('Failed to download Excel report.');
     }
   };
 
@@ -356,78 +375,54 @@ const HODDashboard = ({ activeTab, setActiveTab }) => {
     }
   };
 
-  const handleDownloadReportCSV = () => {
-    if (reportData.length === 0) return;
-    
-    let headers;
-    if (reportMode === 'day') {
-      headers = ['Register Number', 'Name', 'Department', 'Year', 'Class', 'Section', 'Date', 'Status'];
-    } else {
-      headers = ['Register Number', 'Name', 'Department', 'Year', 'Class', 'Section', 'Subject', 'Attendance Percentage'];
-    }
-    
-    const csvRows = [headers.join(',')];
-    let total = 0, present = 0, absent = 0, od = 0, leave = 0, halfday = 0;
+  const handleDownloadReportCSV = async () => {
+    try {
+      const queryParams = new URLSearchParams({
+        report_mode: reportMode,
+        report_type: reportType,
+        student_id: reportType === 'student' ? reportStudentId : '',
+        class_id: reportType === 'class' ? (reportClassId || '') : '',
+        subject_id: reportSubjectId || '',
+        from_date: reportFromDate,
+        to_date: reportToDate || reportFromDate
+      });
 
-    reportData.forEach(r => {
-      let row;
-      const regNo = r.student_reg_no || r.student_username;
-      const dept = r.department_name || '';
-      const yr = r.year || '';
-      const cls = r.class_only_name || '';
-      const sec = r.section || '';
+      const response = await fetch(`${api.baseUrl}/api/attendance/reports/export-excel/?${queryParams}`, {
+        method: 'GET',
+        credentials: 'include',
+        headers: {
+          'Authorization': localStorage.getItem('auth_token') ? `Bearer ${localStorage.getItem('auth_token')}` : ''
+        }
+      });
 
-      if (reportMode === 'day') {
-        row = [
-          regNo,
-          `"${r.student_name}"`,
-          `"${dept}"`,
-          yr,
-          `"${cls}"`,
-          `"${sec}"`,
-          r.date,
-          r.status
-        ];
-        total++;
-        if (r.status === 'Present') present++;
-        else if (r.status === 'Absent') absent++;
-        else if (r.status === 'OD') od++;
-        else if (r.status === 'Leave') leave++;
-        else if (r.status === 'Half Day') halfday++;
-      } else {
-        row = [
-          regNo,
-          `"${r.student_name}"`,
-          `"${dept}"`,
-          yr,
-          `"${cls}"`,
-          `"${sec}"`,
-          `"${r.subject_name}"`,
-          `"${r.percentage}%"`
-        ];
+      if (!response.ok) {
+        const errJson = await response.json();
+        throw new Error(errJson.detail || 'Failed to generate Excel report.');
       }
-      csvRows.push(row.join(','));
-    });
-    
-    if (reportMode === 'day') {
-      csvRows.push('');
-      csvRows.push('Summary');
-      csvRows.push(`Total Students,${total}`);
-      csvRows.push(`Present,${present}`);
-      csvRows.push(`Absent,${absent}`);
-      csvRows.push(`OD,${od}`);
-      csvRows.push(`Leave,${leave}`);
-      csvRows.push(`Half Day,${halfday}`);
+
+      const blob = await response.blob();
+      const downloadUrl = window.URL.createObjectURL(blob);
+      
+      let filename = `Attendance_Report_${reportMode}_${reportFromDate}_to_${reportToDate || reportFromDate}.xlsx`;
+      const disposition = response.headers.get('content-disposition');
+      if (disposition && disposition.indexOf('attachment') !== -1) {
+        const filenameRegex = /filename[^;=\n]*=((['"]).*?\2|[^;\n]*)/;
+        const matches = filenameRegex.exec(disposition);
+        if (matches != null && matches[1]) { 
+          filename = matches[1].replace(/['"]/g, '');
+        }
+      }
+
+      const a = document.createElement('a');
+      a.href = downloadUrl;
+      a.download = filename;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      window.URL.revokeObjectURL(downloadUrl);
+    } catch (err) {
+      alert("Excel Export Error: " + (err.message || "Unknown error"));
     }
-    
-    const blob = new Blob([csvRows.join('\n')], { type: 'text/csv' });
-    const url = window.URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.setAttribute('href', url);
-    a.setAttribute('download', `Attendance_Report_${reportType}_${reportMode}_${new Date().toISOString().substring(0,10)}.csv`);
-    document.body.appendChild(a);
-    a.click();
-    document.body.removeChild(a);
   };
 
   const handlePrintReport = () => {
@@ -931,124 +926,78 @@ const HODDashboard = ({ activeTab, setActiveTab }) => {
     }
   };
 
-  const handleDownloadLiveGridCSV = () => {
-    if (!classGridData || !classGridData.student_rows) return;
-    
-    const search = gridSearchQuery.toLowerCase();
-    const filteredRows = classGridData.student_rows.filter(row => 
-      row.reg_no.toLowerCase().includes(search) || row.name.toLowerCase().includes(search)
-    );
-    
-    const dept = classGridData.class_dept || '';
-    const yr = classGridData.class_year || '';
-    const cls = classGridData.class_only_name || '';
-    const sec = classGridData.class_section || '';
-
-    const headers = ['Reg No', 'Student Name', 'Department', 'Year', 'Class', 'Section'];
-    classGridData.schedules.forEach(s => {
-      headers.push(`Period ${s.period} (${s.subject_name})`);
-    });
-    
-    const csvRows = [headers.join(',')];
-    filteredRows.forEach(row => {
-      const rowData = [row.reg_no, `"${row.name}"`, `"${dept}"`, yr, `"${cls}"`, `"${sec}"`];
-      classGridData.schedules.forEach(s => {
-        const statusObj = row.statuses.find(st => st.schedule_id === s.id);
-        const statusText = statusObj ? statusObj.status : '-';
-        rowData.push(statusText);
+  const handleDownloadLiveGridCSV = async () => {
+    if (!classGridData || !classGridData.class_id) return;
+    try {
+      const response = await fetch(`${api.baseUrl}/api/attendances/hod-morning-download/?class_id=${classGridData.class_id}&action_type=grid`, {
+        method: 'GET',
+        credentials: 'include',
+        headers: {
+          'Authorization': localStorage.getItem('auth_token') ? `Bearer ${localStorage.getItem('auth_token')}` : ''
+        }
       });
-      csvRows.push(rowData.join(','));
-    });
-
-    // Add summary section
-    csvRows.push('');
-    csvRows.push('Summary');
-    csvRows.push(`Total Students,${filteredRows.length}`);
-    
-    const presentRow = ['Present', '', '', '', '', ''];
-    const absentRow = ['Absent', '', '', '', '', ''];
-    const odRow = ['OD', '', '', '', '', ''];
-    
-    classGridData.schedules.forEach(s => {
-      const colSum = classGridData.columns_summary.find(cs => cs.schedule_id === s.id);
-      if (colSum) {
-        presentRow.push(colSum.present);
-        absentRow.push(colSum.absent);
-        odRow.push(colSum.od);
-      } else {
-        presentRow.push(0);
-        absentRow.push(0);
-        odRow.push(0);
+      if (!response.ok) throw new Error('Download failed');
+      const blob = await response.blob();
+      const url = window.URL.createObjectURL(blob);
+      
+      let filename = `${classGridData.class_name.replace(/\s+/g, '_')}_Live_Grid_${new Date().toISOString().substring(0, 10)}.xlsx`;
+      const disposition = response.headers.get('content-disposition');
+      if (disposition && disposition.indexOf('attachment') !== -1) {
+        const filenameRegex = /filename[^;=\n]*=((['"]).*?\2|[^;\n]*)/;
+        const matches = filenameRegex.exec(disposition);
+        if (matches != null && matches[1]) { 
+          filename = matches[1].replace(/['"]/g, '');
+        }
       }
-    });
-    
-    csvRows.push(presentRow.join(','));
-    csvRows.push(absentRow.join(','));
-    csvRows.push(odRow.join(','));
-    
-    const blob = new Blob([csvRows.join('\n')], { type: 'text/csv' });
-    const url = window.URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.setAttribute('href', url);
-    a.setAttribute('download', `${classGridData.class_name.replace(/\s+/g, '_')}_Live_Grid_${new Date().toISOString().substring(0, 10)}.csv`);
-    document.body.appendChild(a);
-    a.click();
-    document.body.removeChild(a);
+      
+      const link = document.createElement('a');
+      link.href = url;
+      link.setAttribute('download', filename);
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      window.URL.revokeObjectURL(url);
+    } catch (err) {
+      console.error('Failed to download live grid Excel:', err);
+      alert('Failed to download Excel report.');
+    }
   };
 
-  const handleDownloadFirstPeriodCSV = () => {
-    if (!classGridData || !classGridData.student_rows) return;
-    
-    const dept = classGridData.class_dept || '';
-    const yr = classGridData.class_year || '';
-    const cls = classGridData.class_only_name || '';
-    const sec = classGridData.class_section || '';
-
-    const headers = ['Register Number', 'Name', 'Department', 'Year', 'Class', 'Section', 'Date', 'Status'];
-    const csvRows = [headers.join(',')];
-    const dateVal = classGridData.date;
-    
-    const period1Sched = classGridData.schedules.find(s => s.period === 1);
-    
-    let total = 0, present = 0, absent = 0, od = 0;
-    classGridData.student_rows.forEach(row => {
-      let statusText = '-';
-      if (period1Sched) {
-        const statusObj = row.statuses.find(st => st.schedule_id === period1Sched.id);
-        statusText = statusObj ? statusObj.status : 'Absent';
+  const handleDownloadFirstPeriodCSV = async () => {
+    if (!classGridData || !classGridData.class_id) return;
+    try {
+      const response = await fetch(`${api.baseUrl}/api/attendances/hod-morning-download/?class_id=${classGridData.class_id}&action_type=1st`, {
+        method: 'GET',
+        credentials: 'include',
+        headers: {
+          'Authorization': localStorage.getItem('auth_token') ? `Bearer ${localStorage.getItem('auth_token')}` : ''
+        }
+      });
+      if (!response.ok) throw new Error('Download failed');
+      const blob = await response.blob();
+      const url = window.URL.createObjectURL(blob);
+      
+      let filename = `${classGridData.class_name.replace(/\s+/g, '_')}_1st_Period_Attendance_${new Date().toISOString().substring(0, 10)}.xlsx`;
+      const disposition = response.headers.get('content-disposition');
+      if (disposition && disposition.indexOf('attachment') !== -1) {
+        const filenameRegex = /filename[^;=\n]*=((['"]).*?\2|[^;\n]*)/;
+        const matches = filenameRegex.exec(disposition);
+        if (matches != null && matches[1]) { 
+          filename = matches[1].replace(/['"]/g, '');
+        }
       }
-      const rowData = [
-        row.reg_no,
-        `"${row.name}"`,
-        `"${dept}"`,
-        yr,
-        `"${cls}"`,
-        `"${sec}"`,
-        dateVal,
-        statusText
-      ];
-      csvRows.push(rowData.join(','));
-      total++;
-      if (statusText === 'Present') present++;
-      else if (statusText === 'Absent') absent++;
-      else if (statusText === 'OD') od++;
-    });
-
-    csvRows.push('');
-    csvRows.push('Summary');
-    csvRows.push(`Total Students,${total}`);
-    csvRows.push(`Present,${present}`);
-    csvRows.push(`Absent,${absent}`);
-    csvRows.push(`OD,${od}`);
-    
-    const blob = new Blob([csvRows.join('\n')], { type: 'text/csv' });
-    const url = window.URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.setAttribute('href', url);
-    a.setAttribute('download', `${classGridData.class_name.replace(/\s+/g, '_')}_1st_Period_Attendance_${dateVal}.csv`);
-    document.body.appendChild(a);
-    a.click();
-    document.body.removeChild(a);
+      
+      const link = document.createElement('a');
+      link.href = url;
+      link.setAttribute('download', filename);
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      window.URL.revokeObjectURL(url);
+    } catch (err) {
+      console.error('Failed to download 1st Period Excel:', err);
+      alert('Failed to download Excel report.');
+    }
   };
 
   // Tab views
@@ -1428,7 +1377,7 @@ const HODDashboard = ({ activeTab, setActiveTab }) => {
                     onClick={handleDownloadFirstPeriodCSV}
                   >
                     <Download size={16} />
-                    <span>Download 1st Period CSV</span>
+                    <span>Download 1st Period Excel</span>
                   </button>
                   <button
                     className="btn btn-primary"
@@ -1436,7 +1385,7 @@ const HODDashboard = ({ activeTab, setActiveTab }) => {
                     onClick={handleDownloadLiveGridCSV}
                   >
                     <Download size={16} />
-                    <span>Download CSV</span>
+                    <span>Download Live Grid Excel</span>
                   </button>
                 </div>
               </div>
@@ -2379,7 +2328,7 @@ const HODDashboard = ({ activeTab, setActiveTab }) => {
               </button>
               <button className="btn btn-primary" style={{ display: 'flex', alignItems: 'center', gap: '6px' }} onClick={handleDownloadReportCSV}>
                 <FileSpreadsheet size={16} />
-                <span>Download CSV</span>
+                <span>Download Excel</span>
               </button>
             </div>
           )}
@@ -2498,7 +2447,7 @@ const HODDashboard = ({ activeTab, setActiveTab }) => {
                   </button>
                   <button className="btn btn-primary" style={{ display: 'flex', alignItems: 'center', gap: '6px' }} onClick={handleDownloadReportCSV}>
                     <FileSpreadsheet size={16} />
-                    <span>Download CSV</span>
+                    <span>Download Excel</span>
                   </button>
                 </div>
               )}

@@ -1012,35 +1012,27 @@ class AttendanceViewSet(viewsets.ModelViewSet):
         
         download = request.query_params.get('download') == 'true'
         if download:
-            import csv
+            from .excel_reports import generate_student_subject_detail_excel
+            stats_dict = {
+                'total_hours': total_hours,
+                'effective_present': effective_present,
+                'absent_count': absent_count,
+                'leave_count': leave_count,
+                'percentage': round(percentage, 2)
+            }
+            wb, filename = generate_student_subject_detail_excel(
+                student=student,
+                subject=subject,
+                records=filtered_records,
+                stats=stats_dict,
+                verified_ods=verified_ods
+            )
             from django.http import HttpResponse
-            response = HttpResponse(content_type='text/csv')
-            response['Content-Disposition'] = f'attachment; filename="Attendance_{student.user.username}_{subject.code}.csv"'
-            
-            writer = csv.writer(response)
-            writer.writerow(['STUDENT DETAILS'])
-            writer.writerow(['Name', f"{student.user.first_name} {student.user.last_name}".strip() or student.user.username])
-            writer.writerow(['Register Number', student.reg_no or student.roll_no or student.user.username])
-            writer.writerow(['Class', str(student.student_class)])
-            writer.writerow(['Department', student.student_class.department.name if student.student_class and student.student_class.department else ''])
-            writer.writerow([])
-            writer.writerow(['SUBJECT DETAILS'])
-            writer.writerow(['Subject Name', subject.name])
-            writer.writerow(['Subject Code', subject.code])
-            writer.writerow([])
-            writer.writerow(['ATTENDANCE SUMMARY'])
-            writer.writerow(['Total Hours', total_hours])
-            writer.writerow(['Effective Present (inc. Approved OD)', effective_present])
-            writer.writerow(['Absent Hours', absent_count])
-            writer.writerow(['Leave Hours', leave_count])
-            writer.writerow(['Attendance Percentage', f"{round(percentage, 2)}%"])
-            writer.writerow([])
-            writer.writerow(['ATTENDANCE LOG'])
-            writer.writerow(['Date', 'Period', 'Status', 'Note'])
-            for r in records:
-                note = 'Ignored (Optional 8th Period)' if (r.schedule.period == 8 and r.status != 'Present') else ''
-                writer.writerow([r.date.strftime('%Y-%m-%d'), r.schedule.period, r.status, note])
-                
+            response = HttpResponse(
+                content_type='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
+            )
+            response['Content-Disposition'] = f'attachment; filename="{filename}"'
+            wb.save(response)
             return response
             
         records_data = [
@@ -1110,70 +1102,19 @@ class AttendanceViewSet(viewsets.ModelViewSet):
         
         date_periods = sorted(list(set((r.date, r.schedule.period) for r in records)))
         
-        import csv
+        from .excel_reports import generate_attendance_excel_report
+        wb, filename = generate_attendance_excel_report(
+            report_mode='subject_percentage',
+            class_id=target_class.id if target_class else None,
+            subject_id=subject.id,
+            tutor_user=None,
+            requested_by_user=user,
+            report_type='class'
+        )
         from django.http import HttpResponse
-        response = HttpResponse(content_type='text/csv')
-        cls_name = str(target_class).replace(" - ", "_").replace(" ", "_") if 'target_class' in locals() and target_class else "Enrolled"
-        response['Content-Disposition'] = f'attachment; filename="Class_Attendance_{cls_name}_{subject.code}.csv"'
-        
-        writer = csv.writer(response)
-        
-        headers = ['Register Number', 'Name', 'Department', 'Year', 'Class', 'Section', 'Total Hours', 'Present Count', 'Absent Count', 'OD Count', 'Leave Count', 'Percentage']
-        for dt, p in date_periods:
-            headers.append(f"{dt.strftime('%Y-%m-%d')} (P{p})")
-        writer.writerow(headers)
-        
-        from .models import filter_active_attendance
-        
-        for student in students:
-            student_records = records.filter(student=student)
-            
-            filtered_student_records = filter_active_attendance(student_records)
-            
-            total_hours = filtered_student_records.count()
-            present_count = filtered_student_records.filter(status='Present').count()
-            absent_count = filtered_student_records.filter(status='Absent').count()
-            od_count = filtered_student_records.filter(status='OD').count()
-            leave_count = filtered_student_records.filter(status='Leave').count()
-            
-            from leave.models import Leave
-            verified_ods = Leave.objects.filter(
-                student=student, 
-                leave_type='OD', 
-                final_status='Approved', 
-                certificate_verified=True
-            ).values_list('date', flat=True)
-            verified_od_count = filtered_student_records.filter(status='OD', date__in=verified_ods).count()
-            effective_present = present_count + verified_od_count
-            percentage = (effective_present / total_hours * 100) if total_hours > 0 else 100.0
-            
-            row = [
-                student.reg_no or student.roll_no or student.user.username,
-                f"{student.user.first_name} {student.user.last_name}".strip() or student.user.username,
-                student.student_class.department.name if student.student_class and student.student_class.department else '',
-                student.student_class.year if student.student_class else '',
-                student.student_class.name if student.student_class else '',
-                student.student_class.section if student.student_class else '',
-                total_hours,
-                present_count,
-                absent_count,
-                od_count,
-                leave_count,
-                f"{round(percentage, 2)}%"
-            ]
-            
-            for dt, p in date_periods:
-                att = student_records.filter(date=dt, schedule__period=p).first()
-                if att:
-                    if p == 8 and att.status != 'Present':
-                        row.append(f"{att.status} (Ignored)")
-                    else:
-                        row.append(att.status)
-                else:
-                    row.append('-')
-            
-            writer.writerow(row)
-            
+        response = HttpResponse(content_type='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet')
+        response['Content-Disposition'] = f'attachment; filename="{filename}"'
+        wb.save(response)
         return response
 
     @action(detail=False, methods=['get'], url_path='advisor-subject-report-json')
@@ -1257,6 +1198,63 @@ class AttendanceViewSet(viewsets.ModelViewSet):
             'subject_type': subject.subject_type,
             'students': student_data
         })
+
+    @action(detail=False, methods=['get'], url_path='advisor-live-download')
+    def advisor_live_download(self, request):
+        user = self.request.user
+        if user.role != 'staff':
+            return Response({'detail': 'Unauthorized'}, status=status.HTTP_403_FORBIDDEN)
+            
+        from accounts.models import Class
+        from accounts.utils import get_live_class_attendance_matrix
+        advised_class = Class.objects.filter(advisor=user).first()
+        if not advised_class:
+            return Response({'detail': 'You do not advise any class.'}, status=status.HTTP_404_NOT_FOUND)
+            
+        matrix = get_live_class_attendance_matrix(advised_class)
+        session_date = matrix['date']
+        
+        action_type = request.query_params.get('action_type', 'grid') # '1st' or 'grid'
+        from .excel_reports import generate_hod_1st_period_excel, generate_hod_live_grid_excel
+        if action_type == '1st':
+            wb, filename = generate_hod_1st_period_excel(advised_class, session_date, matrix)
+        else:
+            wb, filename = generate_hod_live_grid_excel(advised_class, session_date, matrix)
+            
+        from django.http import HttpResponse
+        response = HttpResponse(content_type='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet')
+        response['Content-Disposition'] = f'attachment; filename="{filename}"'
+        wb.save(response)
+        return response
+
+    @action(detail=False, methods=['get'], url_path='hod-morning-download')
+    def hod_morning_download(self, request):
+        user = self.request.user
+        if user.role != 'hod':
+            return Response({'detail': 'Unauthorized'}, status=status.HTTP_403_FORBIDDEN)
+            
+        class_id = request.query_params.get('class_id')
+        if not class_id:
+            return Response({'detail': 'class_id is required.'}, status=status.HTTP_400_BAD_REQUEST)
+            
+        from accounts.models import Class
+        from accounts.utils import get_live_class_attendance_matrix
+        target_class = get_object_or_404(Class, id=class_id, department=user.department)
+        matrix = get_live_class_attendance_matrix(target_class)
+        session_date = matrix['date']
+        
+        action_type = request.query_params.get('action_type', 'grid') # '1st' or 'grid'
+        from .excel_reports import generate_hod_1st_period_excel, generate_hod_live_grid_excel
+        if action_type == '1st':
+            wb, filename = generate_hod_1st_period_excel(target_class, session_date, matrix)
+        else:
+            wb, filename = generate_hod_live_grid_excel(target_class, session_date, matrix)
+            
+        from django.http import HttpResponse
+        response = HttpResponse(content_type='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet')
+        response['Content-Disposition'] = f'attachment; filename="{filename}"'
+        wb.save(response)
+        return response
 
     @action(detail=False, methods=['get'], url_path='manual-class-students')
     def manual_class_students(self, request):

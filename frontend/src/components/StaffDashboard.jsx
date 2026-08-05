@@ -438,35 +438,73 @@ const StaffDashboard = ({ activeTab }) => {
 
   const handleDownloadSubjectDetailCSV = async (studentUsername, subjectId, subjectCode) => {
     try {
-      const csvText = await api.get(`/api/attendances/subject-detail/?student_username=${studentUsername}&subject_id=${subjectId}&download=true`);
-      const blob = new Blob([csvText], { type: 'text/csv' });
+      const response = await fetch(`${api.baseUrl}/api/attendances/subject-detail/?student_username=${studentUsername}&subject_id=${subjectId}&download=true`, {
+        method: 'GET',
+        credentials: 'include',
+        headers: {
+          'Authorization': localStorage.getItem('auth_token') ? `Bearer ${localStorage.getItem('auth_token')}` : ''
+        }
+      });
+      if (!response.ok) throw new Error('Download failed');
+      const blob = await response.blob();
       const url = window.URL.createObjectURL(blob);
+      
+      let filename = `Attendance_${studentUsername}_${subjectCode}.xlsx`;
+      const disposition = response.headers.get('content-disposition');
+      if (disposition && disposition.indexOf('attachment') !== -1) {
+        const filenameRegex = /filename[^;=\n]*=((['"]).*?\2|[^;\n]*)/;
+        const matches = filenameRegex.exec(disposition);
+        if (matches != null && matches[1]) { 
+          filename = matches[1].replace(/['"]/g, '');
+        }
+      }
+      
       const link = document.createElement('a');
       link.href = url;
-      link.setAttribute('download', `Attendance_${studentUsername}_${subjectCode}.csv`);
+      link.setAttribute('download', filename);
       document.body.appendChild(link);
       link.click();
       link.remove();
+      window.URL.revokeObjectURL(url);
     } catch (err) {
-      console.error('Failed to download subject CSV:', err);
-      alert('Failed to download CSV report.');
+      console.error('Failed to download student subject Excel:', err);
+      alert('Failed to download Excel report.');
     }
   };
 
   const handleDownloadSubjectCSVBySubjectId = async (subjectId, subjectCode) => {
     try {
-      const dataText = await api.get(`/api/attendances/advisor-subject-report/?subject_id=${subjectId}`);
-      const blob = new Blob([dataText], { type: 'text/csv' });
+      const response = await fetch(`${api.baseUrl}/api/attendances/advisor-subject-report/?subject_id=${subjectId}`, {
+        method: 'GET',
+        credentials: 'include',
+        headers: {
+          'Authorization': localStorage.getItem('auth_token') ? `Bearer ${localStorage.getItem('auth_token')}` : ''
+        }
+      });
+      if (!response.ok) throw new Error('Download failed');
+      const blob = await response.blob();
       const url = window.URL.createObjectURL(blob);
+      
+      let filename = `Class_Attendance_${subjectCode}.xlsx`;
+      const disposition = response.headers.get('content-disposition');
+      if (disposition && disposition.indexOf('attachment') !== -1) {
+        const filenameRegex = /filename[^;=\n]*=((['"]).*?\2|[^;\n]*)/;
+        const matches = filenameRegex.exec(disposition);
+        if (matches != null && matches[1]) { 
+          filename = matches[1].replace(/['"]/g, '');
+        }
+      }
+      
       const link = document.createElement('a');
       link.href = url;
-      link.setAttribute('download', `Class_Attendance_${subjectCode}.csv`);
+      link.setAttribute('download', filename);
       document.body.appendChild(link);
       link.click();
       link.remove();
+      window.URL.revokeObjectURL(url);
     } catch (err) {
-      console.error('Failed to download advisor subject attendance CSV:', err);
-      alert('Failed to download CSV report.');
+      console.error('Failed to download class subject Excel:', err);
+      alert('Failed to download Excel report.');
     }
   };
 
@@ -490,20 +528,39 @@ const StaffDashboard = ({ activeTab }) => {
   const handleDownloadAdvisorSubjectCSV = async () => {
     if (!advSelectedSubject) return;
     try {
-      const dataText = await api.get(`/api/attendances/advisor-subject-report/?subject_id=${advSelectedSubject}`);
-      const blob = new Blob([dataText], { type: 'text/csv' });
+      const response = await fetch(`${api.baseUrl}/api/attendances/advisor-subject-report/?subject_id=${advSelectedSubject}`, {
+        method: 'GET',
+        credentials: 'include',
+        headers: {
+          'Authorization': localStorage.getItem('auth_token') ? `Bearer ${localStorage.getItem('auth_token')}` : ''
+        }
+      });
+      if (!response.ok) throw new Error('Download failed');
+      const blob = await response.blob();
       const url = window.URL.createObjectURL(blob);
-      const link = document.createElement('a');
-      link.href = url;
+      
       const sub = advClassSubjects.find(s => s.id.toString() === advSelectedSubject);
       const subCode = sub ? sub.code : 'Subject';
-      link.setAttribute('download', `Class_Attendance_${subCode}.csv`);
+      let filename = `Class_Attendance_${subCode}.xlsx`;
+      const disposition = response.headers.get('content-disposition');
+      if (disposition && disposition.indexOf('attachment') !== -1) {
+        const filenameRegex = /filename[^;=\n]*=((['"]).*?\2|[^;\n]*)/;
+        const matches = filenameRegex.exec(disposition);
+        if (matches != null && matches[1]) { 
+          filename = matches[1].replace(/['"]/g, '');
+        }
+      }
+      
+      const link = document.createElement('a');
+      link.href = url;
+      link.setAttribute('download', filename);
       document.body.appendChild(link);
       link.click();
       link.remove();
+      window.URL.revokeObjectURL(url);
     } catch (err) {
-      console.error('Failed to download advisor subject attendance CSV:', err);
-      alert('Failed to download CSV report.');
+      console.error('Failed to download class subject Excel:', err);
+      alert('Failed to download Excel report.');
     }
   };
 
@@ -535,124 +592,76 @@ const StaffDashboard = ({ activeTab }) => {
     }
   };
 
-  const handleDownloadLiveGridCSV = () => {
-    if (!advisorLiveData || !advisorLiveData.student_rows) return;
-    
-    const search = gridSearchQuery.toLowerCase();
-    const filteredRows = advisorLiveData.student_rows.filter(row => 
-      row.reg_no.toLowerCase().includes(search) || row.name.toLowerCase().includes(search)
-    );
-    
-    const dept = advisorLiveData.class_dept || '';
-    const yr = advisorLiveData.class_year || '';
-    const cls = advisorLiveData.class_only_name || '';
-    const sec = advisorLiveData.class_section || '';
-
-    const headers = ['Reg No', 'Student Name', 'Department', 'Year', 'Class', 'Section'];
-    advisorLiveData.schedules.forEach(s => {
-      headers.push(`Period ${s.period} (${s.subject_name})`);
-    });
-    
-    const csvRows = [headers.join(',')];
-    filteredRows.forEach(row => {
-      const rowData = [row.reg_no, `"${row.name}"`, `"${dept}"`, yr, `"${cls}"`, `"${sec}"`];
-      advisorLiveData.schedules.forEach(s => {
-        const statusObj = row.statuses.find(st => st.schedule_id === s.id);
-        const statusText = statusObj ? statusObj.status : '-';
-        rowData.push(statusText);
+  const handleDownloadLiveGridCSV = async () => {
+    try {
+      const response = await fetch(`${api.baseUrl}/api/attendances/advisor-live-download/?action_type=grid`, {
+        method: 'GET',
+        credentials: 'include',
+        headers: {
+          'Authorization': localStorage.getItem('auth_token') ? `Bearer ${localStorage.getItem('auth_token')}` : ''
+        }
       });
-      csvRows.push(rowData.join(','));
-    });
-
-    // Add summary section
-    csvRows.push('');
-    csvRows.push('Summary');
-    csvRows.push(`Total Students,${filteredRows.length}`);
-    
-    const presentRow = ['Present', '', '', '', '', ''];
-    const absentRow = ['Absent', '', '', '', '', ''];
-    const odRow = ['OD', '', '', '', '', ''];
-    
-    advisorLiveData.schedules.forEach(s => {
-      const colSum = advisorLiveData.columns_summary.find(cs => cs.schedule_id === s.id);
-      if (colSum) {
-        presentRow.push(colSum.present);
-        absentRow.push(colSum.absent);
-        odRow.push(colSum.od);
-      } else {
-        presentRow.push(0);
-        absentRow.push(0);
-        odRow.push(0);
+      if (!response.ok) throw new Error('Download failed');
+      const blob = await response.blob();
+      const url = window.URL.createObjectURL(blob);
+      
+      let filename = `Advisor_Live_Grid_${new Date().toISOString().substring(0, 10)}.xlsx`;
+      const disposition = response.headers.get('content-disposition');
+      if (disposition && disposition.indexOf('attachment') !== -1) {
+        const filenameRegex = /filename[^;=\n]*=((['"]).*?\2|[^;\n]*)/;
+        const matches = filenameRegex.exec(disposition);
+        if (matches != null && matches[1]) { 
+          filename = matches[1].replace(/['"]/g, '');
+        }
       }
-    });
-    
-    csvRows.push(presentRow.join(','));
-    csvRows.push(absentRow.join(','));
-    csvRows.push(odRow.join(','));
-    
-    const blob = new Blob([csvRows.join('\n')], { type: 'text/csv' });
-    const url = window.URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.setAttribute('href', url);
-    a.setAttribute('download', `${advisorLiveData.class_name.replace(/\s+/g, '_')}_Live_Grid_${new Date().toISOString().substring(0, 10)}.csv`);
-    document.body.appendChild(a);
-    a.click();
-    document.body.removeChild(a);
+      
+      const link = document.createElement('a');
+      link.href = url;
+      link.setAttribute('download', filename);
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      window.URL.revokeObjectURL(url);
+    } catch (err) {
+      console.error('Failed to download live grid Excel:', err);
+      alert('Failed to download Excel report.');
+    }
   };
 
-  const handleDownloadFirstPeriodCSV = () => {
-    if (!advisorLiveData || !advisorLiveData.student_rows) return;
-    
-    const dept = advisorLiveData.class_dept || '';
-    const yr = advisorLiveData.class_year || '';
-    const cls = advisorLiveData.class_only_name || '';
-    const sec = advisorLiveData.class_section || '';
-
-    const headers = ['Register Number', 'Name', 'Department', 'Year', 'Class', 'Section', 'Date', 'Status'];
-    const csvRows = [headers.join(',')];
-    const dateVal = advisorLiveData.date;
-    
-    const period1Sched = advisorLiveData.schedules.find(s => s.period === 1);
-    
-    let total = 0, present = 0, absent = 0, od = 0;
-    advisorLiveData.student_rows.forEach(row => {
-      let statusText = '-';
-      if (period1Sched) {
-        const statusObj = row.statuses.find(st => st.schedule_id === period1Sched.id);
-        statusText = statusObj ? statusObj.status : 'Absent';
+  const handleDownloadFirstPeriodCSV = async () => {
+    try {
+      const response = await fetch(`${api.baseUrl}/api/attendances/advisor-live-download/?action_type=1st`, {
+        method: 'GET',
+        credentials: 'include',
+        headers: {
+          'Authorization': localStorage.getItem('auth_token') ? `Bearer ${localStorage.getItem('auth_token')}` : ''
+        }
+      });
+      if (!response.ok) throw new Error('Download failed');
+      const blob = await response.blob();
+      const url = window.URL.createObjectURL(blob);
+      
+      let filename = `Advisor_1st_Period_Attendance_${new Date().toISOString().substring(0, 10)}.xlsx`;
+      const disposition = response.headers.get('content-disposition');
+      if (disposition && disposition.indexOf('attachment') !== -1) {
+        const filenameRegex = /filename[^;=\n]*=((['"]).*?\2|[^;\n]*)/;
+        const matches = filenameRegex.exec(disposition);
+        if (matches != null && matches[1]) { 
+          filename = matches[1].replace(/['"]/g, '');
+        }
       }
-      const rowData = [
-        row.reg_no,
-        `"${row.name}"`,
-        `"${dept}"`,
-        yr,
-        `"${cls}"`,
-        `"${sec}"`,
-        dateVal,
-        statusText
-      ];
-      csvRows.push(rowData.join(','));
-      total++;
-      if (statusText === 'Present') present++;
-      else if (statusText === 'Absent') absent++;
-      else if (statusText === 'OD') od++;
-    });
-
-    csvRows.push('');
-    csvRows.push('Summary');
-    csvRows.push(`Total Students,${total}`);
-    csvRows.push(`Present,${present}`);
-    csvRows.push(`Absent,${absent}`);
-    csvRows.push(`OD,${od}`);
-    
-    const blob = new Blob([csvRows.join('\n')], { type: 'text/csv' });
-    const url = window.URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.setAttribute('href', url);
-    a.setAttribute('download', `${advisorLiveData.class_name.replace(/\s+/g, '_')}_1st_Period_Attendance_${dateVal}.csv`);
-    document.body.appendChild(a);
-    a.click();
-    document.body.removeChild(a);
+      
+      const link = document.createElement('a');
+      link.href = url;
+      link.setAttribute('download', filename);
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      window.URL.revokeObjectURL(url);
+    } catch (err) {
+      console.error('Failed to download 1st Period Excel:', err);
+      alert('Failed to download Excel report.');
+    }
   };
 
   useEffect(() => {
@@ -3289,7 +3298,7 @@ const StaffDashboard = ({ activeTab }) => {
                     onClick={handleDownloadFirstPeriodCSV}
                   >
                     <Download size={16} />
-                    <span>Download 1st Period CSV</span>
+                    <span>Download 1st Period Excel</span>
                   </button>
                   <button
                     className="btn btn-primary"
@@ -3297,7 +3306,7 @@ const StaffDashboard = ({ activeTab }) => {
                     onClick={handleDownloadLiveGridCSV}
                   >
                     <Download size={16} />
-                    <span>Download CSV</span>
+                    <span>Download Live Grid Excel</span>
                   </button>
                 </div>
               </div>

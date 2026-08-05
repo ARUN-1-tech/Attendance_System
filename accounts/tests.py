@@ -815,10 +815,13 @@ class UserPasswordChangeAndManualAttendanceTestCase(TestCase):
         # Test CSV download endpoint
         response = self.client.get(f'/api/attendances/subject-detail/?student_username=stud_user&subject_id={self.subject.id}&download=true')
         self.assertEqual(response.status_code, 200)
-        self.assertEqual(response['Content-Type'], 'text/csv')
-        self.assertIn("STUDENT DETAILS", response.content.decode('utf-8'))
-        self.assertIn("SUBJECT DETAILS", response.content.decode('utf-8'))
-        self.assertIn("ATTENDANCE SUMMARY", response.content.decode('utf-8'))
+        self.assertEqual(response['Content-Type'], 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet')
+        import openpyxl
+        from io import BytesIO
+        wb = openpyxl.load_workbook(BytesIO(response.content))
+        ws = wb.active
+        self.assertEqual(ws.title, "Subject Attendance Log")
+        self.assertEqual(ws['A1'].value, "DR. NGP INSTITUTE OF TECHNOLOGY (AUTONOMOUS)")
 
     def test_advisor_subject_report_csv(self):
         # Test downloading class-wide subject report by advisor
@@ -847,10 +850,12 @@ class UserPasswordChangeAndManualAttendanceTestCase(TestCase):
         # Call report download API
         response = self.client.get(f'/api/attendances/advisor-subject-report/?subject_id={self.subject.id}')
         self.assertEqual(response.status_code, 200)
-        self.assertEqual(response['Content-Type'], 'text/csv')
-        self.assertIn("Register Number", response.content.decode('utf-8'))
-        self.assertIn("Name", response.content.decode('utf-8'))
-        self.assertIn("Percentage", response.content.decode('utf-8'))
+        self.assertEqual(response['Content-Type'], 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet')
+        import openpyxl
+        from io import BytesIO
+        wb = openpyxl.load_workbook(BytesIO(response.content))
+        ws = wb.active
+        self.assertEqual(ws['A1'].value, "DR. NGP INSTITUTE OF TECHNOLOGY (AUTONOMOUS)")
 
     def test_open_elective_toggle_acceptance_and_creator_permissions(self):
         advisor_a = User.objects.create_user(username='advisor_a', password='password123', role='staff', department=self.dept)

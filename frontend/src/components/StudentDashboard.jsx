@@ -70,18 +70,37 @@ const StudentDashboard = ({ activeTab }) => {
 
   const handleDownloadSubjectDetailCSV = async (studentUsername, subjectId, subjectCode) => {
     try {
-      const csvText = await api.get(`/api/attendances/subject-detail/?student_username=${studentUsername}&subject_id=${subjectId}&download=true`);
-      const blob = new Blob([csvText], { type: 'text/csv' });
+      const response = await fetch(`${api.baseUrl}/api/attendances/subject-detail/?student_username=${studentUsername}&subject_id=${subjectId}&download=true`, {
+        method: 'GET',
+        credentials: 'include',
+        headers: {
+          'Authorization': localStorage.getItem('auth_token') ? `Bearer ${localStorage.getItem('auth_token')}` : ''
+        }
+      });
+      if (!response.ok) throw new Error('Download failed');
+      const blob = await response.blob();
       const url = window.URL.createObjectURL(blob);
+      
+      let filename = `Attendance_${studentUsername}_${subjectCode}.xlsx`;
+      const disposition = response.headers.get('content-disposition');
+      if (disposition && disposition.indexOf('attachment') !== -1) {
+        const filenameRegex = /filename[^;=\n]*=((['"]).*?\2|[^;\n]*)/;
+        const matches = filenameRegex.exec(disposition);
+        if (matches != null && matches[1]) { 
+          filename = matches[1].replace(/['"]/g, '');
+        }
+      }
+      
       const link = document.createElement('a');
       link.href = url;
-      link.setAttribute('download', `Attendance_${studentUsername}_${subjectCode}.csv`);
+      link.setAttribute('download', filename);
       document.body.appendChild(link);
       link.click();
       link.remove();
+      window.URL.revokeObjectURL(url);
     } catch (err) {
-      console.error('Failed to download subject CSV:', err);
-      alert('Failed to download CSV report.');
+      console.error('Failed to download student subject Excel:', err);
+      alert('Failed to download Excel report.');
     }
   };
 
@@ -850,7 +869,7 @@ const StudentDashboard = ({ activeTab }) => {
                       onClick={() => handleDownloadSubjectDetailCSV(subjectDetailData.student_details.username, subjectDetailData.subject_details.id, subjectDetailData.subject_details.code)}
                     >
                       <Download size={14} />
-                      Download CSV
+                      Download Excel
                     </button>
                   </div>
 
