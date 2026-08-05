@@ -44,6 +44,30 @@ def generate_attendance_excel_report(
         from_date = timezone.localdate()
         to_date = from_date
 
+    # Dynamic defaults for dates if still not provided
+    if not from_date or not to_date:
+        q_filter = {}
+        if class_id:
+            q_filter['student__student_class_id'] = class_id
+        if subject_id:
+            q_filter['schedule__subject_id'] = subject_id
+        if tutor_user:
+            q_filter['student__tutor'] = tutor_user
+
+        if not from_date:
+            first_record = Attendance.objects.filter(**q_filter).order_by('date').first()
+            if first_record:
+                from_date = first_record.date
+            else:
+                from_date = timezone.localdate()
+
+        if not to_date:
+            last_record = Attendance.objects.filter(**q_filter).order_by('-date').first()
+            if last_record:
+                to_date = last_record.date
+            else:
+                to_date = from_date or timezone.localdate()
+
     if from_date and to_date and from_date > to_date:
         from_date, to_date = to_date, from_date
 
@@ -62,8 +86,10 @@ def generate_attendance_excel_report(
             pass
 
     # Determine Student Roster
-    if selected_subject and selected_subject.subject_type in ['OPEN_ELECTIVE', 'PROFESSIONAL_ELECTIVE']:
+    if selected_subject:
         students_qs = selected_subject.get_enrolled_students().select_related('user', 'student_class')
+        if selected_class:
+            students_qs = students_qs.filter(student_class=selected_class)
     elif selected_class:
         students_qs = Student.objects.filter(student_class=selected_class).select_related('user', 'student_class')
     else:
@@ -72,7 +98,17 @@ def generate_attendance_excel_report(
     if tutor_user:
         students_qs = students_qs.filter(tutor=tutor_user)
 
-    students = list(students_qs.order_by('reg_no', 'user__username'))
+    students = list(students_qs.order_by('student_class__name', 'student_class__section', 'reg_no', 'user__username'))
+
+    # Fetch all approved and verified OD dates for the students in this report
+    from leave.models import Leave
+    verified_od_dates = Leave.objects.filter(
+        student__in=students,
+        leave_type='OD',
+        final_status='Approved',
+        certificate_verified=True
+    ).values_list('student_id', 'date')
+    verified_od_map = set((student_id, dt) for student_id, dt in verified_od_dates)
 
     # Styling Palette
     header_fill = PatternFill(start_color='0F172A', end_color='0F172A', fill_type='solid') # Navy
@@ -197,10 +233,12 @@ def generate_attendance_excel_report(
             st_p = 0
             st_a = 0
             st_od = 0
+            st_verified_od = 0
             st_total_days = len(target_dates)
 
             for d_idx, d_obj in enumerate(target_dates, start=6):
                 statuses = att_map.get((student.user_id, d_obj), [])
+                is_verified_od_day = (student.user_id, d_obj) in verified_od_map
                 
                 # Determine daily overall status
                 if not statuses:
@@ -210,17 +248,24 @@ def generate_attendance_excel_report(
                     p_count = statuses.count('Present')
                     a_count = statuses.count('Absent')
                     od_count = statuses.count('OD')
+                    leave_count = statuses.count('Leave')
 
-                    if a_count == 0 and od_count == 0 and p_count > 0:
+                    if a_count == 0 and od_count == 0 and leave_count == 0 and p_count > 0:
                         day_status = "P"
                         st_p += 1
-                    elif od_count > 0 and a_count == 0:
+                    elif od_count > 0 and a_count == 0 and leave_count == 0:
                         day_status = "OD"
                         st_od += 1
-                    elif a_count > 0 and p_count > 0:
-                        day_status = "HD" # Half day
-                        st_p += 0.5
-                        st_a += 0.5
+                        if is_verified_od_day:
+                            st_verified_od += 1
+                    elif a_count > 0 or leave_count > 0:
+                        if p_count > 0:
+                            day_status = "HD"
+                            st_p += 0.5
+                            st_a += 0.5
+                        else:
+                            day_status = "A"
+                            st_a += 1
                     else:
                         day_status = "A"
                         st_a += 1
@@ -242,7 +287,8 @@ def generate_attendance_excel_report(
                     cell.font = regular_font
 
             # End Summary Calculations
-            att_pct = round((st_p / st_total_days * 100), 1) if st_total_days > 0 else 0.0
+            st_effective_present = st_p + st_verified_od
+            att_pct = round((st_effective_present / st_total_days * 100), 1) if st_total_days > 0 else 0.0
 
             sum_col_start = 6 + len(target_dates)
             
@@ -259,7 +305,7 @@ def generate_attendance_excel_report(
                 if idx % 2 == 0:
                     cell_obj.fill = zebra_fill
 
-            class_total_p += st_p
+            class_total_p += st_effective_present
             class_total_a += st_a
             class_total_od += st_od
             class_total_possible_days += st_total_days
@@ -378,10 +424,12 @@ def generate_attendance_excel_report(
             st_p = 0
             st_a = 0
             st_od = 0
+            st_verified_od = 0
             st_total_classes = len(sorted_sessions)
 
             for s_idx, (d_obj, p_num, sched_id) in enumerate(sorted_sessions, start=7):
                 status_val = att_map.get((student.user_id, d_obj, sched_id), 'Absent')
+                is_verified_od = (student.user_id, d_obj) in verified_od_map
 
                 if status_val == 'Present':
                     status_code = "P"
@@ -389,6 +437,8 @@ def generate_attendance_excel_report(
                 elif status_val == 'OD':
                     status_code = "OD"
                     st_od += 1
+                    if is_verified_od:
+                        st_verified_od += 1
                 else:
                     status_code = "A"
                     st_a += 1
@@ -407,7 +457,8 @@ def generate_attendance_excel_report(
                     cell.fill = od_fill
                     cell.font = od_font
 
-            att_pct = round((st_p / st_total_classes * 100), 1) if st_total_classes > 0 else 0.0
+            st_effective_present = st_p + st_verified_od
+            att_pct = round((st_effective_present / st_total_classes * 100), 1) if st_total_classes > 0 else 0.0
 
             sum_col_start = 7 + len(sorted_sessions)
             c_tot = ws.cell(row=row_num, column=sum_col_start, value=st_total_classes)
@@ -423,7 +474,7 @@ def generate_attendance_excel_report(
                 if idx % 2 == 0:
                     cell_obj.fill = zebra_fill
 
-            class_total_p += st_p
+            class_total_p += st_effective_present
             class_total_a += st_a
             class_total_od += st_od
             class_total_possible_classes += st_total_classes
@@ -481,4 +532,32 @@ def generate_attendance_excel_report(
         # Set dynamic column width with padding
         ws.column_dimensions[col_letter].width = max(max_len + 4, 12)
 
-    return wb
+    # Construct descriptive filename
+    filename_parts = ["Attendance_Report"]
+    if report_mode == 'day':
+        filename_parts.append("Daily")
+    elif report_mode == 'subject_percentage':
+        filename_parts.append("Subject_Summary")
+    else:
+        filename_parts.append(str(report_mode).capitalize())
+
+    if selected_class:
+        cls_name = str(selected_class).replace(" - ", "_").replace(" ", "_")
+        filename_parts.append(cls_name)
+
+    if selected_subject:
+        sub_name = f"{selected_subject.code}_{selected_subject.name}".replace(" ", "_")
+        filename_parts.append(sub_name)
+
+    if from_date and to_date:
+        if from_date == to_date:
+            filename_parts.append(from_date.strftime('%Y-%m-%d'))
+        else:
+            filename_parts.append(f"{from_date.strftime('%Y-%m-%d')}_to_{to_date.strftime('%Y-%m-%d')}")
+
+    raw_filename = "_".join(filename_parts)
+    import re
+    clean_filename = re.sub(r'[^a-zA-Z0-9_\-]', '', raw_filename)
+    filename = f"{clean_filename}.xlsx"
+
+    return wb, filename

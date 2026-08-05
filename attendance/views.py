@@ -329,7 +329,7 @@ def download_report(request):
 
         tutor_user = request.user if (request.user.role == 'staff' and getattr(request.user.staff, 'staff_type', '') == 'Tutor') else None
 
-        wb = generate_attendance_excel_report(
+        wb, filename = generate_attendance_excel_report(
             report_mode=report_mode,
             class_id=class_id,
             subject_id=subject_id,
@@ -342,7 +342,6 @@ def download_report(request):
         response = HttpResponse(
             content_type='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
         )
-        filename = f"Attendance_Report_{report_mode}_{from_date_str}_to_{to_date_str}.xlsx"
         response['Content-Disposition'] = f'attachment; filename="{filename}"'
         wb.save(response)
         return response

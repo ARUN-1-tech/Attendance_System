@@ -803,7 +803,7 @@ def api_export_excel_report(request):
     tutor_user = user if (user.role == 'staff' and is_tutor_role) else None
 
     from .excel_reports import generate_attendance_excel_report
-    wb = generate_attendance_excel_report(
+    wb, filename = generate_attendance_excel_report(
         report_mode=report_mode,
         class_id=class_id,
         subject_id=subject_id,
@@ -817,7 +817,6 @@ def api_export_excel_report(request):
     response = HttpResponse(
         content_type='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
     )
-    filename = f"Attendance_Report_{report_mode}_{from_date_str}_to_{to_date_str}.xlsx"
     response['Content-Disposition'] = f'attachment; filename="{filename}"'
     
     wb.save(response)
@@ -1110,7 +1109,8 @@ class AttendanceViewSet(viewsets.ModelViewSet):
         import csv
         from django.http import HttpResponse
         response = HttpResponse(content_type='text/csv')
-        response['Content-Disposition'] = f'attachment; filename="Class_Attendance_{subject.code}.csv"'
+        cls_name = str(target_class).replace(" - ", "_").replace(" ", "_") if 'target_class' in locals() and target_class else "Enrolled"
+        response['Content-Disposition'] = f'attachment; filename="Class_Attendance_{cls_name}_{subject.code}.csv"'
         
         writer = csv.writer(response)
         
