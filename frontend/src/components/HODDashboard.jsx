@@ -79,6 +79,7 @@ const HODDashboard = ({ activeTab, setActiveTab }) => {
   const [className, setClassName] = useState('');
   const [classYear, setClassYear] = useState('');
   const [classSection, setClassSection] = useState('');
+  const [classBatch, setClassBatch] = useState('');
   const [classType, setClassType] = useState('REGULAR');
   const [classTutor1Id, setClassTutor1Id] = useState('');
   const [classTutor2Id, setClassTutor2Id] = useState('');
@@ -650,6 +651,7 @@ const HODDashboard = ({ activeTab, setActiveTab }) => {
       name: className,
       year: parseInt(classYear),
       section: classSection,
+      batch: classBatch,
       tutor1: classTutor1Id ? parseInt(classTutor1Id) : null,
       tutor2: classTutor2Id ? parseInt(classTutor2Id) : null,
       tutor3: classTutor3Id ? parseInt(classTutor3Id) : null,
@@ -678,6 +680,7 @@ const HODDashboard = ({ activeTab, setActiveTab }) => {
     setClassName(c.name);
     setClassYear(c.year.toString());
     setClassSection(c.section);
+    setClassBatch(c.batch || '');
     setClassTutor1Id(c.tutor1?.toString() || '');
     setClassTutor2Id(c.tutor2?.toString() || '');
     setClassTutor3Id(c.tutor3?.toString() || '');
@@ -699,6 +702,7 @@ const HODDashboard = ({ activeTab, setActiveTab }) => {
     setClassName('');
     setClassYear('');
     setClassSection('');
+    setClassBatch('');
     setClassType('REGULAR');
     setClassTutor1Id('');
     setClassTutor2Id('');
@@ -1922,18 +1926,22 @@ const HODDashboard = ({ activeTab, setActiveTab }) => {
           <div className="card" style={{ marginBottom: '24px' }}>
             <h2>{editingClass ? 'Edit Class Parameters' : 'Create New Class'}</h2>
             <form onSubmit={handleSaveClass} style={{ marginTop: '16px' }}>
-              <div className="grid grid-cols-3">
+              <div className="grid grid-cols-4">
                 <div className="form-group">
                   <label className="form-label">Class Name</label>
-                  <input type="text" className="input" placeholder="e.g. B.Tech CS" required value={className} onChange={(e) => setClassName(e.target.value)} />
+                  <input type="text" className="input" placeholder="e.g. CSE" required value={className} onChange={(e) => setClassName(e.target.value)} />
                 </div>
                 <div className="form-group">
                   <label className="form-label">Academic Year</label>
-                  <input type="number" className="input" placeholder="e.g. 3" required value={classYear} onChange={(e) => setClassYear(e.target.value)} />
+                  <input type="number" className="input" placeholder="e.g. 1" required value={classYear} onChange={(e) => setClassYear(e.target.value)} />
                 </div>
                 <div className="form-group">
                   <label className="form-label">Section</label>
                   <input type="text" className="input" placeholder="e.g. A" required value={classSection} onChange={(e) => setClassSection(e.target.value)} />
+                </div>
+                <div className="form-group">
+                  <label className="form-label">Batch No</label>
+                  <input type="text" className="input" placeholder="e.g. 2024-2028" value={classBatch} onChange={(e) => setClassBatch(e.target.value)} />
                 </div>
               </div>
 
@@ -1975,9 +1983,8 @@ const HODDashboard = ({ activeTab, setActiveTab }) => {
               <thead>
                 <tr>
                   <th style={{ width: '60px' }}>S.No</th>
-                  <th>Class Name</th>
-                  <th>Year</th>
-                  <th>Section</th>
+                  <th>Class Details (Year - Class - Sec)</th>
+                  <th>Batch No</th>
                   <th>Tutor 1</th>
                   <th>Tutor 2</th>
                   <th>Tutor 3 (Advisor)</th>
@@ -1989,10 +1996,9 @@ const HODDashboard = ({ activeTab, setActiveTab }) => {
                   <tr key={c.id}>
                     <td style={{ fontWeight: '600' }}>{idx + 1}</td>
                     <td style={{ fontWeight: '600' }}>
-                      {c.name}
+                      {c.year} - {c.name} - {c.section}
                     </td>
-                    <td>Year {c.year}</td>
-                    <td>Section {c.section}</td>
+                    <td>{c.batch || '-'}</td>
                     <td>{c.tutor1_name || '-'}</td>
                     <td>{c.tutor2_name || '-'}</td>
                     <td>{c.tutor3_name || '-'}</td>
@@ -2558,7 +2564,7 @@ const HODDashboard = ({ activeTab, setActiveTab }) => {
                 </div>
                 <div style={{ display: 'flex', borderBottom: '1px solid var(--border-color)', paddingBottom: '10px' }}>
                   <div style={{ width: '150px', color: 'var(--text-muted)' }}>Assigned Department</div>
-                  <div>Computer Science</div>
+                  <div>{user.department_name || 'Computer Science and Engineering'}</div>
                 </div>
               </div>
               <button className="btn btn-primary" onClick={() => setProfileEditMode(true)}>

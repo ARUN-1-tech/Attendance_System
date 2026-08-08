@@ -558,15 +558,40 @@ def api_attendance_report_data(request):
     else:
         records = Attendance.objects.none()
 
+    class_id = request.query_params.get('class_id')
+    student_id = request.query_params.get('student_id')
+
+    if request.user.role == 'staff':
+        from accounts.models import Class, Student
+        advisor_classes = Class.objects.filter(advisor=request.user)
+        is_advisor = advisor_classes.exists()
+
+        if report_type == 'class':
+            if class_id:
+                if not advisor_classes.filter(id=class_id).exists():
+                    return Response({'detail': 'Access denied. You can only view whole class reports for your advised class.'}, status=status.HTTP_403_FORBIDDEN)
+            else:
+                if is_advisor:
+                    class_id = str(advisor_classes.first().id)
+                else:
+                    return Response({'detail': 'Whole class reports are reserved for Class Advisors.'}, status=status.HTTP_403_FORBIDDEN)
+        elif report_type == 'student' and student_id:
+            try:
+                target_student = Student.objects.select_related('student_class').get(Q(user__username=student_id) | Q(reg_no=student_id))
+                is_his_tutored = (target_student.tutor == request.user)
+                is_his_advised = (target_student.advisor == request.user or (target_student.student_class and target_student.student_class.advisor == request.user))
+                if not is_his_tutored and not is_his_advised:
+                    return Response({'detail': 'Access denied. You can only view details for students in your assigned class or tutored group.'}, status=status.HTTP_403_FORBIDDEN)
+            except Student.DoesNotExist:
+                return Response({'detail': 'Student not found.'}, status=status.HTTP_404_NOT_FOUND)
+
     if report_type == 'class':
-        class_id = request.query_params.get('class_id')
         if class_id:
             records = records.filter(student__student_class_id=class_id)
     elif report_type == 'tutored':
         if request.user.role == 'staff':
             records = records.filter(student__tutor=request.user)
     elif report_type == 'student':
-        student_id = request.query_params.get('student_id')
         if student_id:
             records = records.filter(Q(student__user__username=student_id) | Q(student__reg_no=student_id))
 
@@ -585,9 +610,6 @@ def api_attendance_report_data(request):
     subject_id = request.query_params.get('subject_id')
 
     if request.user.role == 'staff':
-        class_id = request.query_params.get('class_id')
-        student_id = request.query_params.get('student_id')
-        
         is_related = False
         if report_type == 'class' and class_id:
             try:
@@ -598,7 +620,7 @@ def api_attendance_report_data(request):
         elif report_type == 'student' and student_id:
             try:
                 student = Student.objects.get(Q(user__username=student_id) | Q(reg_no=student_id))
-                is_related = (student.tutor == request.user or student.advisor == request.user)
+                is_related = (student.tutor == request.user or student.advisor == request.user or (student.student_class and student.student_class.advisor == request.user))
             except Student.DoesNotExist:
                 pass
         elif report_type == 'tutored':
@@ -684,7 +706,7 @@ def api_attendance_report_data(request):
         for d in target_dates:
             date_str = d.strftime('%Y-%m-%d')
             for student in students_list:
-                status = attendance_map.get((student.user_id, d), 'Absent')
+                att_status = attendance_map.get((student.user_id, d), 'Absent')
                 result.append({
                     'student_username': student.user.username,
                     'student_reg_no': student.reg_no or student.roll_no or student.user.username,
@@ -695,7 +717,7 @@ def api_attendance_report_data(request):
                     'class_only_name': student.student_class.name if student.student_class else '',
                     'section': student.student_class.section if student.student_class else '',
                     'date': date_str,
-                    'status': status
+                    'status': att_status
                 })
     else:
         from leave.models import Leave
@@ -790,7 +812,8 @@ def api_export_excel_report(request):
     if user.role == 'staff':
         staff_type = user.staff.staff_type if hasattr(user, 'staff') else 'Normal'
         from accounts.models import Class, Student, Subject
-        is_advisor = Class.objects.filter(advisor=user).exists()
+        advisor_classes = Class.objects.filter(advisor=user)
+        is_advisor = advisor_classes.exists()
         is_tutor = Student.objects.filter(tutor=user).exists()
         is_assigned_staff = subject_id and Subject.objects.filter(id=subject_id, staff=user).exists()
         
@@ -799,6 +822,27 @@ def api_export_excel_report(request):
                 {'detail': 'Reports access is reserved for Advisors, Tutors, and assigned Subject Teachers.'},
                 status=status.HTTP_403_FORBIDDEN
             )
+
+        if report_type == 'class':
+            if class_id:
+                if not advisor_classes.filter(id=class_id).exists() and not is_assigned_staff:
+                    return Response({'detail': 'Access denied. You can only export whole class reports for your advised class.'}, status=status.HTTP_403_FORBIDDEN)
+            else:
+                if is_advisor:
+                    class_id = str(advisor_classes.first().id)
+                elif is_assigned_staff:
+                    pass
+                else:
+                    return Response({'detail': 'Whole class reports are reserved for Class Advisors.'}, status=status.HTTP_403_FORBIDDEN)
+        elif report_type == 'student' and student_id:
+            try:
+                target_student = Student.objects.select_related('student_class').get(Q(user__username=student_id) | Q(reg_no=student_id))
+                is_his_tutored = (target_student.tutor == user)
+                is_his_advised = (target_student.advisor == user or (target_student.student_class and target_student.student_class.advisor == user))
+                if not is_his_tutored and not is_his_advised and not is_assigned_staff:
+                    return Response({'detail': 'Access denied. You can only export report details for students in your assigned class or tutored group.'}, status=status.HTTP_403_FORBIDDEN)
+            except Student.DoesNotExist:
+                return Response({'detail': 'Student not found.'}, status=status.HTTP_404_NOT_FOUND)
     elif user.role not in ['hod', 'admin']:
         return Response({'detail': 'Access denied.'}, status=status.HTTP_403_FORBIDDEN)
 
@@ -1275,7 +1319,14 @@ class AttendanceViewSet(viewsets.ModelViewSet):
             students = subject.get_enrolled_students().select_related('user', 'student_class').order_by('student_class__name', 'student_class__section', 'reg_no', 'user__username')
         else:
             if class_id:
-                target_class = Class.objects.filter(id=class_id).first()
+                if user.role == 'staff':
+                    target_class = Class.objects.filter(id=class_id, advisor=user).first()
+                    if not target_class and subject.staff != user:
+                        return Response({'detail': 'Access denied. You can only view reports for your advised class.'}, status=status.HTTP_403_FORBIDDEN)
+                    elif not target_class:
+                        target_class = Class.objects.filter(id=class_id).first()
+                else:
+                    target_class = Class.objects.filter(id=class_id).first()
             else:
                 advised_class = Class.objects.filter(advisor=user).first()
                 target_class = subject.student_class or advised_class

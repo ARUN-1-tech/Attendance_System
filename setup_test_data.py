@@ -7,7 +7,7 @@ django.setup()
 from accounts.models import User, Department, Class, Subject, Student, Staff
 
 # Create Department
-cs_dept, _ = Department.objects.get_or_create(name='Computer Science')
+cs_dept, _ = Department.objects.get_or_create(name='Computer Science and Engineering')
 
 # Create Class
 cs_class, _ = Class.objects.get_or_create(name='B.Tech CS', year=3, section='A', department=cs_dept)

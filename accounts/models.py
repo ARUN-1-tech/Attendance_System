@@ -49,6 +49,7 @@ class Class(models.Model):
     name = models.CharField(max_length=100)
     year = models.IntegerField()
     section = models.CharField(max_length=10)
+    batch = models.CharField(max_length=50, null=True, blank=True, default='')
     department = models.ForeignKey(Department, on_delete=models.CASCADE)
     class_type = models.CharField(max_length=20, choices=CLASS_TYPE_CHOICES, default='REGULAR')
     elective_students = models.ManyToManyField('Student', related_name='elective_classes', blank=True)
@@ -57,8 +58,13 @@ class Class(models.Model):
     tutor3 = models.ForeignKey(User, related_name='tutor3_classes', on_delete=models.SET_NULL, null=True, blank=True, limit_choices_to={'role': 'staff'})
     advisor = models.ForeignKey(User, related_name='advisor_classes', on_delete=models.SET_NULL, null=True, blank=True, limit_choices_to={'role': 'staff'})
 
+    @property
+    def display_name(self):
+        batch_str = f" ({self.batch})" if self.batch else ""
+        return f"{self.year} - {self.name} - {self.section}{batch_str}"
+
     def __str__(self):
-        return f"{self.name} - {self.year} - {self.section}"
+        return self.display_name
 
     def get_students(self):
         return self.student_set.all()

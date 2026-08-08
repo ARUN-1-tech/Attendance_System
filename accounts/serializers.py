@@ -56,7 +56,7 @@ class ClassSerializer(serializers.ModelSerializer):
 
 class SubjectSerializer(serializers.ModelSerializer):
     department_name = serializers.CharField(source='department.name', read_only=True)
-    class_name = serializers.CharField(source='student_class.name', read_only=True)
+    class_name = serializers.CharField(source='student_class.display_name', read_only=True)
     staff_name = serializers.SerializerMethodField()
     staff_username = serializers.CharField(source='staff.username', read_only=True)
     elective_student_count = serializers.SerializerMethodField()
@@ -88,9 +88,10 @@ class SubjectSerializer(serializers.ModelSerializer):
 
 class StudentSerializer(serializers.ModelSerializer):
     user = UserSerializer()
-    class_name = serializers.CharField(source='student_class.name', read_only=True)
+    class_name = serializers.CharField(source='student_class.display_name', read_only=True)
     class_year = serializers.IntegerField(source='student_class.year', read_only=True)
     class_section = serializers.CharField(source='student_class.section', read_only=True)
+    class_batch = serializers.CharField(source='student_class.batch', read_only=True)
     tutor_name = serializers.CharField(source='tutor.username', read_only=True)
     advisor_name = serializers.CharField(source='advisor.username', read_only=True)
     class_advisor_id = serializers.IntegerField(source='student_class.advisor.id', read_only=True)

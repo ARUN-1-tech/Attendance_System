@@ -8,7 +8,7 @@ import openpyxl
 class StudentBulkImportTestCase(TestCase):
     def setUp(self):
         # Create Department
-        self.dept = Department.objects.create(name='Computer Science')
+        self.dept = Department.objects.create(name='Computer Science and Engineering')
         
         # Create Class
         self.clazz = Class.objects.create(name='B.Tech CS', year=3, section='A', department=self.dept)
@@ -370,7 +370,7 @@ class StudentBulkImportTestCase(TestCase):
 
 class UserPasswordChangeAndManualAttendanceTestCase(TestCase):
     def setUp(self):
-        self.dept = Department.objects.create(name='Computer Science')
+        self.dept = Department.objects.create(name='Computer Science and Engineering')
         self.clazz = Class.objects.create(name='B.Tech CS', year=3, section='A', department=self.dept)
         
         self.staff_user = User.objects.create_user('staff_user', 'staff@example.com', 'staffpass123')
@@ -461,7 +461,7 @@ class UserPasswordChangeAndManualAttendanceTestCase(TestCase):
             'date': '2026-06-25' # Thursday
         })
         self.assertEqual(response.status_code, 200)
-        self.assertEqual(response.data['class_name'], 'B.Tech CS - 3 - A')
+        self.assertEqual(response.data['class_name'], '3 - B.Tech CS - A')
         self.assertEqual(len(response.data['students']), 1)
         self.assertEqual(response.data['students'][0]['id'], self.student_user.id)
         # Default all periods to Present in fetched statuses if not created in DB

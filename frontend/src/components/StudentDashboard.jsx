@@ -965,7 +965,7 @@ const StudentDashboard = ({ activeTab }) => {
                 </div>
                 <div style={{ display: 'flex', borderBottom: '1px solid var(--border-color)', paddingBottom: '10px' }}>
                   <div style={{ width: '150px', color: 'var(--text-muted)' }}>Class / Year</div>
-                  <div>{student ? `${student.class_name} (Year ${student.class_year}, Sec ${student.class_section})` : '-'}</div>
+                  <div>{student?.class_name || '-'}</div>
                 </div>
                 <div style={{ display: 'flex', borderBottom: '1px solid var(--border-color)', paddingBottom: '10px' }}>
                   <div style={{ width: '150px', color: 'var(--text-muted)' }}>Assigned Tutor</div>

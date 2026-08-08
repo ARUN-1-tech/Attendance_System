@@ -12,7 +12,7 @@ User = get_user_model()
 class StaffAttendanceHistoryTests(TestCase):
     def setUp(self):
         self.client = APIClient()
-        self.dept = Department.objects.create(name='Computer Science')
+        self.dept = Department.objects.create(name='Computer Science and Engineering')
         
         self.staff_user = User.objects.create_user(
             username='staff1',
@@ -183,5 +183,30 @@ class StaffAttendanceHistoryTests(TestCase):
         period_nums = list(locks.values_list('period', flat=True))
         self.assertIn(1, period_nums)
         self.assertIn(2, period_nums)
+
+    def test_advisor_cannot_access_other_class_report(self):
+        other_clazz = Class.objects.create(name='ECE', year=3, section='B', department=self.dept)
+        self.clazz.advisor = self.staff_user
+        self.clazz.save()
+
+        self.client.force_authenticate(user=self.staff_user)
+        url = f'/api/attendance/reports/?report_type=class&class_id={other_clazz.id}'
+        response = self.client.get(url)
+        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
+
+    def test_staff_cannot_access_unassigned_student_report(self):
+        other_clazz = Class.objects.create(name='ECE', year=3, section='B', department=self.dept)
+        other_user = User.objects.create_user(username='other_student', password='password123', role='student')
+        other_student = Student.objects.create(user=other_user, student_class=other_clazz, reg_no='REG999')
+
+        self.client.force_authenticate(user=self.staff_user)
+        url = f'/api/attendance/reports/?report_type=student&student_id={other_student.reg_no}'
+        response = self.client.get(url)
+        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
+
+    def test_class_batch_formatting(self):
+        clazz_with_batch = Class.objects.create(name='CSE', year=1, section='A', batch='2024-2028', department=self.dept)
+        self.assertEqual(clazz_with_batch.display_name, '1 - CSE - A (2024-2028)')
+        self.assertEqual(str(clazz_with_batch), '1 - CSE - A (2024-2028)')
 
 

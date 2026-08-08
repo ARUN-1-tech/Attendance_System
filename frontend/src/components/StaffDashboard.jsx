@@ -748,7 +748,12 @@ const StaffDashboard = ({ activeTab }) => {
       setClasses(cls);
       setSubjects(sub);
       if (cls.length > 0) {
-        setReportClassId(cls[0].id.toString());
+        const myAdv = cls.find(c => c.advisor === user.id);
+        if (myAdv) {
+          setReportClassId(myAdv.id.toString());
+        } else {
+          setReportClassId(cls[0].id.toString());
+        }
       }
       const stf = await api.get('/api/users/?role=staff');
       setStaffList(stf);
@@ -1763,7 +1768,7 @@ const StaffDashboard = ({ activeTab }) => {
                   >
                     <option value="">-- Choose Class --</option>
                     {otpClasses.map(c => (
-                      <option key={c.id} value={c.id}>{c.name} - Year {c.year} (Sec {c.section})</option>
+                      <option key={c.id} value={c.id}>{c.year} - {c.name} - {c.section}{c.batch ? ` (${c.batch})` : ''}</option>
                     ))}
                   </select>
                 </div>
@@ -2283,7 +2288,7 @@ const StaffDashboard = ({ activeTab }) => {
 
               <div className="form-group">
                 <label className="form-label">Department (Auto-filled)</label>
-                <input type="text" className="input" value={user.department_name || 'My Department'} disabled style={{ backgroundColor: 'var(--bg-tertiary)' }} />
+                <input type="text" className="input" value={user.department_name || 'Computer Science and Engineering'} disabled style={{ backgroundColor: 'var(--bg-tertiary)' }} />
               </div>
 
               <div className="grid grid-cols-2">
@@ -2302,7 +2307,7 @@ const StaffDashboard = ({ activeTab }) => {
                   <select className="input" value={studentClassId} onChange={(e) => setStudentClassId(e.target.value)} required>
                     <option value="">-- Select Class --</option>
                     {classes.filter(c => !studentYear || c.year.toString() === studentYear).map(c => (
-                      <option key={c.id} value={c.id}>{c.name} - Yr {c.year} (Sec {c.section})</option>
+                      <option key={c.id} value={c.id}>{c.year} - {c.name} - {c.section}{c.batch ? ` (${c.batch})` : ''}</option>
                     ))}
                   </select>
                 </div>
@@ -2368,7 +2373,7 @@ const StaffDashboard = ({ activeTab }) => {
                         <span>{s.user.first_name || s.user.last_name ? `${s.user.first_name} ${s.user.last_name || ''}` : s.user.username}</span>
                       </div>
                     </td>
-                    <td>{s.class_name} - Year {s.class_year} (Sec {s.class_section})</td>
+                    <td>{s.class_name}</td>
                     <td>
                       <span className="badge badge-present" style={{ fontSize: '11px' }}>
                         {s.tutor === user.id ? 'Tutor' : ''}
@@ -2915,7 +2920,7 @@ const StaffDashboard = ({ activeTab }) => {
                   <option value="">-- Choose Class --</option>
                   {classes.filter(c => c.department?.toString() === manualDeptId).map(c => (
                     <option key={c.id} value={c.id}>
-                      {c.name} - Yr {c.year} ({c.section})
+                      {c.year} - {c.name} - {c.section}{c.batch ? ` (${c.batch})` : ''}
                     </option>
                   ))}
                 </select>
@@ -4653,59 +4658,83 @@ const StaffDashboard = ({ activeTab }) => {
                 </select>
               </div>
 
-              <div className="form-group" style={{ gridColumn: 'span 2' }}>
-                <label className="form-label" style={{ fontWeight: '700' }}>Select Scope</label>
-                <select 
-                  className="input" 
-                  value={reportType} 
-                  onChange={(e) => {
-                    setReportType(e.target.value);
-                    setReportStudentId('');
-                  }}
-                  style={{ height: '44px', fontWeight: '600' }}
-                >
-                  {user.staff_details?.staff_type !== 'Tutor' && <option value="class">Whole Class</option>}
-                  <option value="tutored">Tutored Students</option>
-                  <option value="student">Individual Student</option>
-                </select>
-              </div>
+              {(() => {
+                const advisorClassesList = classes.filter(c => c.advisor === user.id);
+                const isAdvisorRole = user.staff_details?.staff_type === 'Advisor' || advisorClassesList.length > 0;
+                const isTutorRole = user.staff_details?.staff_type === 'Tutor';
+                
+                const reportClassOptions = isAdvisorRole && advisorClassesList.length > 0 ? advisorClassesList : classes;
+                
+                let reportStudentOptions = students;
+                if (isAdvisorRole && advisorClassesList.length > 0) {
+                  const advClassIds = new Set(advisorClassesList.map(c => c.id));
+                  reportStudentOptions = students.filter(s => advClassIds.has(s.student_class) || s.class_advisor_id === user.id || s.advisor === user.id || s.advisor === user.username);
+                } else if (isTutorRole) {
+                  reportStudentOptions = students.filter(s => s.tutor === user.id || s.tutor === user.username);
+                }
 
-              {reportType === 'class' && (
-                <div className="form-group" style={{ gridColumn: 'span 2' }}>
-                  <label className="form-label" style={{ fontWeight: '700' }}>Select Class</label>
-                  <select 
-                    className="input" 
-                    value={reportClassId} 
-                    onChange={(e) => setReportClassId(e.target.value)}
-                    style={{ height: '44px', fontWeight: '600' }}
-                  >
-                    <option value="">-- All Department Classes --</option>
-                    {classes.map(c => (
-                      <option key={c.id} value={c.id}>{c.name} (Sec {c.section})</option>
-                    ))}
-                  </select>
-                </div>
-              )}
+                return (
+                  <>
+                    <div className="form-group" style={{ gridColumn: 'span 2' }}>
+                      <label className="form-label" style={{ fontWeight: '700' }}>Select Scope</label>
+                      <select 
+                        className="input" 
+                        value={reportType} 
+                        onChange={(e) => {
+                          setReportType(e.target.value);
+                          setReportStudentId('');
+                        }}
+                        style={{ height: '44px', fontWeight: '600' }}
+                      >
+                        {user.staff_details?.staff_type !== 'Tutor' && <option value="class">Whole Class</option>}
+                        <option value="tutored">Tutored Students</option>
+                        <option value="student">Individual Student</option>
+                      </select>
+                    </div>
 
-              {reportType === 'student' && (
-                <div className="form-group" style={{ gridColumn: 'span 2' }}>
-                  <label className="form-label" style={{ fontWeight: '700' }}>Select Student</label>
-                  <select 
-                    className="input" 
-                    value={reportStudentId} 
-                    onChange={(e) => setReportStudentId(e.target.value)}
-                    style={{ height: '44px', fontWeight: '600' }}
-                    required
-                  >
-                    <option value="">-- Choose Student --</option>
-                    {students.map(s => (
-                      <option key={s.user.id} value={s.reg_no || s.user.username}>
-                        {s.user.first_name} {s.user.last_name} ({s.reg_no || s.user.username})
-                      </option>
-                    ))}
-                  </select>
-                </div>
-              )}
+                    {reportType === 'class' && (
+                      <div className="form-group" style={{ gridColumn: 'span 2' }}>
+                        <label className="form-label" style={{ fontWeight: '700' }}>
+                          Select Class {isAdvisorRole ? '(Your Advised Class)' : ''}
+                        </label>
+                        <select 
+                          className="input" 
+                          value={reportClassId} 
+                          onChange={(e) => setReportClassId(e.target.value)}
+                          style={{ height: '44px', fontWeight: '600' }}
+                        >
+                          {!isAdvisorRole && <option value="">-- All Department Classes --</option>}
+                          {reportClassOptions.map(c => (
+                            <option key={c.id} value={c.id}>{c.year} - {c.name} - {c.section}{c.batch ? ` (${c.batch})` : ''}</option>
+                          ))}
+                        </select>
+                      </div>
+                    )}
+
+                    {reportType === 'student' && (
+                      <div className="form-group" style={{ gridColumn: 'span 2' }}>
+                        <label className="form-label" style={{ fontWeight: '700' }}>
+                          Select Student {isAdvisorRole ? '(Advised Class Students)' : isTutorRole ? '(Tutored Students)' : ''}
+                        </label>
+                        <select 
+                          className="input" 
+                          value={reportStudentId} 
+                          onChange={(e) => setReportStudentId(e.target.value)}
+                          style={{ height: '44px', fontWeight: '600' }}
+                          required
+                        >
+                          <option value="">-- Choose Student --</option>
+                          {reportStudentOptions.map(s => (
+                            <option key={s.user.id} value={s.reg_no || s.user.username}>
+                              {s.user.first_name || ''} {s.user.last_name || ''} ({s.reg_no || s.user.username}) - {s.class_name || 'Class'}
+                            </option>
+                          ))}
+                        </select>
+                      </div>
+                    )}
+                  </>
+                );
+              })()}
 
               {reportMode === 'subject_percentage' && (
                 <div className="form-group" style={{ gridColumn: 'span 2' }}>
@@ -4828,7 +4857,7 @@ const StaffDashboard = ({ activeTab }) => {
                 </div>
                 <div style={{ display: 'flex', borderBottom: '1px solid var(--border-color)', paddingBottom: '10px' }}>
                   <div style={{ width: '150px', color: 'var(--text-muted)' }}>Assigned Department</div>
-                  <div>Computer Science</div>
+                  <div>{user.department_name || 'Computer Science and Engineering'}</div>
                 </div>
                 <div style={{ display: 'flex', borderBottom: '1px solid var(--border-color)', paddingBottom: '10px' }}>
                   <div style={{ width: '150px', color: 'var(--text-muted)' }}>Staff Category</div>
