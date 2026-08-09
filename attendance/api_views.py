@@ -1520,18 +1520,17 @@ class AttendanceViewSet(viewsets.ModelViewSet):
             except ValueError:
                 pass
 
-        schedules = Schedule.objects.filter(**schedules_filter)
-        
         existing_attendance = {}
-        if schedules.exists():
-            attendances = Attendance.objects.filter(
-                student__in=students,
-                schedule__in=schedules,
-                date=target_date
-            )
-            for att in attendances:
-                # If there are multiple periods, just pick the status of the first one we find
-                existing_attendance[att.student_id] = att.status
+        attendances = Attendance.objects.filter(
+            student__in=students,
+            date=target_date,
+            schedule__subject_id=subject_id
+        )
+        if period_val:
+            attendances = attendances.filter(schedule__period=period_val)
+            
+        for att in attendances:
+            existing_attendance[att.student_id] = att.status
 
         # Format students list
         students_list = [
@@ -1547,6 +1546,7 @@ class AttendanceViewSet(viewsets.ModelViewSet):
         ]
 
         # Check if weekly schedule exists for this class, subject on this weekday
+        schedules = Schedule.objects.filter(**schedules_filter)
         schedule_exists = schedules.exists()
 
         # Check if this period is locked
@@ -1642,11 +1642,7 @@ class AttendanceViewSet(viewsets.ModelViewSet):
         for p_val in periods_list:
             lock = PeriodLock.objects.filter(student_class=student_class, date=target_date, period=p_val).first()
             if lock:
-                if is_advisor:
-                    return Response({
-                        'detail': f'Period {p_val} is marked. As advisor, please edit through Advisor Whole Day Manual Attendance.'
-                    }, status=status.HTTP_400_BAD_REQUEST)
-                elif lock.staff != user:
+                if lock.staff != user and not is_advisor and user.role not in ['hod', 'admin'] and subject.staff != user:
                     return Response({
                         'detail': f'Period {p_val} attendance is already marked by {lock.staff.first_name} {lock.staff.last_name} ({lock.staff.username}).'
                     }, status=status.HTTP_400_BAD_REQUEST)
@@ -1656,11 +1652,11 @@ class AttendanceViewSet(viewsets.ModelViewSet):
             with transaction.atomic():
                 schedules_to_update = []
                 for p_val in periods_list:
-                    PeriodLock.objects.get_or_create(
+                    PeriodLock.objects.update_or_create(
                         student_class=student_class,
                         date=target_date,
                         period=p_val,
-                        defaults={'staff': user}
+                        defaults={'staff': user, 'subject': subject}
                     )
 
                     sched = Schedule.objects.filter(student_class=student_class, subject=subject, day=weekday, period=p_val).first()
@@ -1681,26 +1677,50 @@ class AttendanceViewSet(viewsets.ModelViewSet):
                         )
                     schedules_to_update.append(sched)
 
-                students = Student.objects.filter(student_class=student_class)
-                updated_count = 0
+                students = list(Student.objects.filter(student_class=student_class))
+                
+                existing_atts = {
+                    (att.student_id, att.schedule_id): att
+                    for att in Attendance.objects.filter(
+                        student__in=students,
+                        schedule__in=schedules_to_update,
+                        date=target_date
+                    )
+                }
+
+                to_create = []
+                to_update = []
+
                 for student in students:
                     status_val = statuses.get(str(student.user_id)) or statuses.get(student.user_id) or 'Present'
-                    if status_val not in ['Present', 'Absent', 'OD']:
+                    if status_val not in ['Present', 'Absent', 'OD', 'Leave']:
                         status_val = 'Present'
 
                     for s_item in schedules_to_update:
-                        Attendance.objects.update_or_create(
-                            student=student,
-                            schedule=s_item,
-                            date=target_date,
-                            defaults={'status': status_val}
-                        )
-                        updated_count += 1
+                        key = (student.user_id, s_item.id)
+                        if key in existing_atts:
+                            att_obj = existing_atts[key]
+                            if att_obj.status != status_val:
+                                att_obj.status = status_val
+                                to_update.append(att_obj)
+                        else:
+                            to_create.append(Attendance(
+                                student=student,
+                                schedule=s_item,
+                                date=target_date,
+                                status=status_val
+                            ))
 
+                if to_create:
+                    Attendance.objects.bulk_create(to_create)
+                if to_update:
+                    Attendance.objects.bulk_update(to_update, ['status'])
+
+                updated_count = len(to_create) + len(to_update)
                 p_str = ", ".join([f"P{p}" for p in sorted(periods_list)])
                 return Response({
                     'success': True,
-                    'detail': f'Successfully marked attendance for {students.count()} students across {p_str} ({updated_count} slot records).'
+                    'detail': f'Successfully marked attendance for {len(students)} students across {p_str} ({updated_count} slot records updated).'
                 })
         except Exception as e:
             return Response({'detail': f'Error saving attendance: {str(e)}'}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
@@ -1859,13 +1879,24 @@ class AttendanceViewSet(viewsets.ModelViewSet):
                         )
                     schedules_by_period[p] = sched
 
-                # Update or create attendance records for each student in the class
-                students = Student.objects.filter(student_class=advised_class)
-                updated_records_count = 0
-                
+                # Update or create attendance records for each student in the class using bulk operations
+                students = list(Student.objects.filter(student_class=advised_class))
+                all_schedules = list(schedules_by_period.values())
+
+                existing_atts = {
+                    (att.student_id, att.schedule_id): att
+                    for att in Attendance.objects.filter(
+                        student__in=students,
+                        schedule__in=all_schedules,
+                        date=target_date
+                    )
+                }
+
+                to_create = []
+                to_update = []
+
                 for student in students:
                     student_payload = attendance_data.get(str(student.user_id)) or attendance_data.get(student.user_id)
-                    # If student is not in payload, they default to all present
                     if not student_payload:
                         student_payload = {
                             'overall_status': 'Present',
@@ -1876,7 +1907,7 @@ class AttendanceViewSet(viewsets.ModelViewSet):
                     period_statuses = student_payload.get('periods', {})
                     
                     for p in range(1, 9):
-                        # Determine status for this period
+                        sched = schedules_by_period[p]
                         if overall_status == 'Present':
                             p_status = 'Present'
                         elif overall_status == 'Absent':
@@ -1887,24 +1918,35 @@ class AttendanceViewSet(viewsets.ModelViewSet):
                             p_status = 'Present' if p <= 4 else 'Absent'
                         elif overall_status == 'Half Day (FN Absent / AN Present)':
                             p_status = 'Absent' if p <= 4 else 'Present'
-                        else: # Custom
+                        else:
                             p_status = period_statuses.get(str(p)) or period_statuses.get(p) or 'Present'
                             
                         if p_status not in ['Present', 'Absent', 'OD', 'Leave']:
                             p_status = 'Present'
-                            
-                        # Save/Update
-                        Attendance.objects.update_or_create(
-                            student=student,
-                            schedule=schedules_by_period[p],
-                            date=target_date,
-                            defaults={'status': p_status}
-                        )
-                        updated_records_count += 1
-                        
+
+                        key = (student.user_id, sched.id)
+                        if key in existing_atts:
+                            att_obj = existing_atts[key]
+                            if att_obj.status != p_status:
+                                att_obj.status = p_status
+                                to_update.append(att_obj)
+                        else:
+                            to_create.append(Attendance(
+                                student=student,
+                                schedule=sched,
+                                date=target_date,
+                                status=p_status
+                            ))
+
+                if to_create:
+                    Attendance.objects.bulk_create(to_create)
+                if to_update:
+                    Attendance.objects.bulk_update(to_update, ['status'])
+
+                updated_records_count = len(to_create) + len(to_update)
                 return Response({
                     'success': True,
-                    'detail': f'Successfully updated daily attendance for {students.count()} students ({updated_records_count} period records).'
+                    'detail': f'Successfully updated daily attendance for {len(students)} students ({updated_records_count} period records updated).'
                 })
         except Exception as e:
             return Response({'detail': f'Error saving manual attendance: {str(e)}'}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
@@ -2042,18 +2084,36 @@ class AttendanceViewSet(viewsets.ModelViewSet):
         student_class = get_object_or_404(Class, pk=class_id)
         weekday = target_date.strftime('%A')
 
-        sched = Schedule.objects.filter(student_class=student_class, period=period_num, day=weekday).select_related('subject').first()
+        subject_id = request.query_params.get('subject_id')
+        from .models import PeriodLock
+        lock = PeriodLock.objects.filter(student_class=student_class, date=target_date, period=period_num).first()
+        if lock and lock.subject:
+            subject_id = subject_id or str(lock.subject.id)
+
+        sched_filter = {'student_class': student_class, 'period': period_num, 'day': weekday}
+        if subject_id:
+            sched_filter['subject_id'] = subject_id
+
+        sched = Schedule.objects.filter(**sched_filter).select_related('subject').first()
         
-        subject_name = sched.subject.name if (sched and sched.subject) else "General"
-        subject_code = sched.subject.code if (sched and sched.subject) else "GEN"
+        if not sched and lock and lock.subject:
+            subject_name = lock.subject.name
+            subject_code = lock.subject.code
+        else:
+            subject_name = sched.subject.name if (sched and sched.subject) else "General"
+            subject_code = sched.subject.code if (sched and sched.subject) else "GEN"
 
         students = Student.objects.filter(student_class=student_class).select_related('user').order_by('reg_no', 'user__username')
 
-        atts = Attendance.objects.filter(
-            student__student_class=student_class,
-            date=target_date,
-            schedule__period=period_num
-        )
+        atts_filter = {
+            'student__student_class': student_class,
+            'date': target_date,
+            'schedule__period': period_num
+        }
+        if subject_id:
+            atts_filter['schedule__subject_id'] = subject_id
+
+        atts = Attendance.objects.filter(**atts_filter)
         att_dict = {a.student_id: a.status for a in atts}
 
         student_list = []
@@ -2074,11 +2134,103 @@ class AttendanceViewSet(viewsets.ModelViewSet):
             'formatted_date': target_date.strftime('%A, %d %B %Y'),
             'class_id': student_class.id,
             'class_name': student_class.name,
+            'class_display_name': student_class.display_name,
             'period': period_num,
-            'subject_code': subject_code,
             'subject_name': subject_name,
+            'subject_code': subject_code,
+            'note': lock.note if lock else '',
             'students': student_list
         })
+
+    @action(detail=False, methods=['get'], url_path='subject-period-records')
+    def subject_period_records(self, request):
+        user = request.user
+        if user.role not in ['staff', 'hod', 'admin']:
+            return Response({'detail': 'Access denied.'}, status=status.HTTP_403_FORBIDDEN)
+
+        subject_id = request.query_params.get('subject_id')
+        class_id = request.query_params.get('class_id')
+
+        if not subject_id or not class_id:
+            return Response({'detail': 'Missing subject_id or class_id.'}, status=status.HTTP_400_BAD_REQUEST)
+
+        from .models import PeriodLock, Attendance
+        from accounts.models import Class, Student, Subject
+
+        student_class = get_object_or_404(Class, id=class_id)
+        subject = get_object_or_404(Subject, id=subject_id)
+        students = list(Student.objects.filter(student_class=student_class))
+        total_students = len(students)
+
+        locks = PeriodLock.objects.filter(
+            student_class=student_class,
+            subject=subject
+        ).select_related('staff').order_by('-date', '-period')
+
+        records = []
+        for lock in locks:
+            atts = Attendance.objects.filter(
+                student__in=students,
+                date=lock.date,
+                schedule__period=lock.period,
+                schedule__subject=subject
+            )
+            present_cnt = atts.filter(status='Present').count()
+            absent_cnt = atts.filter(status='Absent').count()
+            od_cnt = atts.filter(status='OD').count()
+            leave_cnt = atts.filter(status='Leave').count()
+
+            start_hour = 9 + (lock.period - 1)
+            if lock.period >= 5:
+                start_hour += 1
+            start_time_str = f"{start_hour:02d}:00"
+            end_time_str = f"{start_hour + 1:02d}:00"
+
+            records.append({
+                'id': lock.id,
+                'date': lock.date.strftime('%Y-%m-%d'),
+                'formatted_date': lock.date.strftime('%d %b %Y (%A)'),
+                'period': lock.period,
+                'time_range': f"{start_time_str} - {end_time_str}",
+                'staff_name': f"{lock.staff.first_name} {lock.staff.last_name}".strip() or lock.staff.username,
+                'note': lock.note or '',
+                'total_students': total_students,
+                'present_count': present_cnt,
+                'absent_count': absent_cnt,
+                'od_count': od_cnt,
+                'leave_count': leave_cnt
+            })
+
+        return Response({
+            'class_name': student_class.display_name,
+            'subject_name': subject.name,
+            'subject_code': subject.code,
+            'records': records
+        })
+
+    @action(detail=False, methods=['post'], url_path='update-period-note')
+    def update_period_note(self, request):
+        user = request.user
+        if user.role not in ['staff', 'hod', 'admin']:
+            return Response({'detail': 'Access denied.'}, status=status.HTTP_403_FORBIDDEN)
+
+        lock_id = request.data.get('lock_id')
+        note = request.data.get('note', '')
+
+        if not lock_id:
+            return Response({'detail': 'Missing lock_id.'}, status=status.HTTP_400_BAD_REQUEST)
+
+        from .models import PeriodLock
+        lock = get_object_or_404(PeriodLock, id=lock_id)
+
+        is_advisor = (lock.student_class.advisor == user)
+        if lock.staff != user and not is_advisor and user.role not in ['hod', 'admin']:
+            return Response({'detail': 'Permission denied to edit note for this period.'}, status=status.HTTP_403_FORBIDDEN)
+
+        lock.note = note
+        lock.save()
+
+        return Response({'success': True, 'detail': 'Period note updated successfully.', 'note': lock.note})
 
     @action(detail=False, methods=['post'], url_path='update-staff-history-session')
     def update_staff_history_session(self, request):

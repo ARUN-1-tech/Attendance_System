@@ -701,8 +701,7 @@ class UserPasswordChangeAndManualAttendanceTestCase(TestCase):
         }, content_type='application/json')
         self.assertEqual(response.status_code, 200)
 
-        # But if advisor tries to save subject manual attendance for ANY locked period -> should fail (advisors must use whole day page)
-        # Verify that lock is now owned by advisor (staff_user)
+        # Advisors and assigned subject teachers can save manual attendance for locked periods they own or advise
         self.assertEqual(PeriodLock.objects.get(student_class=self.clazz, date='2026-06-25', period=1).staff, self.staff_user)
         
         response = self.client.post('/api/attendances/save-class-manual-attendance/', {
@@ -714,8 +713,21 @@ class UserPasswordChangeAndManualAttendanceTestCase(TestCase):
                 str(self.student_user.id): 'Present'
             }
         }, content_type='application/json')
-        self.assertEqual(response.status_code, 400)
-        self.assertIn("edit through Advisor Whole Day", response.data['detail'])
+        self.assertEqual(response.status_code, 200)
+
+        # Unassigned staff trying to overwrite lock owned by another staff should fail
+        other_staff = User.objects.create_user(username='other_staff', password='password123', role='staff')
+        self.client.login(username='other_staff', password='password123')
+        response_conflict = self.client.post('/api/attendances/save-class-manual-attendance/', {
+            'class_id': self.clazz.id,
+            'subject_id': self.subject.id,
+            'date': '2026-06-25',
+            'period': '1',
+            'statuses': {
+                str(self.student_user.id): 'Present'
+            }
+        }, content_type='application/json')
+        self.assertEqual(response_conflict.status_code, 400)
 
     def test_default_present_in_subject_manual_save(self):
         self.client.login(username='staff_user', password='staffpass123')

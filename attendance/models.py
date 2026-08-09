@@ -46,14 +46,18 @@ class Attendance(models.Model):
 
 class PeriodLock(models.Model):
     student_class = models.ForeignKey('accounts.Class', on_delete=models.CASCADE)
+    subject = models.ForeignKey('accounts.Subject', on_delete=models.SET_NULL, null=True, blank=True)
     date = models.DateField(db_index=True)
     period = models.IntegerField()
     staff = models.ForeignKey('accounts.User', on_delete=models.CASCADE)
+    note = models.TextField(blank=True, null=True, default='')
+    created_at = models.DateTimeField(auto_now_add=True, null=True, blank=True)
 
     class Meta:
         unique_together = ('student_class', 'date', 'period')
         indexes = [
             models.Index(fields=['student_class', 'date', 'period']),
+            models.Index(fields=['student_class', 'subject', 'date']),
         ]
 
     def __str__(self):
