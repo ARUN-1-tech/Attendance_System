@@ -86,6 +86,10 @@ const StaffDashboard = ({ activeTab }) => {
   const [subjectStudentsAttendance, setSubjectStudentsAttendance] = useState(null);
   const [subjectDetailsLoading, setSubjectDetailsLoading] = useState(false);
   const [subjectDetailsError, setSubjectDetailsError] = useState(null);
+  const [subjectDetailsViewMode, setSubjectDetailsViewMode] = useState('students');
+  const [subjectSessions, setSubjectSessions] = useState([]);
+  const [subjectSessionsLoading, setSubjectSessionsLoading] = useState(false);
+  const [subjectSessionsError, setSubjectSessionsError] = useState(null);
   const [subjectFormOpen, setSubjectFormOpen] = useState(false);
   const [editingSubject, setEditingSubject] = useState(null);
   const [subjectName, setSubjectName] = useState('');
@@ -351,6 +355,8 @@ const StaffDashboard = ({ activeTab }) => {
         setAdvisedClass(myAdvisedClass);
       }
       fetchAdvisorStudents();
+    } else if (activeTab === 'reports') {
+      if (students.length === 0) fetchStudents();
     }
   }, [activeTab, classes]);
 
@@ -556,6 +562,7 @@ const StaffDashboard = ({ activeTab }) => {
     setSubjectDetailsLoading(true);
     setSubjectDetailsError(null);
     setSubjectStudentsAttendance(null);
+    setSubjectDetailsViewMode('students');
     try {
       const data = await api.get(`/api/attendances/advisor-subject-report-json/?subject_id=${sub.id}`);
       setSubjectStudentsAttendance(data);
@@ -564,6 +571,35 @@ const StaffDashboard = ({ activeTab }) => {
       setSubjectDetailsError(err.message || 'Failed to fetch subject details.');
     } finally {
       setSubjectDetailsLoading(false);
+    }
+  };
+
+  const fetchSubjectSessions = async (subjectId) => {
+    setSubjectSessionsLoading(true);
+    setSubjectSessionsError(null);
+    try {
+      const data = await api.get(`/api/attendances/advisor-subject-sessions/?subject_id=${subjectId}`);
+      setSubjectSessions(data);
+    } catch (err) {
+      console.error('Failed to fetch subject sessions:', err);
+      setSubjectSessionsError(err.message || 'Failed to fetch subject sessions.');
+    } finally {
+      setSubjectSessionsLoading(false);
+    }
+  };
+
+  const handleDeleteSession = async (subjectId, date, period) => {
+    if (!window.confirm(`Are you sure you want to delete attendance for ${date} Period ${period}? This will remove it from the entire database.`)) {
+      return;
+    }
+    try {
+      await api.delete(`/api/attendances/advisor-subject-sessions/?subject_id=${subjectId}&date=${date}&period=${period}`);
+      alert('Attendance session deleted successfully.');
+      fetchSubjectSessions(subjectId);
+      handleViewSubjectDetails(selectedSubjectDetails);
+    } catch (err) {
+      console.error('Failed to delete attendance session:', err);
+      alert('Failed to delete attendance session: ' + (err.message || 'Unknown error'));
     }
   };
 
@@ -3967,6 +4003,20 @@ const StaffDashboard = ({ activeTab }) => {
                   </span>
                 </div>
                 <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+                  <button
+                    className="btn btn-secondary"
+                    style={{ padding: '6px 12px', fontSize: '13px', display: 'flex', alignItems: 'center', gap: '6px' }}
+                    onClick={() => {
+                      if (subjectDetailsViewMode === 'students') {
+                        setSubjectDetailsViewMode('sessions');
+                        fetchSubjectSessions(selectedSubjectDetails.id);
+                      } else {
+                        setSubjectDetailsViewMode('students');
+                      }
+                    }}
+                  >
+                    {subjectDetailsViewMode === 'students' ? 'Alter Subject Attendance' : 'View Students Summary'}
+                  </button>
                   {(selectedSubjectDetails.subject_type === 'OPEN_ELECTIVE' || selectedSubjectDetails.subject_type === 'PROFESSIONAL_ELECTIVE') && (
                     <button 
                       className="btn btn-secondary" 
@@ -3987,82 +4037,141 @@ const StaffDashboard = ({ activeTab }) => {
                 </div>
               </div>
 
-              {subjectDetailsLoading ? (
-                <div style={{ textAlign: 'center', padding: '40px' }}>
-                  <div className="spinner" style={{ display: 'inline-block', width: '30px', height: '30px', border: '3px solid var(--border-color)', borderTop: '3px solid var(--accent-primary)', borderRadius: '50%', animation: 'spin 1s linear infinite' }} />
-                  <p style={{ marginTop: '12px', color: 'var(--text-secondary)' }}>Loading student details...</p>
-                </div>
-              ) : subjectDetailsError ? (
-                <div style={{ textAlign: 'center', padding: '20px', color: 'var(--danger)' }}>
-                  Error: {subjectDetailsError}
-                </div>
-              ) : !subjectStudentsAttendance || !subjectStudentsAttendance.students || subjectStudentsAttendance.students.length === 0 ? (
-                <div style={{ textAlign: 'center', padding: '20px', color: 'var(--text-muted)' }}>
-                  No enrolled students or statistics available.
-                </div>
+              {subjectDetailsViewMode === 'students' ? (
+                <>
+                  {subjectDetailsLoading ? (
+                    <div style={{ textAlign: 'center', padding: '40px' }}>
+                      <div className="spinner" style={{ display: 'inline-block', width: '30px', height: '30px', border: '3px solid var(--border-color)', borderTop: '3px solid var(--accent-primary)', borderRadius: '50%', animation: 'spin 1s linear infinite' }} />
+                      <p style={{ marginTop: '12px', color: 'var(--text-secondary)' }}>Loading student details...</p>
+                    </div>
+                  ) : subjectDetailsError ? (
+                    <div style={{ textAlign: 'center', padding: '20px', color: 'var(--danger)' }}>
+                      Error: {subjectDetailsError}
+                    </div>
+                  ) : !subjectStudentsAttendance || !subjectStudentsAttendance.students || subjectStudentsAttendance.students.length === 0 ? (
+                    <div style={{ textAlign: 'center', padding: '20px', color: 'var(--text-muted)' }}>
+                      No enrolled students or statistics available.
+                    </div>
+                  ) : (
+                    <div>
+                      {Object.entries(
+                        subjectStudentsAttendance.students.reduce((acc, stud) => {
+                          const cName = stud.class_name || 'Unassigned Class';
+                          if (!acc[cName]) acc[cName] = [];
+                          acc[cName].push(stud);
+                          return acc;
+                        }, {})
+                      ).map(([className, classStudents], cIdx) => (
+                        <div key={cIdx} style={{ marginBottom: '24px' }}>
+                          <div style={{
+                            backgroundColor: 'var(--bg-secondary)',
+                            padding: '10px 14px',
+                            borderRadius: '8px',
+                            marginBottom: '12px',
+                            display: 'flex',
+                            justify: 'space-between',
+                            alignItems: 'center',
+                            borderLeft: '4px solid var(--accent-primary)'
+                          }}>
+                            <h4 style={{ margin: 0, fontSize: '14px', fontWeight: '700', color: 'var(--text-primary)' }}>
+                              Class: {className}
+                            </h4>
+                            <span className="badge badge-info">{classStudents.length} Students</span>
+                          </div>
+
+                          <div className="table-container">
+                            <table className="table">
+                              <thead>
+                                <tr>
+                                  <th style={{ width: '50px' }}>S.No</th>
+                                  <th>Reg No</th>
+                                  <th>Student Name</th>
+                                  <th>Total Hours</th>
+                                  <th>Present</th>
+                                  <th>Absent</th>
+                                  <th>OD</th>
+                                  <th>Leave</th>
+                                  <th>Percentage</th>
+                                </tr>
+                              </thead>
+                              <tbody>
+                                {classStudents.map((stud, idx) => (
+                                  <tr key={stud.id}>
+                                    <td style={{ fontWeight: '600' }}>{idx + 1}</td>
+                                    <td style={{ fontWeight: '600' }}>{stud.reg_no}</td>
+                                    <td>{stud.name}</td>
+                                    <td>{stud.total_hours}</td>
+                                    <td style={{ color: 'var(--success)' }}>{stud.present_count}</td>
+                                    <td style={{ color: 'var(--danger)' }}>{stud.absent_count}</td>
+                                    <td style={{ color: 'var(--info)' }}>{stud.od_count}</td>
+                                    <td style={{ color: 'var(--warning)' }}>{stud.leave_count}</td>
+                                    <td style={{ fontWeight: '600', color: stud.percentage >= 75.0 ? 'var(--success)' : 'var(--danger)' }}>
+                                      {stud.percentage}%
+                                    </td>
+                                  </tr>
+                                ))}
+                              </tbody>
+                            </table>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </>
               ) : (
                 <div>
-                  {Object.entries(
-                    subjectStudentsAttendance.students.reduce((acc, stud) => {
-                      const cName = stud.class_name || 'Unassigned Class';
-                      if (!acc[cName]) acc[cName] = [];
-                      acc[cName].push(stud);
-                      return acc;
-                    }, {})
-                  ).map(([className, classStudents], cIdx) => (
-                    <div key={cIdx} style={{ marginBottom: '24px' }}>
-                      <div style={{
-                        backgroundColor: 'var(--bg-secondary)',
-                        padding: '10px 14px',
-                        borderRadius: '8px',
-                        marginBottom: '12px',
-                        display: 'flex',
-                        justify: 'space-between',
-                        alignItems: 'center',
-                        borderLeft: '4px solid var(--accent-primary)'
-                      }}>
-                        <h4 style={{ margin: 0, fontSize: '14px', fontWeight: '700', color: 'var(--text-primary)' }}>
-                          Class: {className}
-                        </h4>
-                        <span className="badge badge-info">{classStudents.length} Students</span>
-                      </div>
-
-                      <div className="table-container">
-                        <table className="table">
-                          <thead>
-                            <tr>
-                              <th style={{ width: '50px' }}>S.No</th>
-                              <th>Reg No</th>
-                              <th>Student Name</th>
-                              <th>Total Hours</th>
-                              <th>Present</th>
-                              <th>Absent</th>
-                              <th>OD</th>
-                              <th>Leave</th>
-                              <th>Percentage</th>
-                            </tr>
-                          </thead>
-                          <tbody>
-                            {classStudents.map((stud, idx) => (
-                              <tr key={stud.id}>
-                                <td style={{ fontWeight: '600' }}>{idx + 1}</td>
-                                <td style={{ fontWeight: '600' }}>{stud.reg_no}</td>
-                                <td>{stud.name}</td>
-                                <td>{stud.total_hours}</td>
-                                <td style={{ color: 'var(--success)' }}>{stud.present_count}</td>
-                                <td style={{ color: 'var(--danger)' }}>{stud.absent_count}</td>
-                                <td style={{ color: 'var(--info)' }}>{stud.od_count}</td>
-                                <td style={{ color: 'var(--warning)' }}>{stud.leave_count}</td>
-                                <td style={{ fontWeight: '600', color: stud.percentage >= 75.0 ? 'var(--success)' : 'var(--danger)' }}>
-                                  {stud.percentage}%
-                                </td>
-                              </tr>
-                            ))}
-                          </tbody>
-                        </table>
-                      </div>
+                  {subjectSessionsLoading ? (
+                    <div style={{ textAlign: 'center', padding: '40px' }}>
+                      <div className="spinner" style={{ display: 'inline-block', width: '30px', height: '30px', border: '3px solid var(--border-color)', borderTop: '3px solid var(--accent-primary)', borderRadius: '50%', animation: 'spin 1s linear infinite' }} />
+                      <p style={{ marginTop: '12px', color: 'var(--text-secondary)' }}>Loading sessions...</p>
                     </div>
-                  ))}
+                  ) : subjectSessionsError ? (
+                    <div style={{ textAlign: 'center', padding: '20px', color: 'var(--danger)' }}>
+                      Error: {subjectSessionsError}
+                    </div>
+                  ) : !subjectSessions || subjectSessions.length === 0 ? (
+                    <div style={{ textAlign: 'center', padding: '20px', color: 'var(--text-muted)' }}>
+                      No attendance sessions found.
+                    </div>
+                  ) : (
+                    <div className="table-container">
+                      <table className="table">
+                        <thead>
+                          <tr>
+                            <th>Date</th>
+                            <th>Period</th>
+                            <th>Present</th>
+                            <th>Absent</th>
+                            <th>OD</th>
+                            <th>Leave</th>
+                            <th>Actions</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {subjectSessions.map((session, idx) => (
+                            <tr key={`${session.date}-${session.schedule__period}`}>
+                              <td>{session.date}</td>
+                              <td>{session.schedule__period}</td>
+                              <td style={{ color: 'var(--success)' }}>{session.present_count}</td>
+                              <td style={{ color: 'var(--danger)' }}>{session.absent_count}</td>
+                              <td style={{ color: 'var(--info)' }}>{session.od_count}</td>
+                              <td style={{ color: 'var(--warning)' }}>{session.leave_count}</td>
+                              <td>
+                                <button
+                                  className="btn btn-secondary btn-sm"
+                                  style={{ padding: '4px 8px', color: 'var(--danger)', borderColor: 'rgba(239, 68, 68, 0.3)', display: 'flex', alignItems: 'center', gap: '4px' }}
+                                  onClick={() => handleDeleteSession(selectedSubjectDetails.id, session.date, session.schedule__period)}
+                                  title="Delete entire session from database"
+                                >
+                                  <Trash2 size={14} /> Delete
+                                </button>
+                              </td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  )}
                 </div>
               )}
             </div>

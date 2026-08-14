@@ -1391,6 +1391,82 @@ class AttendanceViewSet(viewsets.ModelViewSet):
             'students': student_data
         })
 
+
+    @action(detail=False, methods=['get', 'delete'], url_path='advisor-subject-sessions')
+    def advisor_subject_sessions(self, request):
+        user = self.request.user
+        if user.role not in ['staff', 'hod']:
+            return Response({'detail': 'Only staff and HOD members can access subject details.'}, status=status.HTTP_403_FORBIDDEN)
+            
+        subject_id = request.query_params.get('subject_id')
+        if not subject_id:
+            return Response({'detail': 'subject_id is required.'}, status=status.HTTP_400_BAD_REQUEST)
+            
+        from accounts.models import Subject, Student, Class
+        subject = get_object_or_404(Subject, id=subject_id)
+        class_id = request.query_params.get('class_id')
+        
+        if subject.subject_type in ['OPEN_ELECTIVE', 'PROFESSIONAL_ELECTIVE'] and not class_id:
+            students = subject.get_enrolled_students()
+        else:
+            if class_id:
+                if user.role == 'staff':
+                    target_class = Class.objects.filter(id=class_id, advisor=user).first()
+                    if not target_class and subject.staff != user:
+                        return Response({'detail': 'Access denied.'}, status=status.HTTP_403_FORBIDDEN)
+                    elif not target_class:
+                        target_class = Class.objects.filter(id=class_id).first()
+                else:
+                    target_class = Class.objects.filter(id=class_id).first()
+            else:
+                advised_class = Class.objects.filter(advisor=user).first()
+                target_class = subject.student_class or advised_class
+                
+            if target_class:
+                students = target_class.get_students()
+                if subject.subject_type in ['OPEN_ELECTIVE', 'PROFESSIONAL_ELECTIVE']:
+                    students = students.filter(id__in=subject.elective_students.values_list('user_id', flat=True))
+            else:
+                students = Student.objects.none()
+
+        if request.method == 'GET':
+            from django.db.models import Count, Q
+            records = Attendance.objects.filter(
+                schedule__subject=subject,
+                student__in=students
+            ).values('date', 'schedule__period').annotate(
+                present_count=Count('id', filter=Q(status='Present')),
+                absent_count=Count('id', filter=Q(status='Absent')),
+                od_count=Count('id', filter=Q(status='OD')),
+                leave_count=Count('id', filter=Q(status='Leave')),
+            ).order_by('-date', '-schedule__period')
+            
+            return Response(list(records))
+            
+        elif request.method == 'DELETE':
+            date = request.data.get('date') or request.query_params.get('date')
+            period = request.data.get('period') or request.query_params.get('period')
+            if not date or not period:
+                return Response({'detail': 'date and period are required.'}, status=status.HTTP_400_BAD_REQUEST)
+                
+            deleted_count, _ = Attendance.objects.filter(
+                schedule__subject=subject,
+                student__in=students,
+                date=date,
+                schedule__period=period
+            ).delete()
+            
+            from attendance.models import PeriodLock
+            if target_class:
+                PeriodLock.objects.filter(
+                    student_class=target_class,
+                    subject=subject,
+                    date=date,
+                    period=period
+                ).delete()
+                
+            return Response({'detail': f'Deleted {deleted_count} attendance records successfully.'})
+
     @action(detail=False, methods=['get'], url_path='session-download')
     def session_download(self, request):
         user = self.request.user
