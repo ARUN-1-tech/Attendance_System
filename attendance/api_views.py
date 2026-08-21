@@ -2256,38 +2256,69 @@ class AttendanceViewSet(viewsets.ModelViewSet):
         students = list(Student.objects.filter(student_class=student_class))
         total_students = len(students)
 
-        locks = PeriodLock.objects.filter(
-            student_class=student_class,
-            subject=subject
-        ).select_related('staff').order_by('-date', '-period')
+        lock_tuples = set(
+            PeriodLock.objects.filter(student_class=student_class, subject=subject)
+            .values_list('date', 'period')
+        )
+        
+        att_tuples = set(
+            Attendance.objects.filter(student__in=students, schedule__subject=subject)
+            .values_list('date', 'schedule__period')
+        )
+
+        all_tuples = sorted(list(lock_tuples | att_tuples), key=lambda x: (x[0], x[1]), reverse=True)
 
         records = []
-        for lock in locks:
+        tot_present = 0
+        tot_absent = 0
+        tot_od = 0
+        tot_leave = 0
+
+        for d_val, p_val in all_tuples:
+            lock = PeriodLock.objects.filter(student_class=student_class, date=d_val, period=p_val).first()
             atts = Attendance.objects.filter(
                 student__in=students,
-                date=lock.date,
-                schedule__period=lock.period,
+                date=d_val,
+                schedule__period=p_val,
                 schedule__subject=subject
             )
+            
             present_cnt = atts.filter(status='Present').count()
             absent_cnt = atts.filter(status='Absent').count()
             od_cnt = atts.filter(status='OD').count()
             leave_cnt = atts.filter(status='Leave').count()
 
-            start_hour = 9 + (lock.period - 1)
-            if lock.period >= 5:
+            tot_present += present_cnt
+            tot_absent += absent_cnt
+            tot_od += od_cnt
+            tot_leave += leave_cnt
+
+            start_hour = 9 + (p_val - 1)
+            if p_val >= 5:
                 start_hour += 1
             start_time_str = f"{start_hour:02d}:00"
             end_time_str = f"{start_hour + 1:02d}:00"
 
+            staff_name = ''
+            note = ''
+            lock_id = None
+            if lock:
+                lock_id = lock.id
+                if lock.staff:
+                    staff_name = f"{lock.staff.first_name} {lock.staff.last_name}".strip() or lock.staff.username
+                note = lock.note or ''
+            
+            if not staff_name and subject.staff:
+                staff_name = f"{subject.staff.first_name} {subject.staff.last_name}".strip() or subject.staff.username
+
             records.append({
-                'id': lock.id,
-                'date': lock.date.strftime('%Y-%m-%d'),
-                'formatted_date': lock.date.strftime('%d %b %Y (%A)'),
-                'period': lock.period,
+                'id': lock_id,
+                'date': d_val.strftime('%Y-%m-%d'),
+                'formatted_date': d_val.strftime('%d %b %Y (%A)'),
+                'period': p_val,
                 'time_range': f"{start_time_str} - {end_time_str}",
-                'staff_name': f"{lock.staff.first_name} {lock.staff.last_name}".strip() or lock.staff.username,
-                'note': lock.note or '',
+                'staff_name': staff_name or 'Faculty',
+                'note': note,
                 'total_students': total_students,
                 'present_count': present_cnt,
                 'absent_count': absent_cnt,
@@ -2295,10 +2326,23 @@ class AttendanceViewSet(viewsets.ModelViewSet):
                 'leave_count': leave_cnt
             })
 
+        total_periods = len(records)
+        total_possible = total_periods * total_students
+        avg_pct = round((tot_present / total_possible) * 100, 1) if total_possible > 0 else 0.0
+
         return Response({
             'class_name': student_class.display_name,
             'subject_name': subject.name,
             'subject_code': subject.code,
+            'summary': {
+                'total_periods': total_periods,
+                'total_students': total_students,
+                'avg_percentage': avg_pct,
+                'total_present': tot_present,
+                'total_absent': tot_absent,
+                'total_od': tot_od,
+                'total_leave': tot_leave
+            },
             'records': records
         })
 
@@ -2310,21 +2354,41 @@ class AttendanceViewSet(viewsets.ModelViewSet):
 
         lock_id = request.data.get('lock_id')
         note = request.data.get('note', '')
-
-        if not lock_id:
-            return Response({'detail': 'Missing lock_id.'}, status=status.HTTP_400_BAD_REQUEST)
+        date_str = request.data.get('date')
+        period = request.data.get('period')
+        subject_id = request.data.get('subject_id')
+        class_id = request.data.get('class_id')
 
         from .models import PeriodLock
-        lock = get_object_or_404(PeriodLock, id=lock_id)
 
-        is_advisor = (lock.student_class.advisor == user)
+        lock = None
+        if lock_id:
+            lock = PeriodLock.objects.filter(id=lock_id).first()
+        
+        if not lock and date_str and period and subject_id and class_id:
+            try:
+                target_date = datetime.datetime.strptime(date_str, '%Y-%m-%d').date()
+                lock, _ = PeriodLock.objects.update_or_create(
+                    student_class_id=class_id,
+                    subject_id=subject_id,
+                    date=target_date,
+                    period=int(period),
+                    defaults={'staff': user}
+                )
+            except Exception:
+                pass
+
+        if not lock:
+            return Response({'detail': 'Lock record not found.'}, status=status.HTTP_404_NOT_FOUND)
+
+        is_advisor = (lock.student_class and lock.student_class.advisor == user)
         if lock.staff != user and not is_advisor and user.role not in ['hod', 'admin']:
             return Response({'detail': 'Permission denied to edit note for this period.'}, status=status.HTTP_403_FORBIDDEN)
 
         lock.note = note
         lock.save()
 
-        return Response({'success': True, 'detail': 'Period note updated successfully.', 'note': lock.note})
+        return Response({'success': True, 'detail': 'Period note updated successfully.', 'lock_id': lock.id, 'note': lock.note})
 
     @action(detail=False, methods=['post'], url_path='update-staff-history-session')
     def update_staff_history_session(self, request):

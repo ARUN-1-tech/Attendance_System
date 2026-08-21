@@ -251,6 +251,7 @@ const StaffDashboard = ({ activeTab }) => {
 
   const [mySubjectViewMode, setMySubjectViewMode] = useState('students');
   const [subjectPeriodRecords, setSubjectPeriodRecords] = useState([]);
+  const [subjectPeriodSummary, setSubjectPeriodSummary] = useState(null);
   const [subjectPeriodRecordsLoading, setSubjectPeriodRecordsLoading] = useState(false);
   const [editingNoteLockId, setEditingNoteLockId] = useState(null);
   const [editingNoteText, setEditingNoteText] = useState('');
@@ -262,22 +263,30 @@ const StaffDashboard = ({ activeTab }) => {
     try {
       const res = await api.get(`/api/attendances/subject-period-records/?subject_id=${subjectId}&class_id=${classId}`);
       setSubjectPeriodRecords(res.records || []);
+      setSubjectPeriodSummary(res.summary || null);
     } catch (err) {
       console.error('Failed to fetch period records:', err);
       setSubjectPeriodRecords([]);
+      setSubjectPeriodSummary(null);
     } finally {
       setSubjectPeriodRecordsLoading(false);
     }
   };
 
-  const handleSavePeriodNote = async (lockId) => {
+  const handleSavePeriodNote = async (rec) => {
     setSavingNoteLoading(true);
     try {
-      const res = await api.post('/api/attendances/update-period-note/', {
-        lock_id: lockId,
+      const payload = rec.id ? { lock_id: rec.id, note: editingNoteText } : {
+        subject_id: selectedMySubject?.subject?.id,
+        class_id: selectedMySubject?.classId,
+        date: rec.date,
+        period: rec.period,
         note: editingNoteText
-      });
-      setSubjectPeriodRecords(prev => prev.map(r => r.id === lockId ? { ...r, note: res.note } : r));
+      };
+      const res = await api.post('/api/attendances/update-period-note/', payload);
+      setSubjectPeriodRecords(prev => prev.map(r => (
+        (r.id && r.id === rec.id) || (r.date === rec.date && r.period === rec.period)
+      ) ? { ...r, id: res.lock_id || r.id, note: res.note } : r));
       setEditingNoteLockId(null);
       setEditingNoteText('');
       alert('Period note saved successfully!');
@@ -4589,116 +4598,159 @@ const StaffDashboard = ({ activeTab }) => {
                 )}
               </div>
             ) : (
-              <div className="card">
-                {subjectPeriodRecordsLoading ? (
-                  <div style={{ textAlign: 'center', padding: '40px' }}>
-                    <div className="spinner" style={{ display: 'inline-block', width: '30px', height: '30px', border: '3px solid var(--border-color)', borderTop: '3px solid var(--accent-primary)', borderRadius: '50%', animation: 'spin 1s linear infinite' }} />
-                    <p style={{ marginTop: '12px', color: 'var(--text-secondary)' }}>Loading conducted period records & notes...</p>
+              <div>
+                {subjectPeriodSummary && (
+                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: '14px', marginBottom: '16px' }}>
+                    <div className="card" style={{ padding: '14px 16px', display: 'flex', alignItems: 'center', gap: '12px', borderLeft: '4px solid var(--accent-primary)', marginBottom: 0 }}>
+                      <Calendar size={22} style={{ color: 'var(--accent-primary)' }} />
+                      <div>
+                        <span style={{ fontSize: '11px', color: 'var(--text-muted)', fontWeight: '600', textTransform: 'uppercase', display: 'block' }}>Total Conducted Periods</span>
+                        <strong style={{ fontSize: '18px', color: 'var(--text-primary)' }}>{subjectPeriodSummary.total_periods}</strong>
+                      </div>
+                    </div>
+
+                    <div className="card" style={{ padding: '14px 16px', display: 'flex', alignItems: 'center', gap: '12px', borderLeft: '4px solid var(--info)', marginBottom: 0 }}>
+                      <Users size={22} style={{ color: 'var(--info)' }} />
+                      <div>
+                        <span style={{ fontSize: '11px', color: 'var(--text-muted)', fontWeight: '600', textTransform: 'uppercase', display: 'block' }}>Total Class Students</span>
+                        <strong style={{ fontSize: '18px', color: 'var(--text-primary)' }}>{subjectPeriodSummary.total_students}</strong>
+                      </div>
+                    </div>
+
+                    <div className="card" style={{ padding: '14px 16px', display: 'flex', alignItems: 'center', gap: '12px', borderLeft: '4px solid var(--success)', marginBottom: 0 }}>
+                      <Award size={22} style={{ color: 'var(--success)' }} />
+                      <div>
+                        <span style={{ fontSize: '11px', color: 'var(--text-muted)', fontWeight: '600', textTransform: 'uppercase', display: 'block' }}>Avg Subject Attendance</span>
+                        <strong style={{ fontSize: '18px', color: subjectPeriodSummary.avg_percentage >= 75 ? 'var(--success)' : 'var(--danger)' }}>
+                          {subjectPeriodSummary.avg_percentage}%
+                        </strong>
+                      </div>
+                    </div>
+
+                    <div className="card" style={{ padding: '14px 16px', display: 'flex', alignItems: 'center', gap: '12px', borderLeft: '4px solid var(--warning)', marginBottom: 0 }}>
+                      <CheckCircle size={22} style={{ color: 'var(--success)' }} />
+                      <div>
+                        <span style={{ fontSize: '11px', color: 'var(--text-muted)', fontWeight: '600', textTransform: 'uppercase', display: 'block' }}>Total Present / Absent / OD</span>
+                        <span style={{ fontSize: '13px', fontWeight: '700' }}>
+                          <span style={{ color: 'var(--success)' }}>{subjectPeriodSummary.total_present}P</span> &bull; <span style={{ color: 'var(--danger)' }}>{subjectPeriodSummary.total_absent}A</span> &bull; <span style={{ color: 'var(--info)' }}>{subjectPeriodSummary.total_od}OD</span>
+                        </span>
+                      </div>
+                    </div>
                   </div>
-                ) : subjectPeriodRecords.length === 0 ? (
-                  <div style={{ textAlign: 'center', padding: '48px' }}>
-                    <Calendar size={40} style={{ color: 'var(--text-muted)', marginBottom: '12px' }} />
-                    <h3 style={{ fontSize: '16px', fontWeight: '700', margin: '0 0 6px 0' }}>No Conducted Period Records Found</h3>
-                    <p style={{ color: 'var(--text-secondary)', fontSize: '13px', margin: 0 }}>
-                      Attendance records marked for this subject will appear here with date, period time, attendance statistics, and optional notes.
-                    </p>
-                  </div>
-                ) : (
-                  <div className="table-container">
-                    <table className="table">
-                      <thead>
-                        <tr>
-                          <th style={{ width: '50px' }}>#</th>
-                          <th>Date & Day</th>
-                          <th>Period & Time</th>
-                          <th>Marked Staff</th>
-                          <th style={{ textAlign: 'center' }}>Attendance Stats</th>
-                          <th>Class / Lesson Notes (Editable)</th>
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {subjectPeriodRecords.map((rec, idx) => {
-                          const isEditing = editingNoteLockId === rec.id;
-                          return (
-                            <tr key={rec.id || idx}>
-                              <td style={{ fontWeight: '600' }}>{idx + 1}</td>
-                              <td>
-                                <strong style={{ color: 'var(--text-primary)' }}>{rec.formatted_date}</strong>
-                              </td>
-                              <td>
-                                <span className="badge badge-secondary" style={{ fontWeight: '700' }}>
-                                  Period {rec.period} ({rec.time_range})
-                                </span>
-                              </td>
-                              <td style={{ fontSize: '13px', color: 'var(--text-secondary)' }}>
-                                {rec.staff_name}
-                              </td>
-                              <td style={{ textAlign: 'center', fontSize: '13px' }}>
-                                <span style={{ color: 'var(--success)', fontWeight: '700', marginRight: '8px' }}>P: {rec.present_count}</span>
-                                <span style={{ color: 'var(--danger)', fontWeight: '700', marginRight: '8px' }}>A: {rec.absent_count}</span>
-                                <span style={{ color: 'var(--warning)', fontWeight: '700' }}>O: {rec.od_count || 0}</span>
-                              </td>
-                              <td style={{ minWidth: '280px' }}>
-                                {isEditing ? (
-                                  <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-                                    <textarea
-                                      className="input"
-                                      rows={2}
-                                      value={editingNoteText}
-                                      onChange={(e) => setEditingNoteText(e.target.value)}
-                                      placeholder="Type class/lesson notes here (e.g. Unit 2 - Tree Traversals)..."
-                                      style={{ fontSize: '13px', width: '100%', resize: 'vertical' }}
-                                    />
-                                    <div style={{ display: 'flex', gap: '8px' }}>
-                                      <button
-                                        type="button"
-                                        className="btn btn-primary"
-                                        onClick={() => handleSavePeriodNote(rec.id)}
-                                        disabled={savingNoteLoading}
-                                        style={{ fontSize: '12px', padding: '4px 10px' }}
-                                      >
-                                        {savingNoteLoading ? 'Saving...' : 'Save Note'}
-                                      </button>
+                )}
+
+                <div className="card">
+                  {subjectPeriodRecordsLoading ? (
+                    <div style={{ textAlign: 'center', padding: '40px' }}>
+                      <div className="spinner" style={{ display: 'inline-block', width: '30px', height: '30px', border: '3px solid var(--border-color)', borderTop: '3px solid var(--accent-primary)', borderRadius: '50%', animation: 'spin 1s linear infinite' }} />
+                      <p style={{ marginTop: '12px', color: 'var(--text-secondary)' }}>Loading conducted period records & notes...</p>
+                    </div>
+                  ) : subjectPeriodRecords.length === 0 ? (
+                    <div style={{ textAlign: 'center', padding: '48px' }}>
+                      <Calendar size={40} style={{ color: 'var(--text-muted)', marginBottom: '12px' }} />
+                      <h3 style={{ fontSize: '16px', fontWeight: '700', margin: '0 0 6px 0' }}>No Conducted Period Records Found</h3>
+                      <p style={{ color: 'var(--text-secondary)', fontSize: '13px', margin: 0 }}>
+                        Attendance records marked for this subject will appear here with date, period time, attendance statistics, and optional notes.
+                      </p>
+                    </div>
+                  ) : (
+                    <div className="table-container">
+                      <table className="table">
+                        <thead>
+                          <tr>
+                            <th style={{ width: '50px' }}>#</th>
+                            <th>Date & Day</th>
+                            <th>Period & Time</th>
+                            <th>Marked Staff</th>
+                            <th style={{ textAlign: 'center' }}>Attendance Stats</th>
+                            <th>Class / Lesson Notes (Editable)</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {subjectPeriodRecords.map((rec, idx) => {
+                            const recKey = rec.id || `${rec.date}-${rec.period}`;
+                            const isEditing = editingNoteLockId === recKey;
+                            return (
+                              <tr key={recKey}>
+                                <td style={{ fontWeight: '600' }}>{idx + 1}</td>
+                                <td>
+                                  <strong style={{ color: 'var(--text-primary)' }}>{rec.formatted_date}</strong>
+                                </td>
+                                <td>
+                                  <span className="badge badge-secondary" style={{ fontWeight: '700' }}>
+                                    Period {rec.period} ({rec.time_range})
+                                  </span>
+                                </td>
+                                <td style={{ fontSize: '13px', color: 'var(--text-secondary)' }}>
+                                  {rec.staff_name}
+                                </td>
+                                <td style={{ textAlign: 'center', fontSize: '13px' }}>
+                                  <span style={{ color: 'var(--success)', fontWeight: '700', marginRight: '8px' }}>P: {rec.present_count}</span>
+                                  <span style={{ color: 'var(--danger)', fontWeight: '700', marginRight: '8px' }}>A: {rec.absent_count}</span>
+                                  <span style={{ color: 'var(--warning)', fontWeight: '700' }}>O: {rec.od_count || 0}</span>
+                                </td>
+                                <td style={{ minWidth: '280px' }}>
+                                  {isEditing ? (
+                                    <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                                      <textarea
+                                        className="input"
+                                        rows={2}
+                                        value={editingNoteText}
+                                        onChange={(e) => setEditingNoteText(e.target.value)}
+                                        placeholder="Type class/lesson notes here (e.g. Unit 2 - Tree Traversals)..."
+                                        style={{ fontSize: '13px', width: '100%', resize: 'vertical' }}
+                                      />
+                                      <div style={{ display: 'flex', gap: '8px' }}>
+                                        <button
+                                          type="button"
+                                          className="btn btn-primary"
+                                          onClick={() => handleSavePeriodNote(rec)}
+                                          disabled={savingNoteLoading}
+                                          style={{ fontSize: '12px', padding: '4px 10px' }}
+                                        >
+                                          {savingNoteLoading ? 'Saving...' : 'Save Note'}
+                                        </button>
+                                        <button
+                                          type="button"
+                                          className="btn btn-secondary"
+                                          onClick={() => {
+                                            setEditingNoteLockId(null);
+                                            setEditingNoteText('');
+                                          }}
+                                          style={{ fontSize: '12px', padding: '4px 10px' }}
+                                        >
+                                          Cancel
+                                        </button>
+                                      </div>
+                                    </div>
+                                  ) : (
+                                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: '8px' }}>
+                                      <div style={{ fontSize: '13px', color: rec.note ? 'var(--text-primary)' : 'var(--text-muted)' }}>
+                                        {rec.note || <em>No notes added yet</em>}
+                                      </div>
                                       <button
                                         type="button"
                                         className="btn btn-secondary"
                                         onClick={() => {
-                                          setEditingNoteLockId(null);
-                                          setEditingNoteText('');
+                                          setEditingNoteLockId(recKey);
+                                          setEditingNoteText(rec.note || '');
                                         }}
-                                        style={{ fontSize: '12px', padding: '4px 10px' }}
+                                        style={{ fontSize: '11px', padding: '2px 8px', display: 'flex', alignItems: 'center', gap: '4px', flexShrink: 0 }}
+                                        title="Edit optional note for this period session"
                                       >
-                                        Cancel
+                                        <span>✏️ Edit Note</span>
                                       </button>
                                     </div>
-                                  </div>
-                                ) : (
-                                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: '8px' }}>
-                                    <div style={{ fontSize: '13px', color: rec.note ? 'var(--text-primary)' : 'var(--text-muted)', italic: !rec.note }}>
-                                      {rec.note || <em>No notes added yet</em>}
-                                    </div>
-                                    <button
-                                      type="button"
-                                      className="btn btn-secondary"
-                                      onClick={() => {
-                                        setEditingNoteLockId(rec.id);
-                                        setEditingNoteText(rec.note || '');
-                                      }}
-                                      style={{ fontSize: '11px', padding: '2px 8px', display: 'flex', alignItems: 'center', gap: '4px', flexShrink: 0 }}
-                                      title="Edit optional note for this period session"
-                                    >
-                                      <span>✏️ Edit Note</span>
-                                    </button>
-                                  </div>
-                                )}
-                              </td>
-                            </tr>
-                          );
-                        })}
-                      </tbody>
-                    </table>
-                  </div>
-                )}
+                                  )}
+                                </td>
+                              </tr>
+                            );
+                          })}
+                        </tbody>
+                      </table>
+                    </div>
+                  )}
+                </div>
               </div>
             )}
           </div>
