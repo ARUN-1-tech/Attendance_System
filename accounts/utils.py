@@ -29,17 +29,20 @@ def get_live_class_attendance_matrix(student_class):
     today = timezone.localtime(timezone.now()).date()
     day_name = today.strftime('%A')
     
-    # 1. Get all schedules for today for this class, ordered by period
-    schedules = Schedule.objects.filter(student_class=student_class, day=day_name).order_by('period')
-    
-    # 2. Get all students of this class
+    # 1. Get all students of this class
     students = Student.objects.filter(student_class=student_class).select_related('user').order_by('reg_no', 'user__username')
     
-    # 3. Get all attendance records for today for these students
+    # 2. Get all attendance records for today for these students
     attendances = Attendance.objects.filter(
         student__in=students,
         date=today
     ).select_related('student', 'schedule__subject', 'schedule')
+
+    # Get set of schedule IDs that actually have attendance marked today
+    marked_schedule_ids = set(att.schedule_id for att in attendances)
+    
+    # 3. Get only the schedules for today that have attendance marked
+    schedules = Schedule.objects.filter(id__in=marked_schedule_ids).order_by('period')
     
     # Create lookups by schedule_id and period
     att_sched_lookup = { (att.student_id, att.schedule_id): att.status for att in attendances }

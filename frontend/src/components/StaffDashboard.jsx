@@ -3407,7 +3407,7 @@ const StaffDashboard = ({ activeTab }) => {
 
             {advisorLiveData.schedules.length === 0 ? (
               <div style={{ textAlign: 'center', padding: '40px', color: 'var(--text-muted)', fontStyle: 'italic' }}>
-                No periods scheduled for today.
+                No attendance marked yet today.
               </div>
             ) : (
               <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left', fontSize: '13px' }}>
