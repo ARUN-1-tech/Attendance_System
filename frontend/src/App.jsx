@@ -7,6 +7,7 @@ import StaffDashboard from './components/StaffDashboard';
 import HODDashboard from './components/HODDashboard';
 import { Menu, ShieldAlert, ExternalLink, RefreshCw } from 'lucide-react';
 import { api } from './api';
+import { Analytics } from '@vercel/analytics/react';
 import './App.css';
 
 class ErrorBoundary extends Component {
@@ -280,6 +281,7 @@ function App() {
       <AuthProvider>
         <MainPortal />
       </AuthProvider>
+      <Analytics />
     </ErrorBoundary>
   );
 }
