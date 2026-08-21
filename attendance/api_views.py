@@ -1755,6 +1755,15 @@ class AttendanceViewSet(viewsets.ModelViewSet):
 
                 students = list(Student.objects.filter(student_class=student_class))
                 
+                # Delete conflicting attendance records for other subjects on the same date and periods
+                Attendance.objects.filter(
+                    student__in=students,
+                    date=target_date,
+                    schedule__period__in=periods_list
+                ).exclude(
+                    schedule__in=schedules_to_update
+                ).delete()
+
                 existing_atts = {
                     (att.student_id, att.schedule_id): att
                     for att in Attendance.objects.filter(
@@ -1958,6 +1967,15 @@ class AttendanceViewSet(viewsets.ModelViewSet):
                 # Update or create attendance records for each student in the class using bulk operations
                 students = list(Student.objects.filter(student_class=advised_class))
                 all_schedules = list(schedules_by_period.values())
+
+                # Delete conflicting attendance records for other schedules on the same date for these periods
+                Attendance.objects.filter(
+                    student__in=students,
+                    date=target_date,
+                    schedule__period__in=list(range(1, 9))
+                ).exclude(
+                    schedule__in=all_schedules
+                ).delete()
 
                 existing_atts = {
                     (att.student_id, att.schedule_id): att
