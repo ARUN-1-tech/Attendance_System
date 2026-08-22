@@ -2266,7 +2266,34 @@ class AttendanceViewSet(viewsets.ModelViewSet):
             .values_list('date', 'schedule__period')
         )
 
-        all_tuples = sorted(list(lock_tuples | att_tuples), key=lambda x: (x[0], x[1]), reverse=True)
+        def parse_date_val(d):
+            if isinstance(d, datetime.date):
+                return d
+            if isinstance(d, datetime.datetime):
+                return d.date()
+            return datetime.datetime.strptime(str(d)[:10], '%Y-%m-%d').date()
+
+        raw_tuples = list(lock_tuples | att_tuples)
+        normalized_tuples = []
+        for d, p in raw_tuples:
+            try:
+                normalized_tuples.append((parse_date_val(d), int(p)))
+            except Exception:
+                pass
+
+        # Sort latest date to top, and on that date latest period to top
+        all_tuples = sorted(list(set(normalized_tuples)), key=lambda x: (x[0], x[1]), reverse=True)
+
+        PERIOD_TIMINGS = {
+            1: "09:00 AM - 09:50 AM",
+            2: "09:50 AM - 10:40 AM",
+            3: "11:00 AM - 11:50 AM",
+            4: "11:50 AM - 12:40 PM",
+            5: "01:30 PM - 02:20 PM",
+            6: "02:20 PM - 03:10 PM",
+            7: "03:10 PM - 04:00 PM",
+            8: "04:00 PM - 04:50 PM",
+        }
 
         records = []
         tot_present = 0
@@ -2293,11 +2320,7 @@ class AttendanceViewSet(viewsets.ModelViewSet):
             tot_od += od_cnt
             tot_leave += leave_cnt
 
-            start_hour = 9 + (p_val - 1)
-            if p_val >= 5:
-                start_hour += 1
-            start_time_str = f"{start_hour:02d}:00"
-            end_time_str = f"{start_hour + 1:02d}:00"
+            time_range = PERIOD_TIMINGS.get(p_val, f"Period {p_val}")
 
             staff_name = ''
             note = ''
@@ -2316,7 +2339,7 @@ class AttendanceViewSet(viewsets.ModelViewSet):
                 'date': d_val.strftime('%Y-%m-%d'),
                 'formatted_date': d_val.strftime('%d %b %Y (%A)'),
                 'period': p_val,
-                'time_range': f"{start_time_str} - {end_time_str}",
+                'time_range': time_range,
                 'staff_name': staff_name or 'Faculty',
                 'note': note,
                 'total_students': total_students,

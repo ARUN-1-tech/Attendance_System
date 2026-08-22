@@ -116,6 +116,7 @@ class Class(models.Model):
 class Subject(models.Model):
     SUBJECT_TYPE_CHOICES = (
         ('THEORY', 'Theory'),
+        ('PRACTICAL', 'Practical / Lab'),
         ('THEORY_CUM_PRACTICAL', 'Theory Cum Practical'),
         ('PROFESSIONAL_ELECTIVE', 'Professional Elective'),
         ('OPEN_ELECTIVE', 'Open Elective'),

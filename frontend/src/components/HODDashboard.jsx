@@ -2048,6 +2048,7 @@ const HODDashboard = ({ activeTab, setActiveTab }) => {
                   <label className="form-label">Subject Type</label>
                   <select className="input" value={subjectType} onChange={(e) => setSubjectType(e.target.value)}>
                     <option value="THEORY">Theory</option>
+                    <option value="PRACTICAL">Practical / Lab</option>
                     <option value="THEORY_CUM_PRACTICAL">Theory Cum Practical</option>
                     <option value="PROFESSIONAL_ELECTIVE">Professional Elective</option>
                     <option value="OPEN_ELECTIVE">Open Elective</option>
@@ -2168,6 +2169,10 @@ const HODDashboard = ({ activeTab, setActiveTab }) => {
                       ) : s.subject_type === 'THEORY_CUM_PRACTICAL' ? (
                         <span className="badge" style={{ backgroundColor: 'rgba(20, 184, 166, 0.15)', color: '#14b8a6', border: '1px solid rgba(20, 184, 166, 0.3)' }}>
                           Theory Cum Practical
+                        </span>
+                      ) : (s.subject_type === 'PRACTICAL' || s.subject_type === 'LAB') ? (
+                        <span className="badge" style={{ backgroundColor: 'rgba(245, 158, 11, 0.15)', color: '#f59e0b', border: '1px solid rgba(245, 158, 11, 0.3)' }}>
+                          Practical / Lab
                         </span>
                       ) : (
                         <span className="badge badge-secondary">Theory</span>
