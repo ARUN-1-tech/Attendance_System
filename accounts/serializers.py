@@ -32,6 +32,12 @@ class UserSerializer(serializers.ModelSerializer):
                 user_id = instance.user.id
             elif isinstance(instance, User):
                 user_id = instance.id
+        elif self.parent and getattr(self.parent, 'instance', None):
+            instance = self.parent.instance
+            if hasattr(instance, 'user') and instance.user:
+                user_id = instance.user.id
+            elif isinstance(instance, User):
+                user_id = instance.id
 
         qs = User.objects.filter(username__iexact=clean_value)
         if user_id:

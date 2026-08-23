@@ -456,8 +456,14 @@ const HODDashboard = ({ activeTab, setActiveTab }) => {
 
     try {
       if (editingStudent) {
-        await api.put(`/api/students/${editingStudent.user.id}/`, payload);
-        alert('Student details updated.');
+        const studentId = editingStudent.user ? editingStudent.user.id : editingStudent.id;
+        await api.put(`/api/students/${studentId}/`, payload);
+        if (studentPassword) {
+          try {
+            await api.post(`/api/students/${studentId}/change_password/`, { password: studentPassword });
+          } catch (_) {}
+        }
+        alert('Student details updated successfully.');
       } else {
         await api.post('/api/students/', payload);
         alert('New student added successfully.');

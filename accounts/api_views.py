@@ -588,16 +588,40 @@ class StudentViewSet(viewsets.ModelViewSet):
         
         student = self.get_object()
         
-        if is_tutor:
-            if student.tutor != user:
-                return Response({'detail': 'Tutors can only edit their own tutored students.'}, status=status.HTTP_403_FORBIDDEN)
-        elif user.role != 'hod' and not is_advisor:
-            return Response({'detail': 'Only Advisors, Tutors (for their own students), and HODs can edit students.'}, status=status.HTTP_403_FORBIDDEN)
+        if user.role != 'admin' and user.role != 'hod' and not is_advisor and not (is_tutor and student.tutor == user) and student.advisor != user and getattr(student.student_class, 'advisor', None) != user:
+            return Response({'detail': 'Only Advisors, Tutors (for their own students), HODs, and Admins can edit students.'}, status=status.HTTP_403_FORBIDDEN)
             
-        if student.user.department != user.department:
+        if user.role != 'admin' and user.department and student.user.department and student.user.department != user.department:
             return Response({'detail': 'Not authorized to edit this student.'}, status=status.HTTP_403_FORBIDDEN)
             
+        # Support password update directly in update
+        user_data = request.data.get('user')
+        if user_data and isinstance(user_data, dict) and user_data.get('password'):
+            student.user.set_password(user_data.get('password'))
+            student.user.save()
+        elif request.data.get('password'):
+            student.user.set_password(request.data.get('password'))
+            student.user.save()
+
         return super().update(request, *args, **kwargs)
+
+    @action(detail=True, methods=['post'], url_path='change_password')
+    def change_password(self, request, pk=None):
+        student = self.get_object()
+        user = request.user
+        is_advisor = (user.role == 'staff' and hasattr(user, 'staff') and user.staff.staff_type == 'Advisor')
+        is_tutor = (user.role == 'staff' and hasattr(user, 'staff') and user.staff.staff_type == 'Tutor')
+        
+        if user.role != 'admin' and user.role != 'hod' and not is_advisor and not (is_tutor and student.tutor == user) and student.advisor != user and getattr(student.student_class, 'advisor', None) != user:
+            return Response({'detail': 'Not authorized to change this student password.'}, status=status.HTTP_403_FORBIDDEN)
+            
+        new_password = request.data.get('password') or request.data.get('new_password')
+        if not new_password:
+            return Response({'detail': 'Password is required.'}, status=status.HTTP_400_BAD_REQUEST)
+            
+        student.user.set_password(new_password)
+        student.user.save()
+        return Response({'success': True, 'detail': 'Student password updated successfully.'})
 
     @action(detail=False, methods=['post'], url_path='bulk_create')
     def bulk_create(self, request):
