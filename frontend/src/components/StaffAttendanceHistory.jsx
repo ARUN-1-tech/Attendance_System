@@ -1,9 +1,9 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { api } from '../api';
 import { 
   Calendar, Clock, User, Check, X, FileText, 
   Download, ArrowLeft, Edit, CheckCircle2, 
-  ChevronRight, ChevronDown, Sparkles, Save, Users, RefreshCw
+  ChevronRight, ChevronDown, Sparkles, Save, Users, RefreshCw, Filter
 } from 'lucide-react';
 
 const StaffAttendanceHistory = () => {
@@ -11,6 +11,10 @@ const StaffAttendanceHistory = () => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   
+  // Month filter state & month collapse state
+  const [selectedMonth, setSelectedMonth] = useState('ALL');
+  const [expandedMonths, setExpandedMonths] = useState({});
+
   // Accordion state for expanded dates (date string -> boolean)
   const [expandedDates, setExpandedDates] = useState({});
 
@@ -32,9 +36,15 @@ const StaffAttendanceHistory = () => {
       const list = data.history || [];
       setHistory(list);
       
-      // Expand the first date by default if available
+      // Expand the first date and all months by default if available
       if (list.length > 0) {
         setExpandedDates({ [list[0].date]: true });
+        const expM = {};
+        list.forEach(d => {
+          const mKey = d.date.substring(0, 7);
+          expM[mKey] = true;
+        });
+        setExpandedMonths(expM);
       }
     } catch (err) {
       console.error("Failed to fetch staff marked history:", err);
@@ -47,6 +57,43 @@ const StaffAttendanceHistory = () => {
   useEffect(() => {
     fetchHistory();
   }, []);
+
+  // Group history items by month (YYYY-MM)
+  const monthGroups = useMemo(() => {
+    const map = {};
+    history.forEach(dayGroup => {
+      const parts = dayGroup.date.split('-');
+      const year = parseInt(parts[0], 10);
+      const monthNum = parseInt(parts[1], 10);
+      const monthKey = `${parts[0]}-${parts[1]}`;
+      
+      const monthDate = new Date(year, monthNum - 1, 1);
+      const monthLabel = monthDate.toLocaleString('default', { month: 'long', year: 'numeric' });
+
+      if (!map[monthKey]) {
+        map[monthKey] = {
+          key: monthKey,
+          label: monthLabel,
+          year,
+          monthNum,
+          days: [],
+          totalSessions: 0
+        };
+      }
+      map[monthKey].days.push(dayGroup);
+      map[monthKey].totalSessions += (dayGroup.total_sessions || dayGroup.sessions?.length || 0);
+    });
+
+    return Object.values(map).sort((a, b) => b.key.localeCompare(a.key));
+  }, [history]);
+
+  // Toggle month accordion expand/collapse
+  const toggleMonthExpand = (mKey) => {
+    setExpandedMonths(prev => ({
+      ...prev,
+      [mKey]: prev[mKey] === false ? true : false
+    }));
+  };
 
   // Toggle accordion expand/collapse for a date
   const toggleDateExpand = (dStr) => {
@@ -483,154 +530,284 @@ const StaffAttendanceHistory = () => {
             No Marked Attendance History Found
           </h3>
           <p style={{ color: 'var(--text-secondary)', fontSize: '14px', maxWidth: '480px', margin: '0 auto' }}>
-            You have not marked any period attendance sessions yet. Once you mark attendance via OTP or Manual Attendance, your history will appear here grouped day-wise.
+            You have not marked any period attendance sessions yet. Once you mark attendance via OTP or Manual Attendance, your history will appear here grouped by month and day-wise.
           </p>
         </div>
       ) : (
-        <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
-          {history.map((dayGroup) => {
-            const isExpanded = !!expandedDates[dayGroup.date];
-            return (
-              <div 
-                key={dayGroup.date} 
-                className="card" 
-                style={{ 
-                  padding: '0', 
-                  overflow: 'hidden', 
-                  border: isExpanded ? '1px solid var(--primary)' : '1px solid var(--border-color)',
-                  transition: 'border-color 0.2s ease'
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '28px' }}>
+          {/* Month Selector Pills */}
+          {monthGroups.length > 1 && (
+            <div style={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: '8px',
+              flexWrap: 'wrap',
+              backgroundColor: 'var(--bg-card)',
+              padding: '12px 16px',
+              borderRadius: '14px',
+              border: '1px solid var(--border-color)',
+              boxShadow: 'var(--shadow-xs)'
+            }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '6px', color: 'var(--text-muted)', fontSize: '13px', fontWeight: '700', marginRight: '4px' }}>
+                <Filter size={15} />
+                <span>Month:</span>
+              </div>
+              <button
+                type="button"
+                onClick={() => setSelectedMonth('ALL')}
+                style={{
+                  padding: '7px 14px',
+                  borderRadius: '10px',
+                  fontSize: '13px',
+                  fontWeight: '700',
+                  border: selectedMonth === 'ALL' ? '1px solid #6366F1' : '1px solid var(--border-color)',
+                  backgroundColor: selectedMonth === 'ALL' ? '#EEF2FF' : 'var(--bg-secondary)',
+                  color: selectedMonth === 'ALL' ? '#4F46E5' : 'var(--text-secondary)',
+                  cursor: 'pointer',
+                  transition: 'all 0.18s ease'
                 }}
               >
-                {/* Day Accordion Header */}
-                <div 
-                  onClick={() => toggleDateExpand(dayGroup.date)}
-                  style={{
-                    padding: '18px 24px',
-                    backgroundColor: isExpanded ? 'rgba(79, 70, 229, 0.04)' : 'var(--bg-card)',
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'space-between',
-                    cursor: 'pointer',
-                    userSelect: 'none'
-                  }}
-                >
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-                    <div style={{
-                      width: '42px',
-                      height: '42px',
+                All Months ({history.length} Days)
+              </button>
+              {monthGroups.map(mg => {
+                const isSelected = selectedMonth === mg.key;
+                return (
+                  <button
+                    key={mg.key}
+                    type="button"
+                    onClick={() => setSelectedMonth(mg.key)}
+                    style={{
+                      padding: '7px 14px',
                       borderRadius: '10px',
-                      backgroundColor: 'var(--primary-light)',
-                      color: 'var(--primary)',
+                      fontSize: '13px',
+                      fontWeight: '700',
+                      border: isSelected ? '1px solid #6366F1' : '1px solid var(--border-color)',
+                      backgroundColor: isSelected ? '#EEF2FF' : 'var(--bg-secondary)',
+                      color: isSelected ? '#4F46E5' : 'var(--text-secondary)',
+                      cursor: 'pointer',
+                      transition: 'all 0.18s ease'
+                    }}
+                  >
+                    {mg.label} ({mg.days.length} Days)
+                  </button>
+                );
+              })}
+            </div>
+          )}
+
+          {/* Render Month Groups */}
+          {monthGroups
+            .filter(mg => selectedMonth === 'ALL' || mg.key === selectedMonth)
+            .map((mg) => {
+              const isMonthExpanded = expandedMonths[mg.key] !== false;
+              return (
+                <div key={mg.key} style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
+                  {/* Month Header Banner */}
+                  <div 
+                    onClick={() => toggleMonthExpand(mg.key)}
+                    style={{
                       display: 'flex',
                       alignItems: 'center',
-                      justifyContent: 'center',
-                      fontWeight: '800'
-                    }}>
-                      <Calendar size={20} />
+                      justifyContent: 'space-between',
+                      padding: '14px 20px',
+                      backgroundColor: '#F8FAFC',
+                      borderRadius: '12px',
+                      border: '1px solid #CBD5E1',
+                      cursor: 'pointer',
+                      userSelect: 'none',
+                      boxShadow: '0 1px 3px rgba(0,0,0,0.04)'
+                    }}
+                  >
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                      <div style={{
+                        width: '32px',
+                        height: '32px',
+                        borderRadius: '8px',
+                        backgroundColor: '#6366F1',
+                        color: '#FFFFFF',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        fontWeight: '800'
+                      }}>
+                        <Calendar size={18} />
+                      </div>
+                      <div>
+                        <h2 style={{ fontSize: '17px', fontWeight: '800', color: '#1E293B', margin: 0 }}>
+                          {mg.label}
+                        </h2>
+                        <span style={{ fontSize: '12px', color: '#64748B', fontWeight: '600' }}>
+                          {mg.days.length} Day{mg.days.length !== 1 ? 's' : ''} Recorded &bull; {mg.totalSessions} Total Session{mg.totalSessions !== 1 ? 's' : ''}
+                        </span>
+                      </div>
                     </div>
 
-                    <div>
-                      <div style={{ fontSize: '16px', fontWeight: '800', color: 'var(--text-primary)' }}>
-                        {dayGroup.formatted_date}
-                      </div>
-                      <div style={{ fontSize: '12px', color: 'var(--text-muted)', fontWeight: '600' }}>
-                        Date: {dayGroup.date}
-                      </div>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                      <span style={{
+                        padding: '4px 10px',
+                        borderRadius: '12px',
+                        backgroundColor: '#E0E7FF',
+                        color: '#4338CA',
+                        fontSize: '12px',
+                        fontWeight: '800'
+                      }}>
+                        {mg.days.length} Days
+                      </span>
+                      {isMonthExpanded ? <ChevronDown size={20} style={{ color: '#64748B' }} /> : <ChevronRight size={20} style={{ color: '#64748B' }} />}
                     </div>
                   </div>
 
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
-                    <span style={{
-                      padding: '6px 12px',
-                      borderRadius: 'var(--radius-pill)',
-                      backgroundColor: '#EEF2FF',
-                      color: '#4F46E5',
-                      fontSize: '12px',
-                      fontWeight: '800',
-                      border: '1px solid #C7D2FE'
-                    }}>
-                      {dayGroup.total_sessions} Session{dayGroup.total_sessions !== 1 ? 's' : ''} Marked
-                    </span>
-
-                    {isExpanded ? <ChevronDown size={20} style={{ color: 'var(--text-muted)' }} /> : <ChevronRight size={20} style={{ color: 'var(--text-muted)' }} />}
-                  </div>
-                </div>
-
-                {/* Inside Content: Sessions Table (Level 2) */}
-                {isExpanded && (
-                  <div style={{ padding: '0 24px 20px 24px', borderTop: '1px solid var(--border-color)' }}>
-                    <div style={{ margin: '16px 0 12px 0', fontSize: '13px', fontWeight: '700', color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
-                      Marked Attendance Sessions (Click any row to view & edit students)
-                    </div>
-
-                    <div style={{ overflowX: 'auto' }}>
-                      <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left', fontSize: '14px' }}>
-                        <thead>
-                          <tr style={{ backgroundColor: 'var(--bg-secondary)', color: 'var(--text-secondary)', borderBottom: '2px solid var(--border-color)' }}>
-                            <th style={{ padding: '12px 14px', width: '60px' }}>S.No</th>
-                            <th style={{ padding: '12px 14px' }}>Class Name</th>
-                            <th style={{ padding: '12px 14px' }}>Period</th>
-                            <th style={{ padding: '12px 14px' }}>Subject</th>
-                            <th style={{ padding: '12px 14px', textAlign: 'center' }}>Attendance Summary</th>
-                            <th style={{ padding: '12px 14px', textAlign: 'right', width: '120px' }}>Action</th>
-                          </tr>
-                        </thead>
-                        <tbody>
-                          {dayGroup.sessions.map((sess) => (
-                            <tr 
-                              key={`${sess.class_id}_${sess.period}`}
-                              onClick={() => handleOpenSession(sess, dayGroup.date)}
-                              className="history-row-hover"
+                  {/* Day Cards for this Month */}
+                  {isMonthExpanded && (
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '14px', paddingLeft: '8px' }}>
+                      {mg.days.map((dayGroup) => {
+                        const isExpanded = !!expandedDates[dayGroup.date];
+                        return (
+                          <div 
+                            key={dayGroup.date} 
+                            className="card" 
+                            style={{ 
+                              padding: '0', 
+                              overflow: 'hidden', 
+                              border: isExpanded ? '1px solid var(--primary)' : '1px solid var(--border-color)',
+                              transition: 'border-color 0.2s ease'
+                            }}
+                          >
+                            {/* Day Accordion Header */}
+                            <div 
+                              onClick={() => toggleDateExpand(dayGroup.date)}
                               style={{
-                                borderBottom: '1px solid var(--border-color)',
+                                padding: '18px 24px',
+                                backgroundColor: isExpanded ? 'rgba(79, 70, 229, 0.04)' : 'var(--bg-card)',
+                                display: 'flex',
+                                alignItems: 'center',
+                                justifyContent: 'space-between',
                                 cursor: 'pointer',
-                                transition: 'all 0.15s ease'
+                                userSelect: 'none'
                               }}
                             >
-                              <td style={{ padding: '14px', fontWeight: '800', color: 'var(--text-muted)' }}>
-                                {sess.s_no}
-                              </td>
-                              <td style={{ padding: '14px', fontWeight: '800', color: 'var(--text-primary)' }}>
-                                {sess.class_name}
-                              </td>
-                              <td style={{ padding: '14px', fontWeight: '700', color: 'var(--primary)' }}>
-                                Period {sess.period}
-                              </td>
-                              <td style={{ padding: '14px' }}>
-                                <div style={{ fontWeight: '700', color: 'var(--text-primary)' }}>{sess.subject_code}</div>
-                                <div style={{ fontSize: '12px', color: 'var(--text-muted)' }}>{sess.subject_name}</div>
-                              </td>
-                              <td style={{ padding: '14px', textAlign: 'center' }}>
-                                <div style={{ display: 'inline-flex', gap: '8px', alignItems: 'center' }}>
-                                  <span style={{ backgroundColor: '#DCFCE7', color: '#15803D', padding: '4px 8px', borderRadius: '6px', fontSize: '12px', fontWeight: '800' }}>
-                                    P: {sess.present_count}
-                                  </span>
-                                  <span style={{ backgroundColor: '#FEE2E2', color: '#B91C1C', padding: '4px 8px', borderRadius: '6px', fontSize: '12px', fontWeight: '800' }}>
-                                    A: {sess.absent_count}
-                                  </span>
-                                  <span style={{ backgroundColor: '#FEF3C7', color: '#B45309', padding: '4px 8px', borderRadius: '6px', fontSize: '12px', fontWeight: '800' }}>
-                                    OD: {sess.od_count}
-                                  </span>
-                                  <span style={{ fontSize: '11px', color: 'var(--text-muted)', fontWeight: '600' }}>
-                                    ({sess.total_students} Total)
-                                  </span>
+                              <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                                <div style={{
+                                  width: '42px',
+                                  height: '42px',
+                                  borderRadius: '10px',
+                                  backgroundColor: 'var(--primary-light)',
+                                  color: 'var(--primary)',
+                                  display: 'flex',
+                                  alignItems: 'center',
+                                  justifyContent: 'center',
+                                  fontWeight: '800'
+                                }}>
+                                  <Calendar size={20} />
                                 </div>
-                              </td>
-                              <td style={{ padding: '14px', textAlign: 'right' }}>
-                                <span className="btn btn-outline" style={{ padding: '6px 12px', fontSize: '12px', fontWeight: '700' }}>
-                                  View / Edit
+
+                                <div>
+                                  <div style={{ fontSize: '16px', fontWeight: '800', color: 'var(--text-primary)' }}>
+                                    {dayGroup.formatted_date}
+                                  </div>
+                                  <div style={{ fontSize: '12px', color: 'var(--text-muted)', fontWeight: '600' }}>
+                                    Date: {dayGroup.date}
+                                  </div>
+                                </div>
+                              </div>
+
+                              <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
+                                <span style={{
+                                  padding: '6px 12px',
+                                  borderRadius: 'var(--radius-pill)',
+                                  backgroundColor: '#EEF2FF',
+                                  color: '#4F46E5',
+                                  fontSize: '12px',
+                                  fontWeight: '800',
+                                  border: '1px solid #C7D2FE'
+                                }}>
+                                  {dayGroup.total_sessions} Session{dayGroup.total_sessions !== 1 ? 's' : ''} Marked
                                 </span>
-                              </td>
-                            </tr>
-                          ))}
-                        </tbody>
-                      </table>
+
+                                {isExpanded ? <ChevronDown size={20} style={{ color: 'var(--text-muted)' }} /> : <ChevronRight size={20} style={{ color: 'var(--text-muted)' }} />}
+                              </div>
+                            </div>
+
+                            {/* Inside Content: Sessions Table (Level 2) */}
+                            {isExpanded && (
+                              <div style={{ padding: '0 24px 20px 24px', borderTop: '1px solid var(--border-color)' }}>
+                                <div style={{ margin: '16px 0 12px 0', fontSize: '13px', fontWeight: '700', color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
+                                  Marked Attendance Sessions (Click any row to view & edit students)
+                                </div>
+
+                                <div style={{ overflowX: 'auto' }}>
+                                  <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left', fontSize: '14px' }}>
+                                    <thead>
+                                      <tr style={{ backgroundColor: 'var(--bg-secondary)', color: 'var(--text-secondary)', borderBottom: '2px solid var(--border-color)' }}>
+                                        <th style={{ padding: '12px 14px', width: '60px' }}>S.No</th>
+                                        <th style={{ padding: '12px 14px' }}>Class Name</th>
+                                        <th style={{ padding: '12px 14px' }}>Period</th>
+                                        <th style={{ padding: '12px 14px' }}>Subject</th>
+                                        <th style={{ padding: '12px 14px', textAlign: 'center' }}>Attendance Summary</th>
+                                        <th style={{ padding: '12px 14px', textAlign: 'right', width: '120px' }}>Action</th>
+                                      </tr>
+                                    </thead>
+                                    <tbody>
+                                      {dayGroup.sessions.map((sess) => (
+                                        <tr 
+                                          key={`${sess.class_id}_${sess.period}`}
+                                          onClick={() => handleOpenSession(sess, dayGroup.date)}
+                                          className="history-row-hover"
+                                          style={{
+                                            borderBottom: '1px solid var(--border-color)',
+                                            cursor: 'pointer',
+                                            transition: 'all 0.15s ease'
+                                          }}
+                                        >
+                                          <td style={{ padding: '14px', fontWeight: '800', color: 'var(--text-muted)' }}>
+                                            {sess.s_no}
+                                          </td>
+                                          <td style={{ padding: '14px', fontWeight: '800', color: 'var(--text-primary)' }}>
+                                            {sess.class_name}
+                                          </td>
+                                          <td style={{ padding: '14px', fontWeight: '700', color: 'var(--primary)' }}>
+                                            Period {sess.period}
+                                          </td>
+                                          <td style={{ padding: '14px' }}>
+                                            <div style={{ fontWeight: '700', color: 'var(--text-primary)' }}>{sess.subject_code}</div>
+                                            <div style={{ fontSize: '12px', color: 'var(--text-muted)' }}>{sess.subject_name}</div>
+                                          </td>
+                                          <td style={{ padding: '14px', textAlign: 'center' }}>
+                                            <div style={{ display: 'inline-flex', gap: '8px', alignItems: 'center' }}>
+                                              <span style={{ backgroundColor: '#DCFCE7', color: '#15803D', padding: '4px 8px', borderRadius: '6px', fontSize: '12px', fontWeight: '800' }}>
+                                                P: {sess.present_count}
+                                              </span>
+                                              <span style={{ backgroundColor: '#FEE2E2', color: '#B91C1C', padding: '4px 8px', borderRadius: '6px', fontSize: '12px', fontWeight: '800' }}>
+                                                A: {sess.absent_count}
+                                              </span>
+                                              <span style={{ backgroundColor: '#FEF3C7', color: '#B45309', padding: '4px 8px', borderRadius: '6px', fontSize: '12px', fontWeight: '800' }}>
+                                                OD: {sess.od_count}
+                                              </span>
+                                              <span style={{ fontSize: '11px', color: 'var(--text-muted)', fontWeight: '600' }}>
+                                                ({sess.total_students} Total)
+                                              </span>
+                                            </div>
+                                          </td>
+                                          <td style={{ padding: '14px', textAlign: 'right' }}>
+                                            <span className="btn btn-outline" style={{ padding: '6px 12px', fontSize: '12px', fontWeight: '700' }}>
+                                              View / Edit
+                                            </span>
+                                          </td>
+                                        </tr>
+                                      ))}
+                                    </tbody>
+                                  </table>
+                                </div>
+                              </div>
+                            )}
+                          </div>
+                        );
+                      })}
                     </div>
-                  </div>
-                )}
-              </div>
-            );
-          })}
+                  )}
+                </div>
+              );
+            })}
         </div>
       )}
 
