@@ -54,10 +54,10 @@ class PeriodLock(models.Model):
     created_at = models.DateTimeField(auto_now_add=True, null=True, blank=True)
 
     class Meta:
-        unique_together = ('student_class', 'date', 'period')
+        unique_together = ('student_class', 'subject', 'date', 'period')
         indexes = [
             models.Index(fields=['student_class', 'date', 'period']),
-            models.Index(fields=['student_class', 'subject', 'date']),
+            models.Index(fields=['student_class', 'subject', 'date', 'period']),
         ]
 
     def __str__(self):

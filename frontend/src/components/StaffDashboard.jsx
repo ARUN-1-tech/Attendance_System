@@ -3649,6 +3649,7 @@ const StaffDashboard = ({ activeTab }) => {
                       >
                         <option value="THEORY">Theory</option>
                         <option value="PRACTICAL">Practical / Lab</option>
+                        <option value="EXAM">Exam</option>
                         <option value="THEORY_CUM_PRACTICAL">Theory Cum Practical</option>
                         <option value="PROFESSIONAL_ELECTIVE">Professional Elective</option>
                         <option value="OPEN_ELECTIVE">Open Elective</option>
@@ -3806,6 +3807,10 @@ const StaffDashboard = ({ activeTab }) => {
                               ) : (sub.subject_type === 'PRACTICAL' || sub.subject_type === 'LAB') ? (
                                 <span className="badge" style={{ backgroundColor: 'rgba(245, 158, 11, 0.15)', color: '#f59e0b', border: '1px solid rgba(245, 158, 11, 0.3)' }}>
                                   Practical / Lab
+                                </span>
+                              ) : sub.subject_type === 'EXAM' ? (
+                                <span className="badge" style={{ backgroundColor: 'rgba(236, 72, 153, 0.15)', color: '#ec4899', border: '1px solid rgba(236, 72, 153, 0.3)' }}>
+                                  Exam
                                 </span>
                               ) : (
                                 <span className="badge badge-secondary">Theory</span>
@@ -4011,6 +4016,10 @@ const StaffDashboard = ({ activeTab }) => {
                     ) : (selectedSubjectDetails.subject_type === 'PRACTICAL' || selectedSubjectDetails.subject_type === 'LAB') ? (
                       <span className="badge" style={{ backgroundColor: 'rgba(245, 158, 11, 0.15)', color: '#f59e0b', border: '1px solid rgba(245, 158, 11, 0.3)' }}>
                         Practical / Lab
+                      </span>
+                    ) : selectedSubjectDetails.subject_type === 'EXAM' ? (
+                      <span className="badge" style={{ backgroundColor: 'rgba(236, 72, 153, 0.15)', color: '#ec4899', border: '1px solid rgba(236, 72, 153, 0.3)' }}>
+                        Exam
                       </span>
                     ) : (
                       <span className="badge badge-secondary">Theory</span>

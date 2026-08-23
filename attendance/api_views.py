@@ -91,11 +91,18 @@ def api_generate_otp(request):
     today = timezone.now().date()
     day_str = today.strftime('%A')
 
+    is_elective = subject.subject_type in ['OPEN_ELECTIVE', 'PROFESSIONAL_ELECTIVE']
+
     # Check locks first
     from .models import PeriodLock
     for p in periods:
         p_val = int(p) if str(p).isdigit() else p
-        lock = PeriodLock.objects.filter(student_class=student_class, date=today, period=p_val).first()
+        if is_elective:
+            lock = PeriodLock.objects.filter(student_class=student_class, subject=subject, date=today, period=p_val).first()
+        else:
+            lock = PeriodLock.objects.filter(student_class=student_class, date=today, period=p_val).first()
+            if lock and lock.subject and lock.subject.subject_type in ['OPEN_ELECTIVE', 'PROFESSIONAL_ELECTIVE']:
+                lock = None
         if lock and lock.staff != request.user:
             return Response({
                 'detail': f'Period {p_val} is already marked/used by {lock.staff.first_name} {lock.staff.last_name} ({lock.staff.username}).'
@@ -116,9 +123,10 @@ def api_generate_otp(request):
     for p in periods:
         p_val = int(p) if str(p).isdigit() else p
         
-        # Acquire/Ensure lock exists for current staff
+        # Acquire/Ensure lock exists for current staff and subject
         PeriodLock.objects.get_or_create(
             student_class=student_class,
+            subject=subject,
             date=today,
             period=p_val,
             defaults={'staff': request.user}
@@ -1140,7 +1148,16 @@ class AttendanceViewSet(viewsets.ModelViewSet):
             return Response({'detail': 'Invalid date format.'}, status=status.HTTP_400_BAD_REQUEST)
             
         from .models import PeriodLock
+        from accounts.models import Subject
+        subject_id = request.query_params.get('subject_id')
         locks = PeriodLock.objects.filter(student_class_id=class_id, date=target_date)
+        if subject_id:
+            subj = Subject.objects.filter(id=subject_id).first()
+            if subj and subj.subject_type in ['OPEN_ELECTIVE', 'PROFESSIONAL_ELECTIVE']:
+                locks = locks.filter(subject=subj)
+            else:
+                locks = locks.exclude(subject__subject_type__in=['OPEN_ELECTIVE', 'PROFESSIONAL_ELECTIVE'])
+
         locks_data = [
             {
                 'period': l.period,
@@ -1713,10 +1730,16 @@ class AttendanceViewSet(viewsets.ModelViewSet):
         student_class = get_object_or_404(Class, id=class_id)
         subject = get_object_or_404(Subject, id=subject_id)
         is_advisor = (student_class.advisor == user)
+        is_elective = subject.subject_type in ['OPEN_ELECTIVE', 'PROFESSIONAL_ELECTIVE']
 
         # Validate PeriodLock for all selected periods
         for p_val in periods_list:
-            lock = PeriodLock.objects.filter(student_class=student_class, date=target_date, period=p_val).first()
+            if is_elective:
+                lock = PeriodLock.objects.filter(student_class=student_class, subject=subject, date=target_date, period=p_val).first()
+            else:
+                lock = PeriodLock.objects.filter(student_class=student_class, date=target_date, period=p_val).first()
+                if lock and lock.subject and lock.subject.subject_type in ['OPEN_ELECTIVE', 'PROFESSIONAL_ELECTIVE']:
+                    lock = None
             if lock:
                 if lock.staff != user and not is_advisor and user.role not in ['hod', 'admin'] and subject.staff != user:
                     return Response({
@@ -1730,9 +1753,10 @@ class AttendanceViewSet(viewsets.ModelViewSet):
                 for p_val in periods_list:
                     PeriodLock.objects.update_or_create(
                         student_class=student_class,
+                        subject=subject,
                         date=target_date,
                         period=p_val,
-                        defaults={'staff': user, 'subject': subject}
+                        defaults={'staff': user}
                     )
 
                     sched = Schedule.objects.filter(student_class=student_class, subject=subject, day=weekday, period=p_val).first()
@@ -1753,9 +1777,14 @@ class AttendanceViewSet(viewsets.ModelViewSet):
                         )
                     schedules_to_update.append(sched)
 
-                students = list(Student.objects.filter(student_class=student_class))
+                if is_elective:
+                    students = list(subject.get_enrolled_students().filter(student_class=student_class))
+                    if not students:
+                        students = list(subject.get_enrolled_students())
+                else:
+                    students = list(Student.objects.filter(student_class=student_class))
                 
-                # Delete conflicting attendance records for other subjects on the same date and periods
+                # Delete conflicting attendance records for other subjects on the same date and periods for these target students
                 Attendance.objects.filter(
                     student__in=students,
                     date=target_date,
@@ -2440,14 +2469,6 @@ class AttendanceViewSet(viewsets.ModelViewSet):
 
         student_class = get_object_or_404(Class, pk=class_id)
 
-        # Check or update lock to staff user
-        PeriodLock.objects.update_or_create(
-            student_class=student_class,
-            date=target_date,
-            period=period_num,
-            defaults={'staff': user}
-        )
-
         sched = Schedule.objects.filter(student_class=student_class, period=period_num, day=weekday).first()
         if not sched:
             from accounts.models import Subject
@@ -2466,6 +2487,15 @@ class AttendanceViewSet(viewsets.ModelViewSet):
                 start_time=datetime.time(start_hour, 0),
                 end_time=datetime.time(start_hour + 1, 0)
             )
+
+        # Check or update lock to staff user
+        PeriodLock.objects.update_or_create(
+            student_class=student_class,
+            subject=sched.subject if sched else None,
+            date=target_date,
+            period=period_num,
+            defaults={'staff': user}
+        )
 
         students = Student.objects.filter(student_class=student_class)
         from django.db import transaction
