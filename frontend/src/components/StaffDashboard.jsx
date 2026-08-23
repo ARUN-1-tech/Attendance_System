@@ -130,6 +130,7 @@ const StaffDashboard = ({ activeTab }) => {
   const [manualAttMessage, setManualAttMessage] = useState(null);
   const [manualAttError, setManualAttError] = useState(null);
   const [recentlyMarked, setRecentlyMarked] = useState([]);
+  const [manualLastSummary, setManualLastSummary] = useState(null);
   const [manualPeriod, setManualPeriod] = useState('1');
   const [selectedManualPeriods, setSelectedManualPeriods] = useState(['1']);
   const [manualIsLocked, setManualIsLocked] = useState(false);
@@ -1212,7 +1213,39 @@ const StaffDashboard = ({ activeTab }) => {
       const nowStr = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' });
       const newEntries = [];
       const subjObj = subjects.find(sub => sub.id.toString() === manualSubjectId.toString());
-      const subjectName = subjObj ? subjObj.name : 'Selected Subject';
+      const classObj = classes.find(c => c.id.toString() === manualClassId.toString());
+      const subjectName = subjObj ? `${subjObj.name} (${subjObj.code})` : 'Selected Subject';
+      const className = classObj ? `${classObj.year} - ${classObj.name} - ${classObj.section}` : 'Selected Class';
+
+      const odList = [];
+      const absentList = [];
+      const presentList = [];
+
+      manualAttStudents.forEach(s => {
+        const st = manualStatuses[s.id] || 'Present';
+        const studentInfo = {
+          id: s.id,
+          name: s.name,
+          reg_no: s.reg_no,
+          roll_no: s.roll_no || 'N/A',
+          status: st
+        };
+        if (st === 'OD') odList.push(studentInfo);
+        else if (st === 'Absent') absentList.push(studentInfo);
+        else presentList.push(studentInfo);
+      });
+
+      setManualLastSummary({
+        subjectName,
+        className,
+        date: manualDate,
+        periods: [...selectedManualPeriods].sort((a, b) => parseInt(a) - parseInt(b)),
+        totalStudents: manualAttStudents.length,
+        odStudents: odList,
+        absentStudents: absentList,
+        presentStudents: presentList,
+        timestamp: nowStr
+      });
 
       selectedManualPeriods.forEach(pStr => {
         const pNum = parseInt(pStr);
@@ -1225,7 +1258,7 @@ const StaffDashboard = ({ activeTab }) => {
               date: manualDate,
               period: pNum,
               subjectName: subjectName,
-              status: manualStatuses[sId],
+              status: manualStatuses[sId] || 'Present',
               timeMarked: nowStr
             });
           }
@@ -1233,9 +1266,6 @@ const StaffDashboard = ({ activeTab }) => {
       });
 
       setRecentlyMarked(prev => [...newEntries, ...prev]);
-      setTimeout(() => {
-        setManualAttMessage(null);
-      }, 4000);
       
     } catch (err) {
       console.error(err);
@@ -1262,7 +1292,7 @@ const StaffDashboard = ({ activeTab }) => {
         let absentCount = 0;
         let odCount = 0;
         let leaveCount = 0;
-        for (let p = 1; p <= 7; p++) {
+        for (let p = 1; p <= 8; p++) {
           const st = s.statuses[p.toString()] || 'Present';
           if (st === 'Present') presentCount++;
           else if (st === 'Absent') absentCount++;
@@ -1271,14 +1301,14 @@ const StaffDashboard = ({ activeTab }) => {
         }
         
         let overall = 'Present';
-        if (presentCount === 7) overall = 'Present';
-        else if (absentCount === 7) overall = 'Absent';
-        else if (odCount === 7) overall = 'OD';
+        if (presentCount === 8) overall = 'Present';
+        else if (absentCount === 8) overall = 'Absent';
+        else if (odCount === 8) overall = 'OD';
         else if (s.statuses['1'] === 'Present' && s.statuses['2'] === 'Present' && s.statuses['3'] === 'Present' && s.statuses['4'] === 'Present' &&
-                 s.statuses['5'] === 'Absent' && s.statuses['6'] === 'Absent' && s.statuses['7'] === 'Absent') {
+                 s.statuses['5'] === 'Absent' && s.statuses['6'] === 'Absent' && s.statuses['7'] === 'Absent' && s.statuses['8'] === 'Absent') {
           overall = 'Half Day (FN Present / AN Absent)';
         } else if (s.statuses['1'] === 'Absent' && s.statuses['2'] === 'Absent' && s.statuses['3'] === 'Absent' && s.statuses['4'] === 'Absent' &&
-                   s.statuses['5'] === 'Present' && s.statuses['6'] === 'Present' && s.statuses['7'] === 'Present') {
+                   s.statuses['5'] === 'Present' && s.statuses['6'] === 'Present' && s.statuses['7'] === 'Present' && s.statuses['8'] === 'Present') {
           overall = 'Half Day (FN Absent / AN Present)';
         } else {
           overall = 'Custom';
@@ -2860,7 +2890,7 @@ const StaffDashboard = ({ activeTab }) => {
                         <th style={{ width: '60px' }}>S.No</th>
                         <th>Student</th>
                         <th style={{ width: '220px' }}>Overall Status</th>
-                        <th style={{ textAlign: 'center' }}>Daily Periods (1-7) <span style={{ fontSize: '11px', color: 'var(--text-secondary)', fontWeight: 'normal' }}>(Hover for subject, click custom to edit)</span></th>
+                        <th style={{ textAlign: 'center' }}>Daily Periods (1-8) <span style={{ fontSize: '11px', color: 'var(--text-secondary)', fontWeight: 'normal' }}>(Hover for subject, click custom to edit)</span></th>
                       </tr>
                     </thead>
                     <tbody>
@@ -2882,13 +2912,13 @@ const StaffDashboard = ({ activeTab }) => {
                                   const val = e.target.value;
                                   const updatedPeriods = { ...sStatus.periods };
                                   if (val === 'Present' || val === 'Absent' || val === 'OD') {
-                                    for (let p = 1; p <= 7; p++) updatedPeriods[p.toString()] = val;
+                                    for (let p = 1; p <= 8; p++) updatedPeriods[p.toString()] = val;
                                   } else if (val === 'Half Day (FN Present / AN Absent)') {
                                     for (let p = 1; p <= 4; p++) updatedPeriods[p.toString()] = 'Present';
-                                    for (let p = 5; p <= 7; p++) updatedPeriods[p.toString()] = 'Absent';
+                                    for (let p = 5; p <= 8; p++) updatedPeriods[p.toString()] = 'Absent';
                                   } else if (val === 'Half Day (FN Absent / AN Present)') {
                                     for (let p = 1; p <= 4; p++) updatedPeriods[p.toString()] = 'Absent';
-                                    for (let p = 5; p <= 7; p++) updatedPeriods[p.toString()] = 'Present';
+                                    for (let p = 5; p <= 8; p++) updatedPeriods[p.toString()] = 'Present';
                                   }
                                   setAdvisorStatuses({
                                     ...advisorStatuses,
@@ -3286,6 +3316,187 @@ const StaffDashboard = ({ activeTab }) => {
             )}
           </form>
         </div>
+        )}
+
+        {manualLastSummary && (
+          <div className="card" style={{ marginTop: '24px', border: '1px solid #6366F1', boxShadow: '0 4px 20px -2px rgba(99, 102, 241, 0.15)' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '12px', marginBottom: '20px', borderBottom: '1px solid var(--border-color)', paddingBottom: '14px' }}>
+              <div>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                  <CheckCircle size={20} style={{ color: 'var(--success)' }} />
+                  <h3 style={{ margin: 0, fontSize: '17px', fontWeight: '700', color: 'var(--text-primary)' }}>
+                    Marked Attendance Summary
+                  </h3>
+                </div>
+                <p style={{ margin: '4px 0 0 0', fontSize: '13px', color: 'var(--text-secondary)' }}>
+                  <strong>{manualLastSummary.subjectName}</strong> &bull; {manualLastSummary.className} &bull; Date: <strong>{manualLastSummary.date}</strong> &bull; Period(s): <strong>{manualLastSummary.periods.join(', ')}</strong> ({manualLastSummary.timestamp})
+                </p>
+              </div>
+              <button 
+                type="button" 
+                className="btn btn-secondary btn-sm" 
+                onClick={() => setManualLastSummary(null)}
+                style={{ fontSize: '12px', padding: '4px 10px' }}
+              >
+                Dismiss Summary
+              </button>
+            </div>
+
+            {/* Stat Cards Overview */}
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '12px', marginBottom: '24px' }}>
+              <div style={{ padding: '14px 16px', borderRadius: '12px', backgroundColor: 'var(--bg-secondary)', border: '1px solid var(--border-color)', display: 'flex', flexDirection: 'column' }}>
+                <span style={{ fontSize: '12px', color: 'var(--text-secondary)', fontWeight: '600', textTransform: 'uppercase' }}>Total Students</span>
+                <strong style={{ fontSize: '24px', color: 'var(--text-primary)', marginTop: '4px' }}>{manualLastSummary.totalStudents}</strong>
+              </div>
+              <div style={{ padding: '14px 16px', borderRadius: '12px', backgroundColor: 'rgba(59, 130, 246, 0.08)', border: '1px solid rgba(59, 130, 246, 0.25)', display: 'flex', flexDirection: 'column' }}>
+                <span style={{ fontSize: '12px', color: '#2563EB', fontWeight: '700', textTransform: 'uppercase' }}>On Duty (OD)</span>
+                <strong style={{ fontSize: '24px', color: '#2563EB', marginTop: '4px' }}>{manualLastSummary.odStudents.length}</strong>
+              </div>
+              <div style={{ padding: '14px 16px', borderRadius: '12px', backgroundColor: 'rgba(239, 68, 68, 0.08)', border: '1px solid rgba(239, 68, 68, 0.25)', display: 'flex', flexDirection: 'column' }}>
+                <span style={{ fontSize: '12px', color: '#DC2626', fontWeight: '700', textTransform: 'uppercase' }}>Absent</span>
+                <strong style={{ fontSize: '24px', color: '#DC2626', marginTop: '4px' }}>{manualLastSummary.absentStudents.length}</strong>
+              </div>
+              <div style={{ padding: '14px 16px', borderRadius: '12px', backgroundColor: 'rgba(16, 185, 129, 0.08)', border: '1px solid rgba(16, 185, 129, 0.25)', display: 'flex', flexDirection: 'column' }}>
+                <span style={{ fontSize: '12px', color: '#059669', fontWeight: '700', textTransform: 'uppercase' }}>Present</span>
+                <strong style={{ fontSize: '24px', color: '#059669', marginTop: '4px' }}>{manualLastSummary.presentStudents.length}</strong>
+              </div>
+            </div>
+
+            {/* Categorized Lists: OD first, next Absent, next Present */}
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
+              {/* 1. OD Students */}
+              <div style={{ border: '1px solid rgba(59, 130, 246, 0.2)', borderRadius: '12px', overflow: 'hidden' }}>
+                <div style={{ backgroundColor: 'rgba(59, 130, 246, 0.1)', padding: '10px 16px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                  <span style={{ fontWeight: '700', fontSize: '14px', color: '#1D4ED8' }}>
+                    1. On Duty (OD) Students ({manualLastSummary.odStudents.length})
+                  </span>
+                  <span className="badge" style={{ backgroundColor: '#2563EB', color: '#FFFFFF', fontWeight: '700' }}>
+                    {manualLastSummary.odStudents.length} OD
+                  </span>
+                </div>
+                {manualLastSummary.odStudents.length === 0 ? (
+                  <div style={{ padding: '16px', textAlign: 'center', color: 'var(--text-muted)', fontSize: '13px' }}>
+                    No students on OD for this session.
+                  </div>
+                ) : (
+                  <div className="table-container">
+                    <table className="table" style={{ width: '100%', margin: 0 }}>
+                      <thead>
+                        <tr>
+                          <th style={{ width: '50px' }}>S.No</th>
+                          <th>Reg No</th>
+                          <th>Student Name</th>
+                          <th style={{ width: '120px', textAlign: 'center' }}>Status</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {manualLastSummary.odStudents.map((s, idx) => (
+                          <tr key={s.id}>
+                            <td>{idx + 1}</td>
+                            <td><strong>{s.reg_no}</strong></td>
+                            <td>{s.name}</td>
+                            <td style={{ textAlign: 'center' }}>
+                              <span className="badge" style={{ backgroundColor: 'rgba(59, 130, 246, 0.15)', color: '#2563EB', border: '1px solid rgba(59, 130, 246, 0.3)' }}>
+                                OD
+                              </span>
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                )}
+              </div>
+
+              {/* 2. Absent Students */}
+              <div style={{ border: '1px solid rgba(239, 68, 68, 0.2)', borderRadius: '12px', overflow: 'hidden' }}>
+                <div style={{ backgroundColor: 'rgba(239, 68, 68, 0.1)', padding: '10px 16px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                  <span style={{ fontWeight: '700', fontSize: '14px', color: '#B91C1C' }}>
+                    2. Absent Students ({manualLastSummary.absentStudents.length})
+                  </span>
+                  <span className="badge" style={{ backgroundColor: '#DC2626', color: '#FFFFFF', fontWeight: '700' }}>
+                    {manualLastSummary.absentStudents.length} Absent
+                  </span>
+                </div>
+                {manualLastSummary.absentStudents.length === 0 ? (
+                  <div style={{ padding: '16px', textAlign: 'center', color: 'var(--text-muted)', fontSize: '13px' }}>
+                    No students absent for this session.
+                  </div>
+                ) : (
+                  <div className="table-container">
+                    <table className="table" style={{ width: '100%', margin: 0 }}>
+                      <thead>
+                        <tr>
+                          <th style={{ width: '50px' }}>S.No</th>
+                          <th>Reg No</th>
+                          <th>Student Name</th>
+                          <th style={{ width: '120px', textAlign: 'center' }}>Status</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {manualLastSummary.absentStudents.map((s, idx) => (
+                          <tr key={s.id}>
+                            <td>{idx + 1}</td>
+                            <td><strong>{s.reg_no}</strong></td>
+                            <td>{s.name}</td>
+                            <td style={{ textAlign: 'center' }}>
+                              <span className="badge" style={{ backgroundColor: 'rgba(239, 68, 68, 0.15)', color: '#DC2626', border: '1px solid rgba(239, 68, 68, 0.3)' }}>
+                                Absent
+                              </span>
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                )}
+              </div>
+
+              {/* 3. Present Students */}
+              <div style={{ border: '1px solid rgba(16, 185, 129, 0.2)', borderRadius: '12px', overflow: 'hidden' }}>
+                <div style={{ backgroundColor: 'rgba(16, 185, 129, 0.1)', padding: '10px 16px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                  <span style={{ fontWeight: '700', fontSize: '14px', color: '#047857' }}>
+                    3. Present Students ({manualLastSummary.presentStudents.length})
+                  </span>
+                  <span className="badge" style={{ backgroundColor: '#059669', color: '#FFFFFF', fontWeight: '700' }}>
+                    {manualLastSummary.presentStudents.length} Present
+                  </span>
+                </div>
+                {manualLastSummary.presentStudents.length === 0 ? (
+                  <div style={{ padding: '16px', textAlign: 'center', color: 'var(--text-muted)', fontSize: '13px' }}>
+                    No students present for this session.
+                  </div>
+                ) : (
+                  <div className="table-container">
+                    <table className="table" style={{ width: '100%', margin: 0 }}>
+                      <thead>
+                        <tr>
+                          <th style={{ width: '50px' }}>S.No</th>
+                          <th>Reg No</th>
+                          <th>Student Name</th>
+                          <th style={{ width: '120px', textAlign: 'center' }}>Status</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {manualLastSummary.presentStudents.map((s, idx) => (
+                          <tr key={s.id}>
+                            <td>{idx + 1}</td>
+                            <td><strong>{s.reg_no}</strong></td>
+                            <td>{s.name}</td>
+                            <td style={{ textAlign: 'center' }}>
+                              <span className="badge" style={{ backgroundColor: 'rgba(16, 185, 129, 0.15)', color: '#059669', border: '1px solid rgba(16, 185, 129, 0.3)' }}>
+                                Present
+                              </span>
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                )}
+              </div>
+            </div>
+          </div>
         )}
 
         {recentlyMarked && recentlyMarked.length > 0 && (
