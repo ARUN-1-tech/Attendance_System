@@ -141,6 +141,8 @@ const StaffDashboard = ({ activeTab }) => {
   const [advisorDate, setAdvisorDate] = useState(new Date().toISOString().split('T')[0]);
   const [advisorStudents, setAdvisorStudents] = useState([]);
   const [advisorPeriods, setAdvisorPeriods] = useState([]);
+  const [advisorSubjects, setAdvisorSubjects] = useState([]);
+  const [advisorPeriodSubjects, setAdvisorPeriodSubjects] = useState({});
   const [advisorClassName, setAdvisorClassName] = useState('');
   const [advisorClassId, setAdvisorClassId] = useState(null);
   const [advisorStatuses, setAdvisorStatuses] = useState({});
@@ -1283,8 +1285,21 @@ const StaffDashboard = ({ activeTab }) => {
       const data = await api.get(`/api/attendances/advisor-class-students/?date=${dateVal}`);
       setAdvisorClassName(data.class_name);
       setAdvisorClassId(data.class_id);
-      setAdvisorPeriods(data.periods);
+      setAdvisorPeriods(data.periods || []);
       setAdvisorStudents(data.students || []);
+      const availSubs = data.available_subjects || [];
+      setAdvisorSubjects(availSubs);
+
+      // Initialize advisorPeriodSubjects
+      const initialPeriodSubs = {};
+      (data.periods || []).forEach(p => {
+        if (p.subject_id) {
+          initialPeriodSubs[p.period.toString()] = p.subject_id;
+        } else if (availSubs.length > 0) {
+          initialPeriodSubs[p.period.toString()] = availSubs[0].id;
+        }
+      });
+      setAdvisorPeriodSubjects(initialPeriodSubs);
       
       const initialStatuses = {};
       (data.students || []).forEach(s => {
@@ -1338,7 +1353,8 @@ const StaffDashboard = ({ activeTab }) => {
     try {
       const payload = {
         date: advisorDate,
-        attendance_data: advisorStatuses
+        attendance_data: advisorStatuses,
+        period_subjects: advisorPeriodSubjects
       };
       const res = await api.post('/api/attendances/save-advisor-manual-attendance/', payload);
       setAdvisorSuccess(res.detail || 'Daily attendance saved successfully.');
@@ -2883,6 +2899,97 @@ const StaffDashboard = ({ activeTab }) => {
 
             {!advisorLoading && advisorStudents.length > 0 && (
               <form onSubmit={handleSaveAdvisorManualAttendance}>
+                {/* Period Subject Selection Panel */}
+                <div style={{
+                  backgroundColor: 'var(--bg-secondary)',
+                  padding: '16px 20px',
+                  borderRadius: '12px',
+                  border: '1px solid var(--border-color)',
+                  marginBottom: '20px'
+                }}>
+                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '8px', marginBottom: '12px' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                      <BookOpen size={18} style={{ color: 'var(--primary)' }} />
+                      <span style={{ fontSize: '14px', fontWeight: '800', color: 'var(--text-primary)' }}>
+                        Select Subject Separately for All Periods (Periods 1 - 8)
+                      </span>
+                    </div>
+                    <span style={{ fontSize: '12px', color: 'var(--text-muted)' }}>
+                      Assign or customize the subject conducted for each period today
+                    </span>
+                  </div>
+
+                  <div style={{
+                    display: 'grid',
+                    gridTemplateColumns: 'repeat(auto-fit, minmax(130px, 1fr))',
+                    gap: '10px'
+                  }}>
+                    {[1, 2, 3, 4, 5, 6, 7, 8].map(pNum => {
+                      const selectedSubId = advisorPeriodSubjects[pNum.toString()] || '';
+                      return (
+                        <div 
+                          key={pNum} 
+                          style={{
+                            backgroundColor: 'var(--bg-card)',
+                            padding: '10px',
+                            borderRadius: '10px',
+                            border: '1px solid var(--border-color)',
+                            display: 'flex',
+                            flexDirection: 'column',
+                            gap: '6px'
+                          }}
+                        >
+                          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                            <span style={{
+                              fontSize: '11px',
+                              fontWeight: '800',
+                              padding: '2px 6px',
+                              borderRadius: '6px',
+                              backgroundColor: '#EEF2FF',
+                              color: '#4F46E5'
+                            }}>
+                              Period {pNum}
+                            </span>
+                          </div>
+
+                          <select
+                            className="input"
+                            style={{
+                              padding: '4px 6px',
+                              fontSize: '12px',
+                              height: '32px',
+                              fontWeight: '600'
+                            }}
+                            value={selectedSubId}
+                            onChange={(e) => {
+                              const newSubId = e.target.value ? parseInt(e.target.value, 10) : '';
+                              setAdvisorPeriodSubjects(prev => ({
+                                ...prev,
+                                [pNum.toString()]: newSubId
+                              }));
+                              const foundSub = advisorSubjects.find(s => s.id === newSubId);
+                              if (foundSub) {
+                                setAdvisorPeriods(prev => prev.map(p => p.period === pNum ? {
+                                  ...p,
+                                  subject_id: foundSub.id,
+                                  subject_name: foundSub.name,
+                                  subject_code: foundSub.code
+                                } : p));
+                              }
+                            }}
+                          >
+                            {advisorSubjects.map(sub => (
+                              <option key={sub.id} value={sub.id}>
+                                {sub.code ? `${sub.code} - ${sub.name}` : sub.name}
+                              </option>
+                            ))}
+                          </select>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+
                 <div className="table-container" style={{ overflowX: 'auto', marginBottom: '20px' }}>
                   <table className="table" style={{ width: '100%' }}>
                     <thead>

@@ -3,7 +3,7 @@ import { api } from '../api';
 import { 
   Calendar, Clock, User, Check, X, FileText, 
   Download, ArrowLeft, Edit, CheckCircle2, 
-  ChevronRight, ChevronDown, Sparkles, Save, Users, RefreshCw, Filter
+  ChevronRight, ChevronDown, Sparkles, Save, Users, RefreshCw, Filter, Trash2
 } from 'lucide-react';
 
 const StaffAttendanceHistory = () => {
@@ -23,6 +23,7 @@ const StaffAttendanceHistory = () => {
   const [loadingDetail, setLoadingDetail] = useState(false);
   const [editedStatuses, setEditedStatuses] = useState({});
   const [isSaving, setIsSaving] = useState(false);
+  const [isDeleting, setIsDeleting] = useState(false);
   const [saveSuccessMsg, setSaveSuccessMsg] = useState('');
   const [searchQuery, setSearchQuery] = useState('');
 
@@ -181,6 +182,41 @@ const StaffAttendanceHistory = () => {
     }
   };
 
+  // Delete a marked session attendance completely
+  const handleDeleteSession = async (sessionToDelete, dateStr) => {
+    const sess = sessionToDelete || selectedSession;
+    const d = dateStr || sess?.dateStr;
+    if (!sess || !d) return;
+
+    const confirmMsg = `Are you sure you want to delete attendance records for:\nClass: ${sess.class_name}\nPeriod: ${sess.period}\nDate: ${d}\n\nThis will completely remove the marked attendance and unlock the period.`;
+    if (!window.confirm(confirmMsg)) return;
+
+    setIsDeleting(true);
+    try {
+      const payload = {
+        date: d,
+        class_id: sess.class_id,
+        period: sess.period,
+        subject_id: sess.subject_id || undefined
+      };
+      await api.post('/api/attendances/delete-staff-history-session/', payload);
+      
+      // Close detail view if currently open
+      if (selectedSession && selectedSession.period === sess.period && selectedSession.dateStr === d) {
+        setSelectedSession(null);
+        setSessionDetail(null);
+      }
+      
+      await fetchHistory();
+      alert("Attendance session deleted successfully.");
+    } catch (err) {
+      console.error("Failed to delete session attendance:", err);
+      alert("Failed to delete attendance session: " + (err.detail || err.message || "Unknown error"));
+    } finally {
+      setIsDeleting(false);
+    }
+  };
+
   // Download session report as Excel file
   const handleDownloadCSV = async () => {
     if (!selectedSession) return;
@@ -266,7 +302,16 @@ const StaffAttendanceHistory = () => {
               <span>Back to Days List</span>
             </button>
 
-            <div style={{ display: 'flex', gap: '10px' }}>
+            <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap' }}>
+              <button 
+                className="btn btn-outline"
+                onClick={() => handleDeleteSession()}
+                disabled={isDeleting}
+                style={{ display: 'inline-flex', alignItems: 'center', gap: '6px', fontWeight: '700', color: '#DC2626', borderColor: '#FCA5A5' }}
+              >
+                <Trash2 size={16} />
+                <span>{isDeleting ? 'Deleting...' : 'Delete Attendance'}</span>
+              </button>
               <button 
                 className="btn btn-outline"
                 onClick={handleDownloadCSV}
@@ -745,9 +790,33 @@ const StaffAttendanceHistory = () => {
                                 </div>
                               </td>
                               <td style={{ padding: '14px', textAlign: 'right' }}>
-                                <span className="btn btn-outline" style={{ padding: '6px 12px', fontSize: '12px', fontWeight: '700' }}>
-                                  View / Edit
-                                </span>
+                                <div style={{ display: 'inline-flex', gap: '8px', alignItems: 'center' }}>
+                                  <span className="btn btn-outline" style={{ padding: '6px 12px', fontSize: '12px', fontWeight: '700' }}>
+                                    View / Edit
+                                  </span>
+                                  <button
+                                    type="button"
+                                    title="Delete this period attendance session"
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      handleDeleteSession(sess, dayGroup.date);
+                                    }}
+                                    style={{
+                                      padding: '6px 8px',
+                                      borderRadius: '8px',
+                                      border: '1px solid #FECACA',
+                                      backgroundColor: '#FEF2F2',
+                                      color: '#DC2626',
+                                      cursor: 'pointer',
+                                      display: 'inline-flex',
+                                      alignItems: 'center',
+                                      justifyContent: 'center',
+                                      transition: 'all 0.15s ease'
+                                    }}
+                                  >
+                                    <Trash2 size={14} />
+                                  </button>
+                                </div>
                               </td>
                             </tr>
                           ))}
