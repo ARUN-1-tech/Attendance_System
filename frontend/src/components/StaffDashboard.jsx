@@ -155,6 +155,9 @@ const StaffDashboard = ({ activeTab }) => {
   const [subjectDetailModalOpen, setSubjectDetailModalOpen] = useState(false);
   const [subjectDetailData, setSubjectDetailData] = useState(null);
   const [subjectDetailLoading, setSubjectDetailLoading] = useState(false);
+  const [editingSubjectSession, setEditingSubjectSession] = useState(null);
+  const [subjectAvailableSubjects, setSubjectAvailableSubjects] = useState([]);
+  const [isChangingSubject, setIsChangingSubject] = useState(false);
 
   // Advisor subject download states
   const [advSelectedSubject, setAdvSelectedSubject] = useState('');
@@ -591,7 +594,13 @@ const StaffDashboard = ({ activeTab }) => {
     setSubjectSessionsError(null);
     try {
       const data = await api.get(`/api/attendances/advisor-subject-sessions/?subject_id=${subjectId}`);
-      setSubjectSessions(data);
+      if (Array.isArray(data)) {
+        setSubjectSessions(data);
+        setSubjectAvailableSubjects(advClassSubjects || []);
+      } else {
+        setSubjectSessions(data.sessions || []);
+        setSubjectAvailableSubjects(data.available_subjects || advClassSubjects || []);
+      }
     } catch (err) {
       console.error('Failed to fetch subject sessions:', err);
       setSubjectSessionsError(err.message || 'Failed to fetch subject sessions.');
@@ -612,6 +621,35 @@ const StaffDashboard = ({ activeTab }) => {
     } catch (err) {
       console.error('Failed to delete attendance session:', err);
       alert('Failed to delete attendance session: ' + (err.message || 'Unknown error'));
+    }
+  };
+
+  const handleChangeSessionSubject = async () => {
+    if (!editingSubjectSession || !editingSubjectSession.newSubjectId) return;
+    if (!window.confirm(`Are you sure you want to change the subject for ${editingSubjectSession.date} Period ${editingSubjectSession.period}? Attendance records will be transferred to the new subject.`)) {
+      return;
+    }
+    setIsChangingSubject(true);
+    try {
+      const payload = {
+        old_subject_id: editingSubjectSession.oldSubjectId,
+        new_subject_id: editingSubjectSession.newSubjectId,
+        date: editingSubjectSession.date,
+        period: editingSubjectSession.period
+      };
+      const res = await api.post('/api/attendances/change-session-subject/', payload);
+      alert(res.detail || 'Subject updated successfully!');
+      const curSubId = selectedSubjectDetails?.id;
+      setEditingSubjectSession(null);
+      if (curSubId) {
+        fetchSubjectSessions(curSubId);
+        handleViewSubjectDetails(selectedSubjectDetails);
+      }
+    } catch (err) {
+      console.error('Failed to change session subject:', err);
+      alert('Failed to change session subject: ' + (err.detail || err.message || 'Unknown error'));
+    } finally {
+      setIsChangingSubject(false);
     }
   };
 
@@ -4508,14 +4546,29 @@ const StaffDashboard = ({ activeTab }) => {
                               <td style={{ color: 'var(--info)' }}>{session.od_count}</td>
                               <td style={{ color: 'var(--warning)' }}>{session.leave_count}</td>
                               <td>
-                                <button
-                                  className="btn btn-secondary btn-sm"
-                                  style={{ padding: '4px 8px', color: 'var(--danger)', borderColor: 'rgba(239, 68, 68, 0.3)', display: 'flex', alignItems: 'center', gap: '4px' }}
-                                  onClick={() => handleDeleteSession(selectedSubjectDetails.id, session.date, session.schedule__period)}
-                                  title="Delete entire session from database"
-                                >
-                                  <Trash2 size={14} /> Delete
-                                </button>
+                                <div style={{ display: 'flex', gap: '6px', alignItems: 'center' }}>
+                                  <button
+                                    className="btn btn-secondary btn-sm"
+                                    style={{ padding: '4px 8px', color: 'var(--primary)', borderColor: 'rgba(79, 70, 229, 0.3)', display: 'inline-flex', alignItems: 'center', gap: '4px' }}
+                                    onClick={() => setEditingSubjectSession({
+                                      date: session.date,
+                                      period: session.schedule__period,
+                                      oldSubjectId: selectedSubjectDetails.id,
+                                      newSubjectId: selectedSubjectDetails.id
+                                    })}
+                                    title="Change the subject of this marked period attendance"
+                                  >
+                                    <Edit size={14} /> Edit Subject
+                                  </button>
+                                  <button
+                                    className="btn btn-secondary btn-sm"
+                                    style={{ padding: '4px 8px', color: 'var(--danger)', borderColor: 'rgba(239, 68, 68, 0.3)', display: 'inline-flex', alignItems: 'center', gap: '4px' }}
+                                    onClick={() => handleDeleteSession(selectedSubjectDetails.id, session.date, session.schedule__period)}
+                                    title="Delete entire session from database"
+                                  >
+                                    <Trash2 size={14} /> Delete
+                                  </button>
+                                </div>
                               </td>
                             </tr>
                           ))}
@@ -4525,6 +4578,94 @@ const StaffDashboard = ({ activeTab }) => {
                   )}
                 </div>
               )}
+            </div>
+          </div>
+        )}
+
+        {/* Modal to Change Subject of a Marked Period */}
+        {editingSubjectSession && (
+          <div style={{
+            position: 'fixed', top: 0, left: 0, right: 0, bottom: 0,
+            backgroundColor: 'rgba(0,0,0,0.65)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1300,
+            backdropFilter: 'blur(4px)'
+          }}>
+            <div className="card" style={{ width: '90%', maxWidth: '500px', padding: '24px', borderRadius: '16px', boxShadow: 'var(--shadow-lg)' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px', borderBottom: '1px solid var(--border-color)', paddingBottom: '12px' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                  <Edit size={18} style={{ color: 'var(--primary)' }} />
+                  <h3 style={{ fontSize: '18px', fontWeight: '800', margin: 0, color: 'var(--text-primary)' }}>
+                    Change Period Subject
+                  </h3>
+                </div>
+                <button 
+                  className="btn btn-secondary btn-sm"
+                  onClick={() => setEditingSubjectSession(null)}
+                >
+                  <X size={16} />
+                </button>
+              </div>
+
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '14px', marginBottom: '20px' }}>
+                <div style={{ backgroundColor: 'var(--bg-secondary)', padding: '12px 16px', borderRadius: '10px', fontSize: '13px' }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '4px' }}>
+                    <span style={{ color: 'var(--text-muted)', fontWeight: '600' }}>Date:</span>
+                    <strong style={{ color: 'var(--text-primary)' }}>{editingSubjectSession.date}</strong>
+                  </div>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '4px' }}>
+                    <span style={{ color: 'var(--text-muted)', fontWeight: '600' }}>Period:</span>
+                    <strong style={{ color: 'var(--primary)' }}>Period {editingSubjectSession.period}</strong>
+                  </div>
+                  <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                    <span style={{ color: 'var(--text-muted)', fontWeight: '600' }}>Current Subject:</span>
+                    <strong style={{ color: 'var(--text-primary)' }}>{selectedSubjectDetails?.name} ({selectedSubjectDetails?.code})</strong>
+                  </div>
+                </div>
+
+                <div>
+                  <label style={{ display: 'block', fontSize: '13px', fontWeight: '700', color: 'var(--text-primary)', marginBottom: '6px' }}>
+                    Select New Subject to Assign:
+                  </label>
+                  <select
+                    className="input"
+                    style={{ width: '100%', padding: '8px 12px', fontSize: '14px', fontWeight: '600' }}
+                    value={editingSubjectSession.newSubjectId}
+                    onChange={(e) => setEditingSubjectSession(prev => ({
+                      ...prev,
+                      newSubjectId: parseInt(e.target.value, 10)
+                    }))}
+                  >
+                    {(subjectAvailableSubjects.length > 0 ? subjectAvailableSubjects : subjects).map(sub => (
+                      <option key={sub.id} value={sub.id}>
+                        {sub.code ? `${sub.code} - ${sub.name}` : sub.name} ({sub.subject_type || 'THEORY'})
+                      </option>
+                    ))}
+                  </select>
+                  <p style={{ fontSize: '12px', color: 'var(--text-muted)', marginTop: '6px', margin: 0 }}>
+                    All student attendance records for this period will be transferred under the selected subject.
+                  </p>
+                </div>
+              </div>
+
+              <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '10px' }}>
+                <button
+                  type="button"
+                  className="btn btn-secondary"
+                  onClick={() => setEditingSubjectSession(null)}
+                  disabled={isChangingSubject}
+                >
+                  Cancel
+                </button>
+                <button
+                  type="button"
+                  className="btn btn-primary"
+                  onClick={handleChangeSessionSubject}
+                  disabled={isChangingSubject || editingSubjectSession.newSubjectId === editingSubjectSession.oldSubjectId}
+                  style={{ display: 'inline-flex', alignItems: 'center', gap: '6px', fontWeight: '700' }}
+                >
+                  <Check size={16} />
+                  <span>{isChangingSubject ? 'Updating Subject...' : 'Save & Transfer Subject'}</span>
+                </button>
+              </div>
             </div>
           </div>
         )}

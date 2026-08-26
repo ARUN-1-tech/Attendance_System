@@ -1458,7 +1458,21 @@ class AttendanceViewSet(viewsets.ModelViewSet):
                 leave_count=Count('id', filter=Q(status='Leave')),
             ).order_by('-date', '-schedule__period')
             
-            return Response(list(records))
+            avail_subjects = []
+            if target_class:
+                from accounts.models import Subject
+                avail_qs = Subject.objects.filter(
+                    Q(student_class=target_class) | Q(department=target_class.department)
+                ).distinct().order_by('name')
+                avail_subjects = [
+                    {'id': s.id, 'name': s.name, 'code': s.code, 'type': s.subject_type or 'THEORY'}
+                    for s in avail_qs
+                ]
+
+            return Response({
+                'sessions': list(records),
+                'available_subjects': avail_subjects
+            })
             
         elif request.method == 'DELETE':
             date = request.data.get('date') or request.query_params.get('date')
@@ -1483,6 +1497,102 @@ class AttendanceViewSet(viewsets.ModelViewSet):
                 ).delete()
                 
             return Response({'detail': f'Deleted {deleted_count} attendance records successfully.'})
+
+    @action(detail=False, methods=['post'], url_path='change-session-subject')
+    def change_session_subject(self, request):
+        user = self.request.user
+        if user.role not in ['staff', 'hod']:
+            return Response({'detail': 'Only staff and HOD members can change session subject.'}, status=status.HTTP_403_FORBIDDEN)
+
+        old_subject_id = request.data.get('old_subject_id') or request.data.get('subject_id')
+        new_subject_id = request.data.get('new_subject_id')
+        date_str = request.data.get('date')
+        period_val = request.data.get('period')
+        class_id = request.data.get('class_id')
+
+        if not new_subject_id or not date_str or period_val is None:
+            return Response({'detail': 'new_subject_id, date, and period are required.'}, status=status.HTTP_400_BAD_REQUEST)
+
+        try:
+            target_date = datetime.datetime.strptime(date_str, '%Y-%m-%d').date()
+            period_num = int(period_val)
+            weekday = target_date.strftime('%A')
+        except ValueError:
+            return Response({'detail': 'Invalid date format or period number.'}, status=status.HTTP_400_BAD_REQUEST)
+
+        from accounts.models import Subject, Class, Student
+        from timetable.models import Schedule
+        from .models import PeriodLock
+
+        new_subject = get_object_or_404(Subject, id=new_subject_id)
+        old_subject = Subject.objects.filter(id=old_subject_id).first() if old_subject_id else None
+
+        # Determine target class
+        target_class = None
+        if class_id:
+            target_class = Class.objects.filter(id=class_id).first()
+        if not target_class and old_subject and old_subject.student_class:
+            target_class = old_subject.student_class
+        if not target_class:
+            target_class = Class.objects.filter(advisor=user).first()
+        if not target_class:
+            target_class = new_subject.student_class
+
+        if not target_class:
+            return Response({'detail': 'Target class could not be determined.'}, status=status.HTTP_400_BAD_REQUEST)
+
+        from django.db import transaction
+        with transaction.atomic():
+            # Get or create schedule for (target_class, new_subject, period_num, weekday)
+            new_sched = Schedule.objects.filter(
+                student_class=target_class,
+                subject=new_subject,
+                period=period_num,
+                day=weekday
+            ).first()
+            if not new_sched:
+                start_hour = 9 + (period_num - 1)
+                if period_num >= 5:
+                    start_hour += 1
+                new_sched = Schedule.objects.create(
+                    student_class=target_class,
+                    subject=new_subject,
+                    period=period_num,
+                    day=weekday,
+                    start_time=datetime.time(start_hour, 0),
+                    end_time=datetime.time(start_hour + 1, 0)
+                )
+
+            # Query attendance records to move
+            att_qs = Attendance.objects.filter(
+                student__student_class=target_class,
+                date=target_date,
+                schedule__period=period_num
+            )
+            if old_subject:
+                att_qs = att_qs.filter(schedule__subject=old_subject)
+
+            updated_count = att_qs.update(schedule=new_sched)
+
+            # Update PeriodLock
+            PeriodLock.objects.filter(
+                student_class=target_class,
+                date=target_date,
+                period=period_num
+            ).delete()
+
+            PeriodLock.objects.create(
+                student_class=target_class,
+                subject=new_subject,
+                date=target_date,
+                period=period_num,
+                staff=user
+            )
+
+        return Response({
+            'success': True,
+            'detail': f'Session attendance subject successfully changed to {new_subject.name} ({new_subject.code}) for {date_str} Period {period_num} ({updated_count} student records updated).'
+        })
 
     @action(detail=False, methods=['get'], url_path='session-download')
     def session_download(self, request):
